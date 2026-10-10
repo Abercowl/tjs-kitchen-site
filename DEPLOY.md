@@ -4,7 +4,7 @@
 Open `assets/site.js`. At the top is a block called **SITE**.
 Type your phone, email, Instagram or Facebook between the quotes.
 Anything left as `''` is hidden on the site.
-
+ 
 ## 2. GitHub
 1. github.com → **New repository** → name it `tjs-kitchen-site` → Private → Create.
 2. Click **uploading an existing file**.
