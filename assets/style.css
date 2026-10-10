@@ -164,3 +164,6 @@ h3 { font-size: 1.15rem; }
 #apple-map .leaflet-bar { border-color: var(--line); }
 #apple-map .leaflet-control-attribution { background: rgba(0,0,0,0.6); color: var(--muted); }
 #apple-map .leaflet-control-attribution a { color: var(--muted); }
+
+/* Darken the standard OpenStreetMap tiles so the map matches the site */
+.tj-dark-tiles { filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.6); }
