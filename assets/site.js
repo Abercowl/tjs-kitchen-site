@@ -16,6 +16,7 @@ const SITE = {
   orderUrl: 'https://order.tjskitchenvc.com',
   address: '791 Camarillo Springs Rd, Camarillo, CA 93012',
   placeName: 'Camarillo Springs Golf Course',
+  windowSpot: 'Our window is at the 11th green',  // shown under the address
 };
 
 /* ------------------------------------------------------------
@@ -98,7 +99,7 @@ function renderContactBits() {
   const items = [];
   if (SITE.phone) items.push(`<li><span class="ci">📞</span><div><strong>Phone</strong><br><a href="tel:${esc(SITE.phone.replace(/[^\d+]/g, ''))}">${esc(SITE.phone)}</a></div></li>`);
   if (SITE.email) items.push(`<li><span class="ci">✉️</span><div><strong>Email</strong><br><a href="mailto:${esc(SITE.email)}">${esc(SITE.email)}</a></div></li>`);
-  items.push(`<li><span class="ci">📍</span><div><strong>Find us</strong><br>${esc(SITE.placeName)}<br><span class="muted">${esc(SITE.address)}</span><br><a ${directionsAttrs()}>Get directions →</a></div></li>`);
+  items.push(`<li><span class="ci">📍</span><div><strong>Find us</strong><br>${esc(SITE.placeName)}<br><span class="muted">${esc(SITE.address)}</span><br>${SITE.windowSpot ? `<span class="muted">⛳ ${esc(SITE.windowSpot)}</span><br>` : ''}<a ${directionsAttrs()}>Get directions →</a></div></li>`);
   if (SITE.instagram) items.push(`<li><span class="ci">📸</span><div><strong>Instagram</strong><br><a href="https://instagram.com/${esc(SITE.instagram)}" target="_blank" rel="noopener">@${esc(SITE.instagram)}</a></div></li>`);
   if (SITE.facebook) items.push(`<li><span class="ci">👍</span><div><strong>Facebook</strong><br><a href="${esc(SITE.facebook)}" target="_blank" rel="noopener">Follow us</a></div></li>`);
   if (!SITE.phone && !SITE.email) items.push(`<li><span class="ci">💬</span><div class="muted">Phone and email coming soon. The fastest way to reach us right now is to stop by the window or order online.</div></li>`);
@@ -237,7 +238,7 @@ function showMapCard(el) {
     <div class="map-card-inner">
       <div class="map-pin">📍</div>
       <div class="map-card-title">TJ's Kitchen</div>
-      <div class="muted">${esc(SITE.placeName)}<br>${esc(SITE.address)}</div>
+      <div class="muted">${esc(SITE.placeName)}<br>${esc(SITE.address)}${SITE.windowSpot ? '<br>' + esc(SITE.windowSpot) : ''}</div>
       <div class="hero-actions" style="margin-top:18px">
         <a class="btn" ${directionsAttrs()}>Directions</a>
       </div>
@@ -282,7 +283,7 @@ async function initAppleMap() {
       popupAnchor: [0, -70],
     });
     L.marker(pin, { icon, title: "TJ's Kitchen" }).addTo(map)
-      .bindPopup(`<strong>TJ's Kitchen</strong><br>${esc(SITE.placeName)}<br>
+      .bindPopup(`<strong>TJ's Kitchen</strong><br>${esc(SITE.placeName)}<br>${SITE.windowSpot ? esc(SITE.windowSpot) + '<br>' : ''}
         <a ${directionsAttrs()}>Get directions</a>`);
     // Directions button floating on the map
     const bar = document.createElement('a');
