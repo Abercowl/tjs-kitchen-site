@@ -182,10 +182,9 @@ async function initMenu() {
 
 
 /* ---------- Map (contact page) ----------
- * A clean dark street map (no satellite), centered on the building, with
- * our own gold "TJ" pin. Uses free OpenStreetMap data with CARTO's dark
- * map style, which shows streets but no business labels -- so other
- * listings at the course never appear. Leaflet draws it; no key needed.
+ * A dark street map (no satellite), centered on the building, with our
+ * own gold "TJ" pin. Uses free OpenStreetMap tiles -- no API key, no
+ * account. Leaflet draws it.
  */
 function appleMapsDirectionsUrl() {
   const dest = SITE.mapPin ? `${SITE.mapPin.lat},${SITE.mapPin.lng}` : encodeURIComponent(SITE.address);
@@ -233,11 +232,13 @@ async function initAppleMap() {
   try {
     const L = await loadLeaflet();
     const pin = [SITE.mapPin.lat, SITE.mapPin.lng];
-    const map = L.map(el, { center: pin, zoom: 17, scrollWheelZoom: false, attributionControl: true });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    const map = L.map(el, { center: pin, zoom: 16, scrollWheelZoom: false, attributionControl: true });
+    // Standard OpenStreetMap street tiles: free, no API key. style.css turns
+    // them dark to match the site (see .tj-dark-tiles).
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      subdomains: 'abcd',
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
+      className: 'tj-dark-tiles',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
     }).addTo(map);
     const icon = L.divIcon({
       className: 'tj-pin',
