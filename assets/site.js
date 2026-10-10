@@ -98,7 +98,7 @@ function renderContactBits() {
   const items = [];
   if (SITE.phone) items.push(`<li><span class="ci">📞</span><div><strong>Phone</strong><br><a href="tel:${esc(SITE.phone.replace(/[^\d+]/g, ''))}">${esc(SITE.phone)}</a></div></li>`);
   if (SITE.email) items.push(`<li><span class="ci">✉️</span><div><strong>Email</strong><br><a href="mailto:${esc(SITE.email)}">${esc(SITE.email)}</a></div></li>`);
-  items.push(`<li><span class="ci">📍</span><div><strong>Find us</strong><br>${esc(SITE.placeName)}<br><span class="muted">${esc(SITE.address)}</span><br><a href="${appleMapsDirectionsUrl()}" target="_blank" rel="noopener">Get directions →</a></div></li>`);
+  items.push(`<li><span class="ci">📍</span><div><strong>Find us</strong><br>${esc(SITE.placeName)}<br><span class="muted">${esc(SITE.address)}</span><br><a ${directionsAttrs()}>Get directions →</a></div></li>`);
   if (SITE.instagram) items.push(`<li><span class="ci">📸</span><div><strong>Instagram</strong><br><a href="https://instagram.com/${esc(SITE.instagram)}" target="_blank" rel="noopener">@${esc(SITE.instagram)}</a></div></li>`);
   if (SITE.facebook) items.push(`<li><span class="ci">👍</span><div><strong>Facebook</strong><br><a href="${esc(SITE.facebook)}" target="_blank" rel="noopener">Follow us</a></div></li>`);
   if (!SITE.phone && !SITE.email) items.push(`<li><span class="ci">💬</span><div class="muted">Phone and email coming soon. The fastest way to reach us right now is to stop by the window or order online.</div></li>`);
@@ -194,8 +194,42 @@ function googleMapsDirectionsUrl() {
   const dest = SITE.mapPin ? `${SITE.mapPin.lat},${SITE.mapPin.lng}` : encodeURIComponent(SITE.address);
   return `https://www.google.com/maps/dir/?api=1&destination=${dest}`;
 }
-// kept for the "Get directions" link in the contact list
-function appleMapsUrl() { return appleMapsDirectionsUrl(); }
+
+/* ---------- Directions in the visitor's own maps app ----------
+ * iPhone / iPad / Mac -> Apple Maps app
+ * Android             -> a standard "geo:" location link, which Android
+ *                        hands to the visitor's DEFAULT maps app (Google
+ *                        Maps, Waze, ...). If they never picked a default,
+ *                        Android asks which app to use.
+ * Everything else     -> Google Maps in the browser (Windows, Chromebook)
+ * Every option points at the exact building pin.
+ */
+function visitorPlatform() {
+  const ua = navigator.userAgent || '';
+  if (/android/i.test(ua)) return 'android';
+  // iPads report themselves as Macs; both should use Apple Maps anyway.
+  if (/iphone|ipad|ipod|macintosh|mac os x/i.test(ua)) return 'apple';
+  return 'other';
+}
+function directionsUrl() {
+  const p = visitorPlatform();
+  if (p === 'apple') return appleMapsDirectionsUrl();
+  if (p === 'android') {
+    const label = encodeURIComponent("TJ's Kitchen");
+    return SITE.mapPin
+      ? `geo:${SITE.mapPin.lat},${SITE.mapPin.lng}?q=${SITE.mapPin.lat},${SITE.mapPin.lng}(${label})`
+      : `geo:0,0?q=${encodeURIComponent(SITE.address)}`;
+  }
+  return googleMapsDirectionsUrl();
+}
+// href + target attributes for a directions link. App links (geo:) must open
+// in the same tab or Android shows a blank page first.
+function directionsAttrs() {
+  const url = directionsUrl();
+  return url.startsWith('geo:')
+    ? `href="${url}"`
+    : `href="${url}" target="_blank" rel="noopener"`;
+}
 
 function showMapCard(el) {
   el.classList.add('map-card');
@@ -205,7 +239,7 @@ function showMapCard(el) {
       <div class="map-card-title">TJ's Kitchen</div>
       <div class="muted">${esc(SITE.placeName)}<br>${esc(SITE.address)}</div>
       <div class="hero-actions" style="margin-top:18px">
-        <a class="btn" href="${appleMapsDirectionsUrl()}" target="_blank" rel="noopener">Directions</a>
+        <a class="btn" ${directionsAttrs()}>Directions</a>
       </div>
     </div>`;
 }
@@ -249,14 +283,12 @@ async function initAppleMap() {
     });
     L.marker(pin, { icon, title: "TJ's Kitchen" }).addTo(map)
       .bindPopup(`<strong>TJ's Kitchen</strong><br>${esc(SITE.placeName)}<br>
-        <a href="${appleMapsDirectionsUrl()}" target="_blank" rel="noopener">Apple Maps directions</a> ·
-        <a href="${googleMapsDirectionsUrl()}" target="_blank" rel="noopener">Google Maps</a>`);
+        <a ${directionsAttrs()}>Get directions</a>`);
     // Directions button floating on the map
     const bar = document.createElement('a');
     bar.className = 'btn btn-sm map-directions';
-    bar.href = appleMapsDirectionsUrl();
-    bar.target = '_blank';
-    bar.rel = 'noopener';
+    bar.href = directionsUrl();
+    if (!bar.href.startsWith('geo:')) { bar.target = '_blank'; bar.rel = 'noopener'; }
     bar.textContent = 'Directions →';
     el.appendChild(bar);
   } catch (e) {
