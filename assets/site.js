@@ -276,10 +276,10 @@ async function initAppleMap() {
     }).addTo(map);
     const icon = L.divIcon({
       className: 'tj-pin',
-      html: '<div class="tj-pin-badge">TJ</div><div class="tj-pin-tip"></div>',
-      iconSize: [44, 56],
-      iconAnchor: [22, 56],
-      popupAnchor: [0, -52],
+      html: '<div class="tj-pin-badge"><img src="/assets/logo-pin.png" alt="TJ\'s Kitchen"></div><div class="tj-pin-tip"></div>',
+      iconSize: [60, 74],
+      iconAnchor: [30, 74],
+      popupAnchor: [0, -70],
     });
     L.marker(pin, { icon, title: "TJ's Kitchen" }).addTo(map)
       .bindPopup(`<strong>TJ's Kitchen</strong><br>${esc(SITE.placeName)}<br>
