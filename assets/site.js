@@ -10,16 +10,9 @@ const SITE = {
   email: 'tjskitchenvc0001@gmail.com',
   instagram: '',      // e.g. 'tjskitchenvc'  (handle only, no @)
   facebook: '',       // full link, e.g. 'https://facebook.com/...'
-  // Apple Maps (MapKit JS) token for the map on the Contact page.
-  // Create it free at developer.apple.com -> Account -> Maps tokens,
-  // restricted to tjskitchenvc.com. Leave '' to show a simple location
-  // card with an "Open in Apple Maps" button instead of a live map.
-  mapkitToken: '',
-  // Exact spot of the TJ's Kitchen building, so the pin lands on it instead
-  // of wherever the street address geocodes to. Paste the numbers from a
-  // pin dropped on the building in Apple Maps, e.g. { lat: 34.2101, lng: -118.9912 }.
-  // Leave as null to fall back to the street address.
-  mapPin: { lat: 34.20194, lng: -118.98951 },  // TJ's Kitchen building (34.20194° N, 118.98951° W)
+  // Exact spot of the TJ's Kitchen building. The map on the Contact page
+  // puts the TJ pin here, and "Directions" routes people to this spot.
+  mapPin: { lat: 34.20194, lng: -118.98951 },  // 34.20194° N, 118.98951° W
   orderUrl: 'https://order.tjskitchenvc.com',
   address: '791 Camarillo Springs Rd, Camarillo, CA 93012',
   placeName: 'Camarillo Springs Golf Course',
@@ -105,7 +98,7 @@ function renderContactBits() {
   const items = [];
   if (SITE.phone) items.push(`<li><span class="ci">📞</span><div><strong>Phone</strong><br><a href="tel:${esc(SITE.phone.replace(/[^\d+]/g, ''))}">${esc(SITE.phone)}</a></div></li>`);
   if (SITE.email) items.push(`<li><span class="ci">✉️</span><div><strong>Email</strong><br><a href="mailto:${esc(SITE.email)}">${esc(SITE.email)}</a></div></li>`);
-  items.push(`<li><span class="ci">📍</span><div><strong>Find us</strong><br>${esc(SITE.placeName)}<br><span class="muted">${esc(SITE.address)}</span><br><a href="${appleMapsUrl(true)}" target="_blank" rel="noopener">Get directions →</a></div></li>`);
+  items.push(`<li><span class="ci">📍</span><div><strong>Find us</strong><br>${esc(SITE.placeName)}<br><span class="muted">${esc(SITE.address)}</span><br><a href="${appleMapsDirectionsUrl()}" target="_blank" rel="noopener">Get directions →</a></div></li>`);
   if (SITE.instagram) items.push(`<li><span class="ci">📸</span><div><strong>Instagram</strong><br><a href="https://instagram.com/${esc(SITE.instagram)}" target="_blank" rel="noopener">@${esc(SITE.instagram)}</a></div></li>`);
   if (SITE.facebook) items.push(`<li><span class="ci">👍</span><div><strong>Facebook</strong><br><a href="${esc(SITE.facebook)}" target="_blank" rel="noopener">Follow us</a></div></li>`);
   if (!SITE.phone && !SITE.email) items.push(`<li><span class="ci">💬</span><div class="muted">Phone and email coming soon. The fastest way to reach us right now is to stop by the window or order online.</div></li>`);
@@ -188,19 +181,22 @@ async function initMenu() {
 }
 
 
-/* ---------- Apple Maps (contact page) ---------- */
-// Apple Maps link: a pin labeled "TJ's Kitchen" at our address, or
-// turn-by-turn directions to it. Opens the Maps app on iPhone/Mac.
-function appleMapsUrl(directions) {
-  const name = encodeURIComponent("TJ's Kitchen");
-  const pin = SITE.mapPin ? `${SITE.mapPin.lat},${SITE.mapPin.lng}` : null;
-  const addr = encodeURIComponent(SITE.address);
-  // t=m forces the standard (road) map, never satellite.
-  if (directions) return `https://maps.apple.com/?daddr=${pin || addr}&dirflg=d&t=m`;
-  return pin
-    ? `https://maps.apple.com/?ll=${pin}&q=${name}&t=m`
-    : `https://maps.apple.com/?q=${name}&address=${addr}&t=m`;
+/* ---------- Map (contact page) ----------
+ * A clean dark street map (no satellite), centered on the building, with
+ * our own gold "TJ" pin. Uses free OpenStreetMap data with CARTO's dark
+ * map style, which shows streets but no business labels -- so other
+ * listings at the course never appear. Leaflet draws it; no key needed.
+ */
+function appleMapsDirectionsUrl() {
+  const dest = SITE.mapPin ? `${SITE.mapPin.lat},${SITE.mapPin.lng}` : encodeURIComponent(SITE.address);
+  return `https://maps.apple.com/?daddr=${dest}&dirflg=d`;
 }
+function googleMapsDirectionsUrl() {
+  const dest = SITE.mapPin ? `${SITE.mapPin.lat},${SITE.mapPin.lng}` : encodeURIComponent(SITE.address);
+  return `https://www.google.com/maps/dir/?api=1&destination=${dest}`;
+}
+// kept for the "Get directions" link in the contact list
+function appleMapsUrl() { return appleMapsDirectionsUrl(); }
 
 function showMapCard(el) {
   el.classList.add('map-card');
@@ -210,58 +206,62 @@ function showMapCard(el) {
       <div class="map-card-title">TJ's Kitchen</div>
       <div class="muted">${esc(SITE.placeName)}<br>${esc(SITE.address)}</div>
       <div class="hero-actions" style="margin-top:18px">
-        <a class="btn" href="${appleMapsUrl(true)}" target="_blank" rel="noopener">Directions in Apple Maps</a>
-        <a class="btn btn-outline" href="${appleMapsUrl(false)}" target="_blank" rel="noopener">View on map</a>
+        <a class="btn" href="${appleMapsDirectionsUrl()}" target="_blank" rel="noopener">Directions</a>
       </div>
     </div>`;
 }
 
-function initAppleMap() {
+function loadLeaflet() {
+  return new Promise((resolve, reject) => {
+    if (window.L) return resolve(window.L);
+    const css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
+    document.head.appendChild(css);
+    const js = document.createElement('script');
+    js.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+    js.onload = () => resolve(window.L);
+    js.onerror = reject;
+    document.head.appendChild(js);
+  });
+}
+
+async function initAppleMap() {
   const el = document.getElementById('apple-map');
   if (!el) return;
-  if (!SITE.mapkitToken) { showMapCard(el); return; }
-
-  const failed = (why) => { console.warn('Apple Maps unavailable:', why); el.innerHTML = ''; showMapCard(el); };
-
-  window.__tjsInitMapKit = () => {
-    try {
-      if (mapkit.init) mapkit.init({ authorizationCallback: done => done(SITE.mapkitToken) });
-      const draw = (coord) => {
-        const map = new mapkit.Map(el, {
-          region: new mapkit.CoordinateRegion(coord, new mapkit.CoordinateSpan(0.008, 0.008)),
-          // Hide every business / point-of-interest label (e.g. Hidden Cafe)
-          // so the only place marked on the map is ours.
-          pointOfInterestFilter: mapkit.PointOfInterestFilter.excludingAllCategories,
-          colorScheme: mapkit.Map.ColorSchemes ? mapkit.Map.ColorSchemes.Dark : undefined,
-          mapType: mapkit.Map.MapTypes ? mapkit.Map.MapTypes.Standard : undefined,  // road map, never satellite
-          showsMapTypeControl: false,
-        });
-        map.addAnnotation(new mapkit.MarkerAnnotation(coord, {
-          title: "TJ's Kitchen", subtitle: SITE.placeName, color: '#d4a854', glyphText: 'TJ',
-        }));
-      };
-      // Use the exact building pin when we have it; otherwise look up the address.
-      if (SITE.mapPin) return draw(new mapkit.Coordinate(SITE.mapPin.lat, SITE.mapPin.lng));
-      const onResult = (err, data) => {
-        const hit = data && (data.results || data.places || [])[0];
-        if (err || !hit) return failed(err || 'address not found');
-        draw(hit.coordinate);
-      };
-      if (mapkit.Geocoder) new mapkit.Geocoder({ language: 'en-US' }).lookup(SITE.address, onResult);
-      else if (mapkit.Search) new mapkit.Search().search(SITE.address, onResult);
-      else failed('no geocoder in this MapKit version');
-    } catch (e) { failed(e); }
-  };
-
-  const s = document.createElement('script');
-  s.src = 'https://cdn.apple-mapkit.com/mk/5.x.x/mapkit.core.js';
-  s.crossOrigin = 'anonymous';
-  s.async = true;
-  s.dataset.callback = '__tjsInitMapKit';
-  s.dataset.libraries = 'map,annotations,services';
-  s.dataset.initialToken = SITE.mapkitToken;
-  s.onerror = () => failed('script failed to load');
-  document.head.appendChild(s);
+  if (!SITE.mapPin) { showMapCard(el); return; }
+  try {
+    const L = await loadLeaflet();
+    const pin = [SITE.mapPin.lat, SITE.mapPin.lng];
+    const map = L.map(el, { center: pin, zoom: 17, scrollWheelZoom: false, attributionControl: true });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19,
+      subdomains: 'abcd',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
+    }).addTo(map);
+    const icon = L.divIcon({
+      className: 'tj-pin',
+      html: '<div class="tj-pin-badge">TJ</div><div class="tj-pin-tip"></div>',
+      iconSize: [44, 56],
+      iconAnchor: [22, 56],
+      popupAnchor: [0, -52],
+    });
+    L.marker(pin, { icon, title: "TJ's Kitchen" }).addTo(map)
+      .bindPopup(`<strong>TJ's Kitchen</strong><br>${esc(SITE.placeName)}<br>
+        <a href="${appleMapsDirectionsUrl()}" target="_blank" rel="noopener">Apple Maps directions</a> ·
+        <a href="${googleMapsDirectionsUrl()}" target="_blank" rel="noopener">Google Maps</a>`);
+    // Directions button floating on the map
+    const bar = document.createElement('a');
+    bar.className = 'btn btn-sm map-directions';
+    bar.href = appleMapsDirectionsUrl();
+    bar.target = '_blank';
+    bar.rel = 'noopener';
+    bar.textContent = 'Directions →';
+    el.appendChild(bar);
+  } catch (e) {
+    console.warn('Map unavailable:', e);
+    showMapCard(el);
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => { initChrome(); initHours(); initMenu(); initAppleMap(); });
