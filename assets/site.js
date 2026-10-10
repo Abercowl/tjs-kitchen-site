@@ -6,8 +6,8 @@
  *  Leave a value as '' to hide that line on the site.
  */
 const SITE = {
-  phone: '',          // e.g. '(805) 555-1234'
-  email: '',          // e.g. 'hello@tjskitchenvc.com'
+  phone: '(805) 670-5686',
+  email: 'tjskitchenvc0001@gmail.com',
   instagram: '',      // e.g. 'tjskitchenvc'  (handle only, no @)
   facebook: '',       // full link, e.g. 'https://facebook.com/...'
   orderUrl: 'https://order.tjskitchenvc.com',
