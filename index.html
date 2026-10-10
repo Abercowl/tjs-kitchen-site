@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TJ's Kitchen | Camarillo Springs Golf Course</title>
+  <meta name="description" content="TJ's Kitchen at Camarillo Springs Golf Course — order ahead for pick-up or delivery to your hole.">
+  <meta property="og:title" content="TJ's Kitchen | Camarillo Springs Golf Course">
+  <meta property="og:description" content="TJ's Kitchen at Camarillo Springs Golf Course — order ahead for pick-up or delivery to your hole.">
+  <meta property="og:image" content="/assets/logo.png">
+  <meta name="theme-color" content="#000000">
+  <link rel="icon" href="/assets/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/style.css">
+  <script src="/assets/site.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="/"><img src="/assets/logo.png" alt="TJ's Kitchen logo"><span>TJ's Kitchen</span></a>
+      <button class="menu-toggle" aria-label="Open menu">☰</button>
+      <nav class="nav">
+        <a href="/" class="active" aria-current="page">Home</a>
+        <a href="/menu">Menu</a>
+        <a href="/about">About</a>
+        <a href="/contact">Contact</a>
+        <a class="btn btn-sm" data-order-link href="https://order.tjskitchenvc.com">Order Online</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="wrap">
+        <img class="hero-logo" src="/assets/logo.png" alt="TJ's Kitchen">
+        <h1>Good food at the course</h1>
+        <p class="lead">Breakfast, sandwiches and more from TJ's Kitchen at Camarillo Springs Golf Course. Order ahead and pick it up, or have it brought to you on the course.</p>
+        <div class="hero-actions">
+          <a class="btn" data-order-link href="https://order.tjskitchenvc.com">Order Online →</a>
+          <a class="btn btn-outline" href="/menu">See the Menu</a>
+        </div>
+        <div class="status-pill" data-status><span class="status-dot"></span><span data-status-text>Checking hours…</span></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="eyebrow">How it works</div>
+        <h2>Three ways to get your food</h2>
+        <div class="grid-3">
+          <div class="card"><div class="icon">🛍️</div><h3>Pick-up</h3><p>Order ahead online and grab it at the window when it's ready.</p></div>
+          <div class="card"><div class="icon">⛳</div><h3>Course Delivery</h3><p>Out on your round? Tell us your hole and cart number and we'll bring it to you.</p></div>
+          <div class="card"><div class="icon">🍀</div><h3>The Local</h3><p>Hanging out at The Local? Order online and we'll deliver it there.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap split">
+        <div>
+          <div class="eyebrow">Hours</div>
+          <h2>When we're cooking</h2>
+          <table class="hours-table"><tbody data-hours><tr><td class="muted">Loading hours…</td></tr></tbody></table>
+          <p class="muted small" style="margin-top:10px">Hours can change with the golf schedule and weather. The ordering page always shows whether we're open right now.</p>
+        </div>
+        <div>
+          <div class="eyebrow">Location</div>
+          <h2>Find us</h2>
+          <ul class="contact-list" data-contact-list></ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="notice"><strong>Our full website is coming soon.</strong> In the meantime you can see the menu, check our hours, and order online any time we're open.</div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <div>© <span data-year></span> TJ's Kitchen · <span data-address></span></div>
+      <div class="footer-links">
+        <a href="/menu">Menu</a><a href="/about">About</a><a href="/contact">Contact</a><a data-order-link href="https://order.tjskitchenvc.com">Order Online</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

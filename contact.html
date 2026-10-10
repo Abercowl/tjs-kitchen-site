@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contact | TJ's Kitchen</title>
+  <meta name="description" content="TJ's Kitchen at Camarillo Springs Golf Course — order ahead for pick-up or delivery to your hole.">
+  <meta property="og:title" content="Contact | TJ's Kitchen">
+  <meta property="og:description" content="TJ's Kitchen at Camarillo Springs Golf Course — order ahead for pick-up or delivery to your hole.">
+  <meta property="og:image" content="/assets/logo.png">
+  <meta name="theme-color" content="#000000">
+  <link rel="icon" href="/assets/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/style.css">
+  <script src="/assets/site.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="/"><img src="/assets/logo.png" alt="TJ's Kitchen logo"><span>TJ's Kitchen</span></a>
+      <button class="menu-toggle" aria-label="Open menu">☰</button>
+      <nav class="nav">
+        <a href="/">Home</a>
+        <a href="/menu">Menu</a>
+        <a href="/about">About</a>
+        <a href="/contact" class="active" aria-current="page">Contact</a>
+        <a class="btn btn-sm" data-order-link href="https://order.tjskitchenvc.com">Order Online</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="section" style="padding-bottom:24px">
+      <div class="wrap">
+        <div class="eyebrow">Contact</div>
+        <h1>Get in touch</h1>
+        <p class="lead" style="margin-top:10px">Questions, large orders or catering? Here's how to reach us.</p>
+      </div>
+    </section>
+    <section class="section" style="border-top:0;padding-top:12px">
+      <div class="wrap split">
+        <div>
+          <ul class="contact-list" data-contact-list></ul>
+          <h3 style="margin-top:32px">Hours</h3>
+          <div class="status-pill" data-status style="margin:10px 0 6px"><span class="status-dot"></span><span data-status-text>Checking hours…</span></div>
+          <table class="hours-table"><tbody data-hours><tr><td class="muted">Loading hours…</td></tr></tbody></table>
+        </div>
+        <div>
+          <iframe class="map" title="Map to TJ's Kitchen at Camarillo Springs Golf Course" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+            src="https://www.google.com/maps?q=Camarillo+Springs+Golf+Course,+791+Camarillo+Springs+Rd,+Camarillo,+CA+93012&output=embed"></iframe>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <div>© <span data-year></span> TJ's Kitchen · <span data-address></span></div>
+      <div class="footer-links">
+        <a href="/menu">Menu</a><a href="/about">About</a><a href="/contact">Contact</a><a data-order-link href="https://order.tjskitchenvc.com">Order Online</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
