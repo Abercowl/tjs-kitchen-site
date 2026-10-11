@@ -168,3 +168,6 @@ h3 { font-size: 1.15rem; }
 
 /* Darken the standard OpenStreetMap tiles so the map matches the site */
 .tj-dark-tiles { filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.6); }
+
+/* Menu page: "Ready to eat?" on its own line with the order button beside it */
+.ready-line { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 16px; color: var(--cream); font-size: 1.05rem; font-weight: 600; }
