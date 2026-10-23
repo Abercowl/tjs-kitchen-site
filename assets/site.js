@@ -16,7 +16,7 @@ const SITE = {
   orderUrl: 'https://order.tjskitchenvc.com',
   address: '791 Camarillo Springs Rd, Camarillo, CA 93012',
   placeName: 'Camarillo Springs Golf Course',
-  windowSpot: 'Our window is at the 11th green',  // shown under the address
+  windowSpot: 'Our trailer is at the 11th green',  // shown under the address
 };
 
 /* ------------------------------------------------------------
@@ -102,7 +102,7 @@ function renderContactBits() {
   items.push(`<li><span class="ci">📍</span><div><strong>Find us</strong><br>${esc(SITE.placeName)}<br><span class="muted">${esc(SITE.address)}</span><br>${SITE.windowSpot ? `<span class="muted">⛳ ${esc(SITE.windowSpot)}</span><br>` : ''}<a ${directionsAttrs()}>Get directions →</a></div></li>`);
   if (SITE.instagram) items.push(`<li><span class="ci">📸</span><div><strong>Instagram</strong><br><a href="https://instagram.com/${esc(SITE.instagram)}" target="_blank" rel="noopener">@${esc(SITE.instagram)}</a></div></li>`);
   if (SITE.facebook) items.push(`<li><span class="ci">👍</span><div><strong>Facebook</strong><br><a href="${esc(SITE.facebook)}" target="_blank" rel="noopener">Follow us</a></div></li>`);
-  if (!SITE.phone && !SITE.email) items.push(`<li><span class="ci">💬</span><div class="muted">Phone and email coming soon. The fastest way to reach us right now is to stop by the window or order online.</div></li>`);
+  if (!SITE.phone && !SITE.email) items.push(`<li><span class="ci">💬</span><div class="muted">Phone and email coming soon. The fastest way to reach us right now is to stop by the trailer or order online.</div></li>`);
   document.querySelectorAll('[data-contact-list]').forEach(el => { el.innerHTML = items.join(''); });
 }
 
