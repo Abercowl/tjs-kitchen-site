@@ -3,6 +3,7 @@
  * FILE:  tjs-kitchen-site/assets/site.js
  *   tjs-kitchen-site/
  *   ├── index.html, menu.html, events.html, about.html, contact.html, 404.html
+ *   ├── unsubscribe.html
  *   └── assets/
  *       ├── site.js     <-- THIS FILE
  *       └── style.css
@@ -44,6 +45,17 @@ async function sb(path) {
     headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
   });
   if (!res.ok) throw new Error(`${res.status} ${path}`);
+  return res.json();
+}
+
+// Calls a public database function (email sign-up / unsubscribe).
+async function sbRpc(fn, args) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: 'POST',
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(args),
+  });
+  if (!res.ok) throw new Error(`${res.status} ${fn}`);
   return res.json();
 }
 
@@ -499,4 +511,74 @@ async function initHeaderLines() {
   header.parentNode.insertBefore(bar, header);
 }
 
-document.addEventListener('DOMContentLoaded', () => { initHeaderLines(); initChrome(); initHours(); initMenu(); initAppleMap(); initEvents(); });
+/* ------------------------------------------------------------
+ * Email list (Nov 7 2026): a sign-up band above the footer on every
+ * page, and the unsubscribe page. The list itself is only visible in
+ * the admin portal (Email list); this site can only add or remove the
+ * address someone types.
+ * ------------------------------------------------------------ */
+function initSignup() {
+  const footer = document.querySelector('.site-footer');
+  if (!footer || document.body.hasAttribute('data-no-signup')) return;
+  const band = document.createElement('section');
+  band.className = 'signup';
+  band.innerHTML = `<div class="wrap signup-inner">
+    <div>
+      <div class="eyebrow">Stay in the loop</div>
+      <h2>Specials &amp; events by email</h2>
+      <p class="muted">New menu items, tournament food and events at the course. No spam -- unsubscribe anytime.</p>
+    </div>
+    <form class="signup-form" novalidate>
+      <input type="text" name="first_name" placeholder="First name (optional)" autocomplete="given-name" maxlength="60" aria-label="First name">
+      <input type="email" name="email" placeholder="Email address" autocomplete="email" required maxlength="254" aria-label="Email address">
+      <button class="btn" type="submit">Sign me up</button>
+      <p class="signup-note" aria-live="polite"></p>
+    </form>
+  </div>`;
+  footer.parentNode.insertBefore(band, footer);
+  const form = band.querySelector('form');
+  const note = band.querySelector('.signup-note');
+  form.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const email = form.email.value.trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { note.textContent = 'Please enter a valid email address.'; note.className = 'signup-note err'; return; }
+    const btn = form.querySelector('button'); btn.disabled = true;
+    try {
+      const r = await sbRpc('email_subscribe', { p_email: email, p_first_name: form.first_name.value.trim() || null, p_source: 'website' });
+      if (r && r.ok) { form.reset(); note.textContent = "You're on the list -- thanks!"; note.className = 'signup-note ok'; }
+      else { note.textContent = (r && r.error) || 'Something went wrong -- please try again.'; note.className = 'signup-note err'; }
+    } catch (e) { note.textContent = 'Something went wrong -- please try again.'; note.className = 'signup-note err'; }
+    btn.disabled = false;
+  });
+}
+
+function initUnsubscribe() {
+  const box = document.querySelector('[data-unsub]');
+  if (!box) return;
+  const token = new URLSearchParams(location.search).get('t');
+  const validToken = /^[0-9a-f-]{36}$/i.test(token || '');
+  const form = box.querySelector('[data-unsub-form]');
+  const emailIn = box.querySelector('[data-unsub-email]');
+  const done = box.querySelector('[data-unsub-done]');
+  // From an email link we already know who it is: just the button.
+  // (A tap is required, so link-scanning software can't unsubscribe people.)
+  if (validToken) emailIn.remove();
+  else box.querySelector('[data-unsub-msg]').textContent = "Enter the address you signed up with and we'll take it off the list.";
+  form.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const args = validToken ? { p_token: token } : { p_email: (emailIn.value || '').trim() };
+    if (!validToken && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(args.p_email)) { done.hidden = false; done.textContent = 'Please enter a valid email address.'; done.className = 'signup-note err'; return; }
+    form.querySelector('button').disabled = true;
+    try {
+      await sbRpc('email_unsubscribe', args);
+      form.remove();
+      done.hidden = false; done.className = 'signup-note ok';
+      done.innerHTML = "You're unsubscribed -- you won't get any more emails from us. Changed your mind? Sign up again at the bottom of <a href=\"/\">any page</a>.";
+    } catch (e) {
+      form.querySelector('button').disabled = false;
+      done.hidden = false; done.textContent = 'Something went wrong -- please try again.'; done.className = 'signup-note err';
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => { initHeaderLines(); initSignup(); initUnsubscribe(); initChrome(); initHours(); initMenu(); initAppleMap(); initEvents(); });

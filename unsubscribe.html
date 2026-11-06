@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<!-- FILE:  tjs-kitchen-site/unsubscribe.html   (new, Nov 7 2026)
+     tjs-kitchen-site/
+     ├── unsubscribe.html   <-- THIS FILE (leave the email list; link in every email: /unsubscribe?t=TOKEN)
+     └── assets/
+         ├── site.js
+         └── style.css -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Unsubscribe | TJ's Kitchen</title>
+  <meta name="robots" content="noindex">
+  <meta name="description" content="TJ's Kitchen at Camarillo Springs Golf Course — order ahead for pick-up or delivery to your hole.">
+  <meta property="og:title" content="Unsubscribe | TJ's Kitchen">
+  <meta property="og:description" content="TJ's Kitchen at Camarillo Springs Golf Course — order ahead for pick-up or delivery to your hole.">
+  <meta property="og:image" content="/assets/logo.png">
+  <meta name="theme-color" content="#000000">
+  <link rel="icon" href="/assets/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/style.css">
+  <script src="/assets/site.js" defer></script>
+</head>
+<body data-no-signup>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="/"><img src="/assets/logo.png" alt="TJ's Kitchen logo"><span>TJ's Kitchen</span></a>
+      <button class="menu-toggle" aria-label="Open menu">☰</button>
+      <nav class="nav">
+        <a href="/">Home</a>
+        <a href="/menu">Menu</a>
+        <a href="/about">About</a>
+        <a href="/events">Events</a>
+        <a href="/contact">Contact</a>
+        <a class="btn btn-sm" data-order-link href="https://order.tjskitchenvc.com">Order Online</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="section">
+      <div class="wrap" style="max-width:560px">
+        <div class="eyebrow">Email list</div>
+        <h1>Unsubscribe</h1>
+        <div class="card" style="margin-top:18px" data-unsub>
+          <p class="lead" data-unsub-msg>Sorry to see you go. Tap below and we'll stop sending you emails.</p>
+          <form class="signup-form" data-unsub-form style="margin-top:14px">
+            <input type="email" name="email" placeholder="Your email address" autocomplete="email" aria-label="Email address" data-unsub-email>
+            <button class="btn" type="submit">Unsubscribe</button>
+          </form>
+          <p class="signup-note" data-unsub-done hidden></p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <div>© <span data-year></span> TJ's Kitchen · <span data-address></span></div>
+    </div>
+  </footer>
+</body>
+</html>
