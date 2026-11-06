@@ -557,7 +557,7 @@ function initSignup() {
     <div>
       <div class="eyebrow">Stay in the loop</div>
       <h2>Specials &amp; events by email</h2>
-      <p class="muted">New menu items, tournament food and events at the course. No spam -- unsubscribe anytime.</p>
+      <p class="muted">New menu items, tournament food and events at the course. No spam — unsubscribe anytime.</p>
     </div>
     <form class="signup-form" novalidate>
       <input type="text" name="first_name" placeholder="First name (optional)" autocomplete="given-name" maxlength="60" aria-label="First name">
