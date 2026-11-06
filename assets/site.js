@@ -59,6 +59,21 @@ async function sbRpc(fn, args) {
   return res.json();
 }
 
+/* Line icons -- the same set as the ordering site (components/Icon.js).
+ * Never emoji: they look different on every phone. */
+const ICONS = {
+  "arrowRight": "<path d=\"M5 12h14\"/><path d=\"M13 6l6 6-6 6\"/>",
+  "phone": "<path d=\"M5 4h3l1.5 4.5-2 1.2a11 11 0 0 0 6.8 6.8l1.2-2L20 16v3a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z\"/>",
+  "mail": "<rect x=\"3\" y=\"5.5\" width=\"18\" height=\"13\" rx=\"2\"/><path d=\"M3.5 7l8.5 6 8.5-6\"/>",
+  "pin": "<path d=\"M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z\"/><circle cx=\"12\" cy=\"9.5\" r=\"2.5\"/>",
+  "camera": "<rect x=\"3.5\" y=\"3.5\" width=\"17\" height=\"17\" rx=\"5\"/><circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M17.2 6.8h.01\"/>",
+  "thumbsUp": "<path d=\"M7 10v11H4V10z\"/><path d=\"M7 10l4-7a2 2 0 0 1 2.5 1.8L13 9h5.5a2 2 0 0 1 2 2.3l-1.3 7.5a2 2 0 0 1-2 1.7H7\"/>",
+  "chat": "<path d=\"M4 5h16v11H9l-5 4z\"/>",
+  "utensils": "<path d=\"M4 3v6a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2V3\"/><path d=\"M6.5 3v18\"/><path d=\"M19 15V3a4 4 0 0 0-4 4v6a2 2 0 0 0 2 2h2zm0 0v6\"/>",
+  "flag": "<path d=\"M7 21V3.5\"/><path d=\"M7 4l10 3.6L7 11.2\"/><path d=\"M3.5 21h7\"/>"
+};
+function icon(name) { return `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`; }
+
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
@@ -116,12 +131,12 @@ function initChrome() {
 
 function renderContactBits() {
   const items = [];
-  if (SITE.phone) items.push(`<li><span class="ci">📞</span><div><strong>Phone</strong><br><a href="tel:${esc(SITE.phone.replace(/[^\d+]/g, ''))}">${esc(SITE.phone)}</a></div></li>`);
-  if (SITE.email) items.push(`<li><span class="ci">✉️</span><div><strong>Email</strong><br><a href="mailto:${esc(SITE.email)}">${esc(SITE.email)}</a></div></li>`);
-  items.push(`<li><span class="ci">📍</span><div><strong>Find us</strong><br>${esc(SITE.placeName)}<br><span class="muted">${esc(SITE.address)}</span><br>${SITE.windowSpot ? `<span class="muted">⛳ ${esc(SITE.windowSpot)}</span><br>` : ''}<a ${directionsAttrs()}>Get directions →</a></div></li>`);
-  if (SITE.instagram) items.push(`<li><span class="ci">📸</span><div><strong>Instagram</strong><br><a href="https://instagram.com/${esc(SITE.instagram)}" target="_blank" rel="noopener">@${esc(SITE.instagram)}</a></div></li>`);
-  if (SITE.facebook) items.push(`<li><span class="ci">👍</span><div><strong>Facebook</strong><br><a href="${esc(SITE.facebook)}" target="_blank" rel="noopener">Follow us</a></div></li>`);
-  if (!SITE.phone && !SITE.email) items.push(`<li><span class="ci">💬</span><div class="muted">Phone and email coming soon. The fastest way to reach us right now is to stop by the trailer or order online.</div></li>`);
+  if (SITE.phone) items.push(`<li><span class="ci">${icon('phone')}</span><div><strong>Phone</strong><br><a href="tel:${esc(SITE.phone.replace(/[^\d+]/g, ''))}">${esc(SITE.phone)}</a></div></li>`);
+  if (SITE.email) items.push(`<li><span class="ci">${icon('mail')}</span><div><strong>Email</strong><br><a href="mailto:${esc(SITE.email)}">${esc(SITE.email)}</a></div></li>`);
+  items.push(`<li><span class="ci">${icon('pin')}</span><div><strong>Find us</strong><br>${esc(SITE.placeName)}<br><span class="muted">${esc(SITE.address)}</span><br>${SITE.windowSpot ? `<span class="muted ci-inline">${icon('flag')} ${esc(SITE.windowSpot)}</span><br>` : ''}<a ${directionsAttrs()}>Get directions ${icon('arrowRight')}</a></div></li>`);
+  if (SITE.instagram) items.push(`<li><span class="ci">${icon('camera')}</span><div><strong>Instagram</strong><br><a href="https://instagram.com/${esc(SITE.instagram)}" target="_blank" rel="noopener">@${esc(SITE.instagram)}</a></div></li>`);
+  if (SITE.facebook) items.push(`<li><span class="ci">${icon('thumbsUp')}</span><div><strong>Facebook</strong><br><a href="${esc(SITE.facebook)}" target="_blank" rel="noopener">Follow us</a></div></li>`);
+  if (!SITE.phone && !SITE.email) items.push(`<li><span class="ci">${icon('chat')}</span><div class="muted">Phone and email coming soon. The fastest way to reach us right now is to stop by the trailer or order online.</div></li>`);
   document.querySelectorAll('[data-contact-list]').forEach(el => { el.innerHTML = items.join(''); });
 }
 
@@ -182,7 +197,7 @@ async function initMenu() {
       const dishes = byCat[c.id].map(i => {
         const img = i.image_url
           ? `<img class="dish-img" src="${esc(i.image_url)}" alt="${esc(i.name)}" loading="lazy">`
-          : '<div class="dish-img placeholder">🍽️</div>';
+          : `<div class="dish-img placeholder">${icon('utensils')}</div>`;
         const price = Number(i.price) ? `$${Number(i.price).toFixed(2)}` : '';
         return `<article class="dish">${img}<div class="dish-body">
             <div class="dish-name">${esc(i.name)}</div>
@@ -255,7 +270,7 @@ function showMapCard(el) {
   el.classList.add('map-card');
   el.innerHTML = `
     <div class="map-card-inner">
-      <div class="map-pin">📍</div>
+      <div class="map-pin">${icon('pin')}</div>
       <div class="map-card-title">TJ's Kitchen</div>
       <div class="muted">${esc(SITE.placeName)}<br>${esc(SITE.address)}${SITE.windowSpot ? '<br>' + esc(SITE.windowSpot) : ''}</div>
       <div class="hero-actions" style="margin-top:18px">
@@ -309,7 +324,7 @@ async function initAppleMap() {
     bar.className = 'btn btn-sm map-directions';
     bar.href = directionsUrl();
     if (!bar.href.startsWith('geo:')) { bar.target = '_blank'; bar.rel = 'noopener'; }
-    bar.textContent = 'Directions →';
+    bar.innerHTML = 'Directions ' + icon('arrowRight');
     el.appendChild(bar);
   } catch (e) {
     console.warn('Map unavailable:', e);
