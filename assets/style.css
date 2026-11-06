@@ -266,3 +266,4 @@ a.hl-line:hover .hl-btn { background: #e2b866; }
 .ic { width: 1em; height: 1em; flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; vertical-align: -0.14em; }
 .btn .ic { width: 1.05em; height: 1.05em; }
 .ci-inline { display: inline-flex; align-items: center; gap: 5px; }
+.tag-days { background: color-mix(in srgb, var(--gold) 18%, transparent); color: var(--gold); border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent); }

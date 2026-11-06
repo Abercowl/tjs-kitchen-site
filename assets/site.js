@@ -72,6 +72,21 @@ const ICONS = {
   "utensils": "<path d=\"M4 3v6a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2V3\"/><path d=\"M6.5 3v18\"/><path d=\"M19 15V3a4 4 0 0 0-4 4v6a2 2 0 0 0 2 2h2zm0 0v6\"/>",
   "flag": "<path d=\"M7 21V3.5\"/><path d=\"M7 4l10 3.6L7 11.2\"/><path d=\"M3.5 21h7\"/>"
 };
+// "Weekends only" items (Nov 6 2026): menu_items.available_days, 0 = Sun ... 6 = Sat.
+// Blank = every day. Same wording as the ordering site (lib/menuDays.js).
+function daysTag(item) {
+  const d = Array.isArray(item.available_days) ? [...new Set(item.available_days.map(Number))].filter(x => x >= 0 && x <= 6) : [];
+  if (!d.length || d.length === 7) return null;
+  const same = a => a.length === d.length && a.every(x => d.includes(x));
+  if (same([0, 6])) return 'Weekends only';
+  if (same([1, 2, 3, 4, 5])) return 'Weekdays only';
+  const LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  if (d.length === 1) return LONG[d[0]] + 's only';
+  const n = d.sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map(x => SHORT[x]);
+  return n.slice(0, -1).join(', ') + ' & ' + n[n.length - 1] + ' only';
+}
+
 function icon(name) { return `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`; }
 
 function esc(s) {
@@ -181,7 +196,7 @@ async function initMenu() {
   try {
     const [cats, items] = await Promise.all([
       sb('menu_categories?select=id,name,description,display_order,is_active,visible_start_time,visible_end_time&is_active=eq.true&order=display_order'),
-      sb('menu_items?select=id,name,description,price,image_url,category_id,is_hidden,is_sold_out&is_hidden=eq.false&order=name'),
+      sb('menu_items?select=id,name,description,price,image_url,category_id,is_hidden,is_sold_out,available_days&is_hidden=eq.false&order=name'),
     ]);
     const byCat = {};
     items.forEach(i => { (byCat[i.category_id] = byCat[i.category_id] || []).push(i); });
@@ -202,7 +217,7 @@ async function initMenu() {
         return `<article class="dish">${img}<div class="dish-body">
             <div class="dish-name">${esc(i.name)}</div>
             ${i.description ? `<div class="dish-desc">${esc(i.description)}</div>` : ''}
-            <div class="dish-foot"><span class="price">${price}</span>${i.is_sold_out ? '<span class="tag tag-soldout">Sold out</span>' : ''}</div>
+            <div class="dish-foot"><span class="price">${price}</span>${i.is_sold_out ? '<span class="tag tag-soldout">Sold out</span>' : ''}${daysTag(i) ? `<span class="tag tag-days">${esc(daysTag(i))}</span>` : ''}</div>
           </div></article>`;
       }).join('');
       return `<section class="menu-cat" id="${slug(c)}"><h2>${esc(c.name)} ${when}</h2>
