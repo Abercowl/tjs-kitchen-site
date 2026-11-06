@@ -254,3 +254,5 @@ a.hl-line:hover .hl-text { color: var(--cream); }
   .signup-form, [data-unsub] .signup-form { grid-template-columns: 1fr; }
 }
 [data-unsub] .signup-form .btn { justify-self: start; }
+.signup { scroll-margin-top: 90px; transition: box-shadow .6s; }
+.signup.flash { box-shadow: inset 0 0 0 2px var(--gold); }

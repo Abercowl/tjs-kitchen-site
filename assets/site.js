@@ -522,6 +522,7 @@ function initSignup() {
   if (!footer || document.body.hasAttribute('data-no-signup')) return;
   const band = document.createElement('section');
   band.className = 'signup';
+  band.id = 'signup'; // direct link: tjskitchenvc.com/signup (or any page + #signup)
   band.innerHTML = `<div class="wrap signup-inner">
     <div>
       <div class="eyebrow">Stay in the loop</div>
@@ -536,6 +537,16 @@ function initSignup() {
     </form>
   </div>`;
   footer.parentNode.insertBefore(band, footer);
+  // The form is added after the page loads, so jump to it ourselves when
+  // the link asks for it (also when a #signup link is tapped on the same page).
+  const goToSignup = () => {
+    if (location.hash !== '#signup') return;
+    band.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    band.classList.add('flash'); setTimeout(() => band.classList.remove('flash'), 1600);
+    setTimeout(() => band.querySelector('input[name=email]').focus({ preventScroll: true }), 500);
+  };
+  window.addEventListener('hashchange', goToSignup);
+  setTimeout(goToSignup, 50);
   const form = band.querySelector('form');
   const note = band.querySelector('.signup-note');
   form.addEventListener('submit', async ev => {
