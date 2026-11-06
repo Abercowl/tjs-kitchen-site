@@ -1,5 +1,12 @@
 /* TJ's Kitchen — tjskitchenvc.com
  *
+ * FILE:  tjs-kitchen-site/assets/site.js
+ *   tjs-kitchen-site/
+ *   ├── index.html, menu.html, events.html, about.html, contact.html, 404.html
+ *   └── assets/
+ *       ├── site.js     <-- THIS FILE
+ *       └── style.css
+ *
  * ============================================================
  *  EDIT YOUR DETAILS HERE (this is the only place to change)
  * ============================================================
@@ -444,4 +451,44 @@ async function initEvents() {
   renderMonth();
 }
 
-document.addEventListener('DOMContentLoaded', () => { initChrome(); initHours(); initMenu(); initAppleMap(); initEvents(); });
+/* ------------------------------------------------------------
+ * Header lines (Nov 7 2026): "New this week" and "Upcoming events",
+ * the two thin lines above the header on every page. Both are set in
+ * the admin portal (Calendar -> Website header lines). A blank
+ * "Upcoming events" line shows the next published event by itself.
+ * ------------------------------------------------------------ */
+async function initHeaderLines() {
+  const header = document.querySelector('.site-header');
+  if (!header) return;
+  let st;
+  try {
+    [st] = await sb('store_settings?id=eq.1&select=header_new_on,header_new_text,header_new_link,header_events_on,header_events_text');
+  } catch (e) { console.warn('Header lines unavailable:', e); return; }
+  if (!st) return;
+  const lines = [];
+  if (st.header_new_on && st.header_new_text) {
+    const link = /^(https?:\/\/|\/)/i.test(st.header_new_link || '') ? st.header_new_link : '';
+    lines.push({ label: 'New this week', text: st.header_new_text, href: link });
+  }
+  if (st.header_events_on) {
+    let text = st.header_events_text;
+    if (!text) {
+      try {
+        const now = new Date().toISOString();
+        const [next] = await sb(`events?select=title,starts_at,ends_at,all_day&is_published=eq.true&or=(starts_at.gte.${now},ends_at.gte.${now})&order=starts_at&limit=1`);
+        if (next) text = `${next.title} — ${evWhen(next)}`;
+      } catch (e) { /* no events: skip the line */ }
+    }
+    if (text) lines.push({ label: 'Upcoming events', text, href: '/events' });
+  }
+  if (!lines.length) return;
+  const bar = document.createElement('div');
+  bar.className = 'header-lines';
+  bar.innerHTML = lines.map(l => {
+    const inner = `<span class="hl-label">${esc(l.label)}</span><span class="hl-text">${esc(l.text)}</span>`;
+    return l.href ? `<a class="hl-line" href="${esc(l.href)}">${inner}<span class="hl-go" aria-hidden="true">›</span></a>` : `<div class="hl-line">${inner}</div>`;
+  }).join('');
+  header.parentNode.insertBefore(bar, header);
+}
+
+document.addEventListener('DOMContentLoaded', () => { initHeaderLines(); initChrome(); initHours(); initMenu(); initAppleMap(); initEvents(); });

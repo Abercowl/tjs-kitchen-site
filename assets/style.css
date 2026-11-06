@@ -1,4 +1,9 @@
 /* TJ's Kitchen — tjskitchenvc.com
+   FILE:  tjs-kitchen-site/assets/style.css
+     tjs-kitchen-site/
+     └── assets/
+         ├── site.js
+         └── style.css   <-- THIS FILE
    Dark, rustic palette pulled from the logo (black, cream, wood, gold). */
 :root {
   --bg: #000;
@@ -214,4 +219,19 @@ h3 { font-size: 1.15rem; }
   .cal-chip { display: none; }
   .cal-more { display: none; }
   .cal-day.has::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--gold); }
+}
+
+/* Header lines (Nov 7 2026): "New this week" / "Upcoming events", set in the admin */
+.header-lines { background: #0d0b09; border-bottom: 1px solid var(--line); font-size: 0.85rem; }
+.hl-line { display: flex; align-items: center; gap: 10px; max-width: var(--max); margin: 0 auto; padding: 7px 16px; color: var(--text); }
+.hl-line + .hl-line { border-top: 1px solid var(--line); }
+a.hl-line:hover { text-decoration: none; background: var(--surface); }
+a.hl-line:hover .hl-text { color: var(--cream); }
+.hl-label { flex: none; color: var(--gold); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+.hl-text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hl-go { flex: none; color: var(--gold); font-size: 1.1rem; line-height: 1; }
+@media (max-width: 560px) {
+  .hl-line { gap: 8px; padding: 6px 16px; line-height: 1.35; }
+  .hl-label { font-size: 0.62rem; letter-spacing: 0.1em; }
+  .hl-text { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 }
