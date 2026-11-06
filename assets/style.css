@@ -256,3 +256,8 @@ a.hl-line:hover .hl-text { color: var(--cream); }
 [data-unsub] .signup-form .btn { justify-self: start; }
 .signup { scroll-margin-top: 90px; transition: box-shadow .6s; }
 .signup.flash { box-shadow: inset 0 0 0 2px var(--gold); }
+/* "Click Here" button on linked header lines */
+.hl-btn { flex: none; background: var(--gold); color: #1a1208; font-size: 0.78rem; font-weight: 700; padding: 5px 12px; border-radius: 999px; white-space: nowrap; line-height: 1.2; transition: background .15s; }
+a.hl-line:hover .hl-btn { background: #e2b866; }
+@media (max-width: 560px) { .hl-btn { font-size: 0.7rem; padding: 4px 9px; } }
+.hl-text { flex: 0 1 auto; }

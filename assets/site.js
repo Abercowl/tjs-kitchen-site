@@ -506,7 +506,7 @@ async function initHeaderLines() {
   bar.className = 'header-lines';
   bar.innerHTML = lines.map(l => {
     const inner = `<span class="hl-label">${esc(l.label)}</span><span class="hl-text">${esc(l.text)}</span>`;
-    return l.href ? `<a class="hl-line" href="${esc(l.href)}">${inner}<span class="hl-go" aria-hidden="true">›</span></a>` : `<div class="hl-line">${inner}</div>`;
+    return l.href ? `<a class="hl-line" href="${esc(l.href)}">${inner}<span class="hl-btn">Click Here</span></a>` : `<div class="hl-line">${inner}</div>`;
   }).join('');
   header.parentNode.insertBefore(bar, header);
 }
@@ -547,6 +547,14 @@ function initSignup() {
   };
   window.addEventListener('hashchange', goToSignup);
   setTimeout(goToSignup, 50);
+  // Hours, menu and events load a moment later and push the form down --
+  // line it up again once they're in, unless the visitor has scrolled since.
+  if (location.hash === '#signup') {
+    let moved = false;
+    const stop = () => { moved = true; };
+    ['wheel', 'touchmove', 'keydown'].forEach(t => window.addEventListener(t, stop, { once: true, passive: true }));
+    [900, 1800].forEach(ms => setTimeout(() => { if (!moved && location.hash === '#signup') band.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, ms));
+  }
   const form = band.querySelector('form');
   const note = band.querySelector('.signup-note');
   form.addEventListener('submit', async ev => {
