@@ -309,14 +309,14 @@ async function initAppleMap() {
       className: 'tj-dark-tiles',
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
     }).addTo(map);
-    const icon = L.divIcon({
+    const pinIcon = L.divIcon({  // (named pinIcon so it doesn't hide icon() above)
       className: 'tj-pin',
       html: '<div class="tj-pin-badge"><img src="/assets/logo-pin.png" alt="TJ\'s Kitchen"></div><div class="tj-pin-tip"></div>',
       iconSize: [60, 74],
       iconAnchor: [30, 74],
       popupAnchor: [0, -70],
     });
-    L.marker(pin, { icon, title: "TJ's Kitchen" }).addTo(map)
+    L.marker(pin, { icon: pinIcon, title: "TJ's Kitchen" }).addTo(map)
       .bindPopup(`<strong>TJ's Kitchen</strong><br>${esc(SITE.placeName)}<br>${SITE.windowSpot ? esc(SITE.windowSpot) + '<br>' : ''}
         <a ${directionsAttrs()}>Get directions</a>`);
     // Directions button floating on the map
