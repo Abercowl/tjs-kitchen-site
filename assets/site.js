@@ -392,6 +392,13 @@ async function initEvents() {
   }
   if (!page) return;
 
+  // The line under "Events" is set in the admin (Calendar -> Events page intro).
+  // Blank there = keep the wording written in events.html.
+  const intro = document.querySelector('[data-events-intro]');
+  if (intro) sb('store_settings?id=eq.1&select=events_intro')
+    .then(([st]) => { if (st && st.events_intro && st.events_intro.trim()) intro.textContent = st.events_intro.trim(); })
+    .catch(() => {});
+
   const listEl = page.querySelector('[data-event-list]');
   const heading = page.querySelector('[data-events-heading]');
   const daysEl = page.querySelector('[data-cal-days]');
