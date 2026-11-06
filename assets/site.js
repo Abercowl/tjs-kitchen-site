@@ -298,4 +298,150 @@ async function initAppleMap() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => { initChrome(); initHours(); initMenu(); initAppleMap(); });
+
+/* ------------------------------------------------------------
+ * Events (Nov 2026) -- added in the admin portal -> Calendar.
+ * /events shows a month calendar plus the list; the home page
+ * shows the next three (and stays hidden when there are none).
+ * Times are California time, wherever the visitor is.
+ * ------------------------------------------------------------ */
+const EV_TZ = 'America/Los_Angeles';
+const evParts = (d, opts) => Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: EV_TZ, ...opts }).formatToParts(new Date(d)).map(p => [p.type, p.value]));
+const evDayKey = d => { const p = evParts(d, { year: 'numeric', month: '2-digit', day: '2-digit' }); return `${p.year}-${p.month}-${p.day}`; };
+const evFmt = (d, opts) => new Date(d).toLocaleString('en-US', { timeZone: EV_TZ, ...opts });
+
+function evWhen(e) {
+  const day = d => evFmt(d, { weekday: 'short', month: 'short', day: 'numeric' });
+  const time = d => evFmt(d, { hour: 'numeric', minute: '2-digit' });
+  const multi = e.ends_at && evDayKey(e.ends_at) !== evDayKey(e.starts_at);
+  if (e.all_day) return multi ? `${day(e.starts_at)} – ${day(e.ends_at)}` : `${day(e.starts_at)} · All day`;
+  if (multi) return `${day(e.starts_at)}, ${time(e.starts_at)} – ${day(e.ends_at)}, ${time(e.ends_at)}`;
+  return `${day(e.starts_at)} · ${time(e.starts_at)}${e.ends_at ? ' – ' + time(e.ends_at) : ''}`;
+}
+
+// Every day key an event covers (multi-day events show on each day).
+function evDays(e) {
+  const out = [];
+  const end = new Date(e.ends_at || e.starts_at).getTime();
+  for (let t = new Date(e.starts_at).getTime(); t <= end + 1 && out.length < 62; t += 86400000) out.push(evDayKey(t));
+  const last = evDayKey(end);
+  if (!out.includes(last)) out.push(last);
+  return out;
+}
+
+// "Add to calendar" -- a small .ics file the phone's calendar opens.
+function evIcs(e) {
+  const stamp = d => new Date(d).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const dateOnly = d => evDayKey(d).replace(/-/g, '');
+  const clean = t => String(t || '').replace(/\\/g, '\\\\').replace(/[,;]/g, m => '\\' + m).replace(/\r?\n/g, '\\n');
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//TJs Kitchen//Events//EN', 'BEGIN:VEVENT',
+    `UID:${e.id}@tjskitchenvc.com`, `DTSTAMP:${stamp(Date.now())}`];
+  if (e.all_day) {
+    const endNext = new Date(new Date(e.ends_at || e.starts_at).getTime() + 86400000);
+    lines.push(`DTSTART;VALUE=DATE:${dateOnly(e.starts_at)}`, `DTEND;VALUE=DATE:${dateOnly(endNext)}`);
+  } else {
+    lines.push(`DTSTART:${stamp(e.starts_at)}`, `DTEND:${stamp(e.ends_at || new Date(new Date(e.starts_at).getTime() + 3600000))}`);
+  }
+  lines.push(`SUMMARY:${clean(e.title)}`, `LOCATION:${clean(e.location || "TJ's Kitchen, " + SITE.address)}`);
+  if (e.description) lines.push(`DESCRIPTION:${clean(e.description)}`);
+  lines.push('END:VEVENT', 'END:VCALENDAR');
+  return 'data:text/calendar;charset=utf-8,' + encodeURIComponent(lines.join('\r\n'));
+}
+
+function evCard(e) {
+  const mon = evFmt(e.starts_at, { month: 'short' });
+  const day = evFmt(e.starts_at, { day: 'numeric' });
+  const file = String(e.title).replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'event';
+  return `<article class="event" id="event-${esc(e.id)}" data-days="${evDays(e).join(' ')}">
+    <div class="event-date"><span>${esc(mon)}</span><strong>${esc(day)}</strong></div>
+    <div class="event-body">
+      <div class="event-title">${esc(e.title)}</div>
+      <div class="event-when">${esc(evWhen(e))}</div>
+      ${e.location ? `<div class="event-where">${esc(e.location)}</div>` : ''}
+      ${e.description ? `<div class="event-desc">${esc(e.description)}</div>` : ''}
+      <a class="event-add" href="${evIcs(e)}" download="${esc(file)}.ics">+ Add to my calendar</a>
+    </div>
+  </article>`;
+}
+
+async function loadPublicEvents() {
+  const since = new Date(Date.now() - 120 * 86400000).toISOString();
+  return sb(`events?select=id,title,description,location,starts_at,ends_at,all_day&is_published=eq.true&or=(starts_at.gte.${since},ends_at.gte.${since})&order=starts_at&limit=500`);
+}
+
+async function initEvents() {
+  const page = document.querySelector('[data-events]');
+  const teaser = document.querySelector('[data-events-teaser]');
+  if (!page && !teaser) return;
+  let events = [];
+  try { events = await loadPublicEvents(); } catch (e) { console.warn('Events unavailable:', e); }
+  events.sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
+  const now = Date.now();
+  const upcoming = events.filter(e => new Date(e.ends_at || e.starts_at).getTime() >= now);
+
+  if (teaser) {
+    const list = teaser.querySelector('[data-event-teaser-list]');
+    if (upcoming.length) { list.innerHTML = upcoming.slice(0, 3).map(evCard).join(''); teaser.hidden = false; }
+  }
+  if (!page) return;
+
+  const listEl = page.querySelector('[data-event-list]');
+  const heading = page.querySelector('[data-events-heading]');
+  const daysEl = page.querySelector('[data-cal-days]');
+  const titleEl = page.querySelector('[data-cal-title]');
+  const byDay = new Map();
+  events.forEach(e => evDays(e).forEach(k => { if (!byDay.has(k)) byDay.set(k, []); byDay.get(k).push(e); }));
+
+  const todayKey = evDayKey(now);
+  let [y, m] = todayKey.split('-').map(Number); // month shown (1-12)
+
+  function showList(items, title) {
+    heading.textContent = title;
+    listEl.innerHTML = items.length ? items.map(evCard).join('')
+      : `<p class="muted">Nothing on the calendar yet — check back soon, or follow along on our <a href="/">home page</a>.</p>`;
+  }
+
+  function renderMonth() {
+    const first = new Date(Date.UTC(y, m - 1, 1));
+    const daysIn = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    titleEl.textContent = first.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    let html = '';
+    for (let i = 0; i < first.getUTCDay(); i++) html += '<div class="cal-day blank"></div>';
+    for (let d = 1; d <= daysIn; d++) {
+      const key = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const evs = byDay.get(key) || [];
+      const cls = ['cal-day', key === todayKey ? 'today' : '', evs.length ? 'has' : ''].join(' ');
+      const label = `${first.toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' })} ${d}${evs.length ? ', ' + evs.length + ' event' + (evs.length > 1 ? 's' : '') : ''}`;
+      html += evs.length
+        ? `<button type="button" class="${cls}" data-day="${key}" aria-label="${esc(label)}"><span class="num">${d}</span>${evs.slice(0, 2).map(e => `<span class="cal-chip">${esc(e.title)}</span>`).join('')}${evs.length > 2 ? `<span class="cal-more">+${evs.length - 2} more</span>` : ''}</button>`
+        : `<div class="${cls}" aria-label="${esc(label)}"><span class="num">${d}</span></div>`;
+    }
+    daysEl.innerHTML = html;
+    const monthKey = `${y}-${String(m).padStart(2, '0')}`;
+    const isThisMonth = monthKey === todayKey.slice(0, 7);
+    if (isThisMonth) showList(upcoming.slice(0, 20), 'Coming up');
+    else {
+      const inMonth = events.filter(e => evDays(e).some(k => k.startsWith(monthKey)));
+      showList(inMonth, titleEl.textContent);
+    }
+  }
+
+  daysEl.addEventListener('click', ev => {
+    const btn = ev.target.closest('[data-day]');
+    if (!btn) return;
+    const key = btn.dataset.day;
+    const evs = byDay.get(key) || [];
+    const label = evFmt(key + 'T12:00:00Z', { weekday: 'long', month: 'long', day: 'numeric' });
+    showList(evs, label);
+    const first = listEl.querySelector('.event');
+    if (first) {
+      first.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      first.classList.add('flash'); setTimeout(() => first.classList.remove('flash'), 1200);
+    }
+  });
+  page.querySelector('[data-cal-prev]').addEventListener('click', () => { m--; if (m < 1) { m = 12; y--; } renderMonth(); });
+  page.querySelector('[data-cal-next]').addEventListener('click', () => { m++; if (m > 12) { m = 1; y++; } renderMonth(); });
+  renderMonth();
+}
+
+document.addEventListener('DOMContentLoaded', () => { initChrome(); initHours(); initMenu(); initAppleMap(); initEvents(); });

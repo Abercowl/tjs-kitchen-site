@@ -171,3 +171,47 @@ h3 { font-size: 1.15rem; }
 
 /* Menu page: "Ready to eat?" on its own line with the order button beside it */
 .ready-line { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 16px; color: var(--cream); font-size: 1.05rem; font-weight: 600; }
+
+/* ---------- events (Nov 2026) ----------
+   tjskitchenvc.com/events: month calendar + list; the home page shows
+   the next three. Events come from the admin portal -> Calendar. */
+.events-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 36px; align-items: start; }
+.cal { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.cal-title { margin: 0; font-size: 1.35rem; }
+.cal-nav { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface-2); color: var(--cream); font-size: 1.4rem; line-height: 1; cursor: pointer; }
+.cal-nav:hover { background: var(--wood); }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.cal-dow span { text-align: center; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 4px 0 6px; }
+.cal-day { min-height: 64px; border-radius: 10px; padding: 6px; background: transparent; border: 1px solid transparent; color: var(--text); text-align: left; font: inherit; display: flex; flex-direction: column; gap: 3px; }
+.cal-day.blank { visibility: hidden; }
+.cal-day .num { font-size: 0.85rem; color: var(--muted); }
+.cal-day.today { border-color: var(--line); }
+.cal-day.today .num { color: var(--gold); font-weight: 700; }
+.cal-day.has { background: var(--surface-2); cursor: pointer; }
+.cal-day.has:hover, .cal-day.has:focus-visible { border-color: var(--gold-dark); outline: none; }
+.cal-day.has .num { color: var(--cream); font-weight: 600; }
+.cal-chip { font-size: 0.7rem; line-height: 1.25; color: #1a1208; background: var(--gold); border-radius: 6px; padding: 2px 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-more { font-size: 0.7rem; color: var(--muted); }
+.events-heading { margin-bottom: 12px; }
+.event-list { display: grid; gap: 12px; }
+.event { display: flex; gap: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; scroll-margin-top: 90px; transition: border-color .3s; }
+.event.flash { border-color: var(--gold); }
+.event-date { width: 56px; flex: none; text-align: center; border: 1px solid var(--line); border-radius: 12px; padding: 6px 0; line-height: 1.1; height: fit-content; }
+.event-date span { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold); }
+.event-date strong { font-family: "Oswald", sans-serif; font-size: 1.5rem; color: var(--cream); }
+.event-body { min-width: 0; }
+.event-title { font-family: "Oswald", sans-serif; text-transform: uppercase; letter-spacing: 0.02em; color: var(--cream); font-size: 1.1rem; }
+.event-when { color: var(--gold); font-size: 0.9rem; margin-top: 2px; }
+.event-where { color: var(--muted); font-size: 0.9rem; }
+.event-desc { color: var(--text); font-size: 0.95rem; margin-top: 8px; white-space: pre-line; }
+.event-add { display: inline-block; margin-top: 10px; font-size: 0.85rem; }
+.event-list-teaser { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-top: 20px; }
+@media (max-width: 760px) {
+  .events-layout { grid-template-columns: 1fr; gap: 24px; }
+  .cal { padding: 12px; }
+  .cal-day { min-height: 46px; padding: 5px 4px; align-items: center; }
+  .cal-chip { display: none; }
+  .cal-more { display: none; }
+  .cal-day.has::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--gold); }
+}
