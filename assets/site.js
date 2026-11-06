@@ -469,7 +469,7 @@ async function initHeaderLines() {
   if (!header) return;
   let st;
   try {
-    [st] = await sb('store_settings?id=eq.1&select=header_new_on,header_new_text,header_new_link,header_events_on,header_events_text');
+    [st] = await sb('store_settings?id=eq.1&select=header_new_on,header_new_text,header_new_link,header_events_on,header_events_text,header_events_link');
   } catch (e) { console.warn('Header lines unavailable:', e); return; }
   if (!st) return;
   const lines = [];
@@ -486,7 +486,8 @@ async function initHeaderLines() {
         if (next) text = `${next.title} — ${evWhen(next)}`;
       } catch (e) { /* no events: skip the line */ }
     }
-    if (text) lines.push({ label: 'Upcoming events', text, href: '/events' });
+    const evLink = /^(https?:\/\/|\/)/i.test(st.header_events_link || '') ? st.header_events_link : '/events';
+    if (text) lines.push({ label: 'Upcoming events', text, href: evLink });
   }
   if (!lines.length) return;
   const bar = document.createElement('div');
