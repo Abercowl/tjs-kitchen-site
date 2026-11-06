@@ -542,8 +542,8 @@ function initSignup() {
   const goToSignup = () => {
     if (location.hash !== '#signup') return;
     band.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    band.classList.add('flash'); setTimeout(() => band.classList.remove('flash'), 1600);
-    setTimeout(() => band.querySelector('input[name=email]').focus({ preventScroll: true }), 500);
+    band.classList.add('flash'); // then the cursor goes to First name setTimeout(() => band.classList.remove('flash'), 1600);
+    setTimeout(() => band.querySelector('input[name=first_name]').focus({ preventScroll: true }), 500);
   };
   window.addEventListener('hashchange', goToSignup);
   setTimeout(goToSignup, 50);
