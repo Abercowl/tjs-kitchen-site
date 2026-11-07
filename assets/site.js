@@ -468,8 +468,12 @@ async function initEvents() {
   const listEl = page.querySelector('[data-event-list]');
   const dayCard = page.querySelector('[data-day-card]');
   const dowOf = key => new Date(key + 'T12:00:00Z').getUTCDay();
-  const itemsOn = key => dayItems.filter(i => i.available_days.map(Number).includes(dowOf(key)));
-  const catsOn = key => dayCats.filter(c => c.available_days.map(Number).includes(dowOf(key)));
+  // Closed days (Nov 7 2026): if store_hours says we're closed that weekday
+  // (e.g. Tue/Wed), nothing is served -- no "X is open" or day-only items,
+  // and no dot on the calendar, even if a category is set to "weekdays".
+  const closedOn = key => { const h = hours.find(x => x.day_of_week === dowOf(key)); return hours.length > 0 && (!h || !h.is_open); };
+  const itemsOn = key => closedOn(key) ? [] : dayItems.filter(i => i.available_days.map(Number).includes(dowOf(key)));
+  const catsOn = key => closedOn(key) ? [] : dayCats.filter(c => c.available_days.map(Number).includes(dowOf(key)));
   const heading = page.querySelector('[data-events-heading]');
   const daysEl = page.querySelector('[data-cal-days]');
   const titleEl = page.querySelector('[data-cal-title]');
@@ -497,14 +501,14 @@ async function initEvents() {
         <div><div class="eyebrow">${past ? 'Past day' : 'Plan your round'}</div><h3 class="day-card-title">${esc(label)}</h3>
         ${hoursText ? `<div class="day-card-hours">${icon('flag')} ${esc(hoursText)}</div>` : ''}</div>
       </div>
-      <div class="day-card-menu">
+      ${closedOn(key) ? `<div class="day-card-menu"><div class="day-card-sub">TJ's Kitchen is closed</div><p class="small muted">We're closed on this day. The course is still open for tee times.</p></div>` : `<div class="day-card-menu">
         <div class="day-card-sub">${specials.length || openCats.length ? 'Only on this day' : 'On the menu'}</div>
         ${openCats.length ? `<ul class="day-specials">${openCats.map(c => `<li><span>${esc(c.name)} is open</span><span class="tag tag-days">${esc(openDaysTag(c))}</span></li>`).join('')}</ul>` : ''}
         ${specials.length
           ? `<ul class="day-specials">${specials.map(i => `<li><span>${esc(i.name)}</span><span class="price">$${Number(i.price).toFixed(2)}</span></li>`).join('')}</ul>
              <p class="small muted">Plus everything on our <a href="/menu">regular menu</a>.</p>`
-          : `<p class="small muted">${openCats.length ? 'Plus our' : 'Our'} <a href="/menu">regular menu</a>${h && h.is_open === false ? ' (the kitchen is closed this day)' : ''}.</p>`}
-      </div>
+          : `<p class="small muted">${openCats.length ? 'Plus our' : 'Our'} <a href="/menu">regular menu</a>.</p>`}
+      </div>`}
       ${past ? '' : `<div class="day-card-actions">
         <a class="btn" href="${esc(tee)}" target="_blank" rel="noopener">Book a tee time ${icon('arrowRight')}</a>
         ${key === todayKey ? `<a class="btn btn-outline" href="${SITE.orderUrl}">Order food</a>` : ''}
