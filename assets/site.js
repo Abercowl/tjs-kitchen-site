@@ -90,6 +90,14 @@ function daysTag(item) {
   return n.slice(0, -1).join(', ') + ' & ' + n[n.length - 1] + ' only';
 }
 
+// Category version: "Open weekends", "Open Saturdays", "Open Fri, Sat & Sun".
+function openDaysTag(cat) {
+  const t = daysTag(cat);
+  if (!t) return null;
+  const base = t.replace(/ only$/, '');
+  return 'Open ' + (base === 'Weekends' || base === 'Weekdays' ? base.toLowerCase() : base);
+}
+
 function icon(name) { return `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`; }
 
 function esc(s) {
@@ -198,7 +206,7 @@ async function initMenu() {
   if (!root) return;
   try {
     const [cats, items] = await Promise.all([
-      sb('menu_categories?select=id,name,description,display_order,is_active,visible_start_time,visible_end_time&is_active=eq.true&order=display_order'),
+      sb('menu_categories?select=id,name,description,display_order,is_active,visible_start_time,visible_end_time,available_days&is_active=eq.true&order=display_order'),
       sb('menu_items?select=id,name,description,price,image_url,category_id,is_hidden,is_sold_out,available_days&is_hidden=eq.false&order=name'),
     ]);
     const byCat = {};
@@ -223,7 +231,10 @@ async function initMenu() {
             <div class="dish-foot"><span class="price">${price}</span>${i.is_sold_out ? '<span class="tag tag-soldout">Sold out</span>' : ''}${daysTag(i) ? `<span class="tag tag-days">${esc(daysTag(i))}</span>` : ''}</div>
           </div></article>`;
       }).join('');
-      return `<section class="menu-cat" id="${slug(c)}"><h2>${esc(c.name)} ${when}</h2>
+      // Category open only on some days (admin: Categories -> Days it's open)
+      const open = openDaysTag(c);
+      const openTag = open ? `<span class="tag tag-days">${esc(open)}</span>` : '';
+      return `<section class="menu-cat" id="${slug(c)}"><h2>${esc(c.name)} ${openTag} ${when}</h2>
         ${c.description ? `<p class="muted">${esc(c.description)}</p>` : ''}
         <div class="menu-grid">${dishes}</div></section>`;
     }).join('');
@@ -426,14 +437,16 @@ async function initEvents() {
   const teaser = document.querySelector('[data-events-teaser]');
   if (!page && !teaser) return;
   let events = [], hours = [], dayItems = [];
-  const [evR, hrR, itR] = await Promise.allSettled([
+  const [evR, hrR, itR, catR] = await Promise.allSettled([
     loadPublicEvents(),
     page ? sb('store_hours?select=day_of_week,is_open,open_time,close_time') : Promise.resolve([]),
     // Items only served on certain days (admin: "Days it can be ordered")
     page ? sb('menu_items?select=name,price,available_days&is_hidden=eq.false&is_available=eq.true&available_days=not.is.null&order=name') : Promise.resolve([]),
+    page ? sb('menu_categories?select=name,available_days&is_active=eq.true&available_days=not.is.null&order=display_order') : Promise.resolve([]),
   ]);
   if (evR.status === 'fulfilled') events = evR.value || []; else console.warn('Events unavailable:', evR.reason);
   if (hrR.status === 'fulfilled') hours = hrR.value || [];
+  const dayCats = catR.status === 'fulfilled' ? (catR.value || []).filter(c => Array.isArray(c.available_days) && c.available_days.length && c.available_days.length < 7) : [];
   if (itR.status === 'fulfilled') dayItems = (itR.value || []).filter(i => Array.isArray(i.available_days) && i.available_days.length && i.available_days.length < 7);
   events.sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
   const now = Date.now();
@@ -456,6 +469,7 @@ async function initEvents() {
   const dayCard = page.querySelector('[data-day-card]');
   const dowOf = key => new Date(key + 'T12:00:00Z').getUTCDay();
   const itemsOn = key => dayItems.filter(i => i.available_days.map(Number).includes(dowOf(key)));
+  const catsOn = key => dayCats.filter(c => c.available_days.map(Number).includes(dowOf(key)));
   const heading = page.querySelector('[data-events-heading]');
   const daysEl = page.querySelector('[data-cal-days]');
   const titleEl = page.querySelector('[data-cal-title]');
@@ -476,6 +490,7 @@ async function initEvents() {
     const h = hours.find(x => x.day_of_week === dow);
     const hoursText = !hours.length ? '' : (!h || !h.is_open ? 'Kitchen closed' : `Kitchen open ${fmtTime(h.open_time)} – ${fmtTime(h.close_time)}`);
     const specials = itemsOn(key);
+    const openCats = catsOn(key);
     const past = key < todayKey;
     const tee = SITE.teeTimesUrl + (SITE.teeTimesUrl.includes('?') ? '&' : '?') + 'date=' + key;
     dayCard.innerHTML = `<div class="day-card-head">
@@ -483,11 +498,12 @@ async function initEvents() {
         ${hoursText ? `<div class="day-card-hours">${icon('flag')} ${esc(hoursText)}</div>` : ''}</div>
       </div>
       <div class="day-card-menu">
-        <div class="day-card-sub">${specials.length ? 'Only on this day' : 'On the menu'}</div>
+        <div class="day-card-sub">${specials.length || openCats.length ? 'Only on this day' : 'On the menu'}</div>
+        ${openCats.length ? `<ul class="day-specials">${openCats.map(c => `<li><span>${esc(c.name)} is open</span><span class="tag tag-days">${esc(openDaysTag(c))}</span></li>`).join('')}</ul>` : ''}
         ${specials.length
           ? `<ul class="day-specials">${specials.map(i => `<li><span>${esc(i.name)}</span><span class="price">$${Number(i.price).toFixed(2)}</span></li>`).join('')}</ul>
              <p class="small muted">Plus everything on our <a href="/menu">regular menu</a>.</p>`
-          : `<p class="small muted">Our <a href="/menu">regular menu</a>${h && h.is_open === false ? ' (the kitchen is closed this day)' : ''}.</p>`}
+          : `<p class="small muted">${openCats.length ? 'Plus our' : 'Our'} <a href="/menu">regular menu</a>${h && h.is_open === false ? ' (the kitchen is closed this day)' : ''}.</p>`}
       </div>
       ${past ? '' : `<div class="day-card-actions">
         <a class="btn" href="${esc(tee)}" target="_blank" rel="noopener">Book a tee time ${icon('arrowRight')}</a>
@@ -510,7 +526,7 @@ async function initEvents() {
     for (let d = 1; d <= daysIn; d++) {
       const key = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       const evs = byDay.get(key) || [];
-      const special = itemsOn(key).length > 0;
+      const special = itemsOn(key).length > 0 || catsOn(key).length > 0;
       const cls = ['cal-day', key === todayKey ? 'today' : '', evs.length ? 'has' : '', key < todayKey ? 'past' : '', special ? 'special' : '', key === selKey ? 'sel' : ''].join(' ');
       const label = `${first.toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' })} ${d}${evs.length ? ', ' + evs.length + ' event' + (evs.length > 1 ? 's' : '') : ''}${special ? ', day specials' : ''}`;
       // Every day can be tapped: shows what's served + the tee-time link.
