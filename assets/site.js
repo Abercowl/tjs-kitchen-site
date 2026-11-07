@@ -697,4 +697,33 @@ function initUnsubscribe() {
   });
 }
 
-document.addEventListener('DOMContentLoaded', () => { initHeaderLines(); initSignup(); initUnsubscribe(); initChrome(); initHours(); initMenu(); initAppleMap(); initEvents(); });
+/* ------------------------------------------------------------
+ * "Push menu to all devices" (admin Dashboard, Nov 7 2026). The admin's
+ * button stamps store_settings.menu_board_refresh_at -- the same signal
+ * the Apple TV board and the ordering site watch. While a page is open we
+ * check it every 30 s and refresh what's on screen when it changes:
+ * the menu redraws in place, the header lines reload, and the Events page
+ * (calendar + day card) reloads itself.
+ * ------------------------------------------------------------ */
+function initMenuPushWatch() {
+  let last; // undefined until the first check
+  async function check() {
+    if (document.visibilityState !== 'visible') return;
+    let row;
+    try { [row] = await sb('store_settings?id=eq.1&select=menu_board_refresh_at'); } catch (e) { return; }
+    if (!row) return;
+    const now = row.menu_board_refresh_at || null;
+    if (last !== undefined && now !== last) {
+      if (document.querySelector('[data-events]')) { location.reload(); return; }
+      if (document.getElementById('menu-root')) initMenu();
+      document.querySelectorAll('.header-lines').forEach(el => el.remove());
+      initHeaderLines();
+    }
+    last = now;
+  }
+  check();
+  setInterval(check, 30000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+}
+
+document.addEventListener('DOMContentLoaded', () => { initMenuPushWatch(); initHeaderLines(); initSignup(); initUnsubscribe(); initChrome(); initHours(); initMenu(); initAppleMap(); initEvents(); });
