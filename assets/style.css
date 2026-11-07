@@ -306,3 +306,11 @@ a.hl-line:hover .hl-btn { background: #e2b866; }
   .cal-day.sel { padding: 4px 3px; }
   .cal-day.special:not(.has)::after { content: none; }
 }
+/* Header lines on phones (Nov 7 2026): never cut the message off.
+   Row 1 = label + Click Here, row 2 = the whole message. */
+@media (max-width: 560px) {
+  .hl-line { flex-wrap: wrap; row-gap: 3px; padding: 8px 16px; }
+  .hl-label { order: 1; }
+  .hl-btn { order: 2; margin-left: auto; }
+  .hl-text { order: 3; flex: 1 1 100%; white-space: normal; overflow: visible; display: block; -webkit-line-clamp: unset; text-overflow: clip; font-size: 0.92rem; }
+}
