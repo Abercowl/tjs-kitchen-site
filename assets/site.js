@@ -22,6 +22,9 @@ const SITE = {
   // puts the TJ pin here, and "Directions" routes people to this spot.
   mapPin: { lat: 34.20194, lng: -118.98951 },  // 34.20194° N, 118.98951° W
   orderUrl: 'https://order.tjskitchenvc.com',
+  // Camarillo Springs' own tee sheet (TeeItUp -- GolfNow's booking engine).
+  // The Events calendar adds &date=YYYY-MM-DD so it opens on that day.
+  teeTimesUrl: 'https://camarillo-springs-golf-course.book.teeitup.com/?course=4796&max=999999',
   address: '791 Camarillo Springs Rd, Camarillo, CA 93012',
   placeName: 'Camarillo Springs Golf Course',
   windowSpot: 'Our trailer is at the 11th green',  // shown under the address
@@ -422,8 +425,16 @@ async function initEvents() {
   const page = document.querySelector('[data-events]');
   const teaser = document.querySelector('[data-events-teaser]');
   if (!page && !teaser) return;
-  let events = [];
-  try { events = await loadPublicEvents(); } catch (e) { console.warn('Events unavailable:', e); }
+  let events = [], hours = [], dayItems = [];
+  const [evR, hrR, itR] = await Promise.allSettled([
+    loadPublicEvents(),
+    page ? sb('store_hours?select=day_of_week,is_open,open_time,close_time') : Promise.resolve([]),
+    // Items only served on certain days (admin: "Days it can be ordered")
+    page ? sb('menu_items?select=name,price,available_days&is_hidden=eq.false&is_available=eq.true&available_days=not.is.null&order=name') : Promise.resolve([]),
+  ]);
+  if (evR.status === 'fulfilled') events = evR.value || []; else console.warn('Events unavailable:', evR.reason);
+  if (hrR.status === 'fulfilled') hours = hrR.value || [];
+  if (itR.status === 'fulfilled') dayItems = (itR.value || []).filter(i => Array.isArray(i.available_days) && i.available_days.length && i.available_days.length < 7);
   events.sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
   const now = Date.now();
   const upcoming = events.filter(e => new Date(e.ends_at || e.starts_at).getTime() >= now);
@@ -442,6 +453,9 @@ async function initEvents() {
     .catch(() => {});
 
   const listEl = page.querySelector('[data-event-list]');
+  const dayCard = page.querySelector('[data-day-card]');
+  const dowOf = key => new Date(key + 'T12:00:00Z').getUTCDay();
+  const itemsOn = key => dayItems.filter(i => i.available_days.map(Number).includes(dowOf(key)));
   const heading = page.querySelector('[data-events-heading]');
   const daysEl = page.querySelector('[data-cal-days]');
   const titleEl = page.querySelector('[data-cal-title]');
@@ -450,6 +464,36 @@ async function initEvents() {
 
   const todayKey = evDayKey(now);
   let [y, m] = todayKey.split('-').map(Number); // month shown (1-12)
+  let selKey = todayKey; // the day shown in the day card
+
+  // The day card (Nov 6 2026): hours, what's served that day, and a link
+  // straight to the course's tee sheet for that date.
+  function renderDayCard(key) {
+    if (!dayCard) return;
+    const dow = dowOf(key);
+    const label = key === todayKey ? 'Today · ' + evFmt(key + 'T12:00:00Z', { weekday: 'long', month: 'long', day: 'numeric' })
+      : evFmt(key + 'T12:00:00Z', { weekday: 'long', month: 'long', day: 'numeric' });
+    const h = hours.find(x => x.day_of_week === dow);
+    const hoursText = !hours.length ? '' : (!h || !h.is_open ? 'Kitchen closed' : `Kitchen open ${fmtTime(h.open_time)} – ${fmtTime(h.close_time)}`);
+    const specials = itemsOn(key);
+    const past = key < todayKey;
+    const tee = SITE.teeTimesUrl + (SITE.teeTimesUrl.includes('?') ? '&' : '?') + 'date=' + key;
+    dayCard.innerHTML = `<div class="day-card-head">
+        <div><div class="eyebrow">${past ? 'Past day' : 'Plan your round'}</div><h3 class="day-card-title">${esc(label)}</h3>
+        ${hoursText ? `<div class="day-card-hours">${icon('flag')} ${esc(hoursText)}</div>` : ''}</div>
+      </div>
+      <div class="day-card-menu">
+        <div class="day-card-sub">${specials.length ? 'Only on this day' : 'On the menu'}</div>
+        ${specials.length
+          ? `<ul class="day-specials">${specials.map(i => `<li><span>${esc(i.name)}</span><span class="price">$${Number(i.price).toFixed(2)}</span></li>`).join('')}</ul>
+             <p class="small muted">Plus everything on our <a href="/menu">regular menu</a>.</p>`
+          : `<p class="small muted">Our <a href="/menu">regular menu</a>${h && h.is_open === false ? ' (the kitchen is closed this day)' : ''}.</p>`}
+      </div>
+      ${past ? '' : `<div class="day-card-actions">
+        <a class="btn" href="${esc(tee)}" target="_blank" rel="noopener">Book a tee time ${icon('arrowRight')}</a>
+        ${key === todayKey ? `<a class="btn btn-outline" href="${SITE.orderUrl}">Order food</a>` : ''}
+      </div>`}`;
+  }
 
   function showList(items, title) {
     heading.textContent = title;
@@ -466,11 +510,11 @@ async function initEvents() {
     for (let d = 1; d <= daysIn; d++) {
       const key = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       const evs = byDay.get(key) || [];
-      const cls = ['cal-day', key === todayKey ? 'today' : '', evs.length ? 'has' : ''].join(' ');
-      const label = `${first.toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' })} ${d}${evs.length ? ', ' + evs.length + ' event' + (evs.length > 1 ? 's' : '') : ''}`;
-      html += evs.length
-        ? `<button type="button" class="${cls}" data-day="${key}" aria-label="${esc(label)}"><span class="num">${d}</span>${evs.slice(0, 2).map(e => `<span class="cal-chip">${esc(e.title)}</span>`).join('')}${evs.length > 2 ? `<span class="cal-more">+${evs.length - 2} more</span>` : ''}</button>`
-        : `<div class="${cls}" aria-label="${esc(label)}"><span class="num">${d}</span></div>`;
+      const special = itemsOn(key).length > 0;
+      const cls = ['cal-day', key === todayKey ? 'today' : '', evs.length ? 'has' : '', key < todayKey ? 'past' : '', special ? 'special' : '', key === selKey ? 'sel' : ''].join(' ');
+      const label = `${first.toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' })} ${d}${evs.length ? ', ' + evs.length + ' event' + (evs.length > 1 ? 's' : '') : ''}${special ? ', day specials' : ''}`;
+      // Every day can be tapped: shows what's served + the tee-time link.
+      html += `<button type="button" class="${cls}" data-day="${key}" aria-label="${esc(label)}"><span class="num">${d}${special ? '<i class="cal-dot" aria-hidden="true"></i>' : ''}</span>${evs.slice(0, 2).map(e => `<span class="cal-chip">${esc(e.title)}</span>`).join('')}${evs.length > 2 ? `<span class="cal-more">+${evs.length - 2} more</span>` : ''}</button>`;
     }
     daysEl.innerHTML = html;
     const monthKey = `${y}-${String(m).padStart(2, '0')}`;
@@ -486,18 +530,21 @@ async function initEvents() {
     const btn = ev.target.closest('[data-day]');
     if (!btn) return;
     const key = btn.dataset.day;
+    selKey = key;
+    daysEl.querySelectorAll('.cal-day.sel').forEach(x => x.classList.remove('sel'));
+    btn.classList.add('sel');
+    renderDayCard(key);
     const evs = byDay.get(key) || [];
-    const label = evFmt(key + 'T12:00:00Z', { weekday: 'long', month: 'long', day: 'numeric' });
-    showList(evs, label);
-    const first = listEl.querySelector('.event');
-    if (first) {
-      first.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      first.classList.add('flash'); setTimeout(() => first.classList.remove('flash'), 1200);
-    }
+    const label = 'Events · ' + evFmt(key + 'T12:00:00Z', { weekday: 'long', month: 'long', day: 'numeric' });
+    if (evs.length) showList(evs, label);
+    else { heading.textContent = label; listEl.innerHTML = '<p class="muted">No events this day.</p>'; }
+    // On phones the card sits under the calendar -- bring it into view.
+    if (window.matchMedia('(max-width: 760px)').matches && dayCard) dayCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
   page.querySelector('[data-cal-prev]').addEventListener('click', () => { m--; if (m < 1) { m = 12; y--; } renderMonth(); });
   page.querySelector('[data-cal-next]').addEventListener('click', () => { m++; if (m > 12) { m = 1; y++; } renderMonth(); });
   renderMonth();
+  renderDayCard(selKey);
 }
 
 /* ------------------------------------------------------------

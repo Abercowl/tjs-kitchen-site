@@ -283,3 +283,26 @@ a.hl-line:hover .hl-btn { background: #e2b866; }
 .btn .ic { width: 1.05em; height: 1.05em; }
 .ci-inline { display: inline-flex; align-items: center; gap: 5px; }
 .tag-days { background: color-mix(in srgb, var(--gold) 18%, transparent); color: var(--gold); border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent); }
+
+/* Events page day card (Nov 6 2026): what's served that day + tee times */
+.cal-day { cursor: pointer; }
+.cal-day:hover, .cal-day:focus-visible { border-color: var(--line); outline: none; }
+.cal-day.past { opacity: .55; }
+.cal-day.sel { border: 2px solid var(--evergreen); padding: 5px; }
+.cal-day .num { display: inline-flex; align-items: center; gap: 4px; }
+.cal-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--champagne); display: inline-block; }
+.day-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; margin-bottom: 22px; scroll-margin-top: 90px; }
+.day-card:empty { display: none; }
+.day-card-title { margin: 2px 0 4px; font-size: 1.3rem; }
+.day-card-hours { color: var(--muted); font-size: 0.92rem; display: flex; align-items: center; gap: 6px; }
+.day-card-hours .ic { color: var(--champagne); }
+.day-card-menu { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.day-card-sub { font-size: 0.72rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); margin-bottom: 6px; }
+.day-specials { list-style: none; display: grid; gap: 6px; margin-bottom: 6px; }
+.day-specials li { display: flex; justify-content: space-between; gap: 12px; font-family: var(--serif); font-weight: 700; color: var(--cream); }
+.day-card-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+.cal-legend { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--muted); margin-top: 10px; }
+@media (max-width: 760px) {
+  .cal-day.sel { padding: 4px 3px; }
+  .cal-day.special:not(.has)::after { content: none; }
+}
