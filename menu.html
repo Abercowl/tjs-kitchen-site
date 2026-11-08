@@ -1,4 +1,10 @@
 <!DOCTYPE html>
+<!-- FILE:  tjs-kitchen-site/menu.html
+     tjs-kitchen-site/
+     ├── menu.html   <-- THIS FILE (Menu (live from the admin); text and pictures editable in the admin portal -> Website)
+     └── assets/
+         ├── site.js
+         └── style.css -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -36,9 +42,9 @@
   <main>
     <section class="section" style="padding-bottom:24px">
       <div class="wrap">
-        <h1>Today's Menu</h1>
-        <p class="lead" style="margin-top:10px">This menu updates live, so what you see here is what we're serving today.</p>
-        <div class="ready-line"><span>Ready to eat?</span><a class="btn btn-sm" data-order-link href="https://order.tjskitchenvc.com">Order Now</a></div>
+        <h1 data-edit="menu.title" data-edit-label="Menu: big headline">Today's Menu</h1>
+        <p class="lead" style="margin-top:10px" data-edit="menu.lead" data-edit-label="Menu: intro line" data-edit-long>This menu updates live, so what you see here is what we're serving today.</p>
+        <div class="ready-line"><span data-edit="menu.ready" data-edit-label="Menu: Ready to eat line">Ready to eat?</span><a class="btn btn-sm" data-order-link href="https://order.tjskitchenvc.com"><span data-edit="menu.btn_order" data-edit-label="Menu: Order button">Order Now</span></a></div>
       </div>
     </section>
     <nav class="cat-tabs" aria-label="Menu sections"><div class="wrap" id="cat-tabs"></div></nav>

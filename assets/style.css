@@ -314,3 +314,30 @@ a.hl-line:hover .hl-btn { background: #e2b866; }
   .hl-btn { order: 2; margin-left: auto; }
   .hl-text { order: 3; flex: 1 1 100%; white-space: normal; overflow: visible; display: block; -webkit-line-clamp: unset; text-overflow: clip; font-size: 0.92rem; }
 }
+
+/* ---- Website editor (Nov 7 2026) --------------------------------------
+   Optional photo band on Home (hidden until a photo is added in the admin
+   portal -> Website), plus the outlines shown only inside the admin's
+   editor frame (html.tjs-editing). Visitors never see the outlines. */
+.photo-band { padding-top: 8px; }
+.photo-band img { display: block; width: 100%; max-height: 460px; object-fit: cover; border-radius: var(--radius); }
+[hidden] { display: none !important; }
+
+.tjs-editing [data-edit], .tjs-editing [data-edit-img], .tjs-editing [data-edit-elsewhere] {
+  cursor: pointer; outline: 1.5px dashed rgba(179, 149, 94, 0.75); outline-offset: 3px; border-radius: 4px;
+  transition: outline-color .15s, background-color .15s;
+}
+.tjs-editing [data-edit]:hover, .tjs-editing [data-edit-img]:hover, .tjs-editing [data-edit-elsewhere]:hover {
+  outline: 2px solid var(--gold-bright); background-color: rgba(212, 168, 84, 0.10);
+}
+.tjs-editing .edit-selected { outline: 3px solid #2f6b45 !important; background-color: rgba(47, 107, 69, 0.08) !important; }
+.tjs-editing .edit-empty::before { content: "(empty — click to add text)"; color: var(--muted); font-style: italic; font-weight: 400; }
+.tjs-editing img[data-edit-optional]:not([src]) {
+  min-height: 160px; width: 100%; background: repeating-linear-gradient(45deg, var(--surface-2), var(--surface-2) 10px, var(--bg) 10px, var(--bg) 20px);
+}
+.tjs-editing .photo-band[data-edit-slot] .wrap { position: relative; }
+.tjs-editing .photo-band[data-edit-slot] .wrap::after {
+  content: "Optional photo — click to add one"; position: absolute; inset: 0; display: grid; place-items: center;
+  color: var(--muted); font-weight: 600; pointer-events: none;
+}
+.tjs-editing .photo-band:has(img[src]) .wrap::after { display: none; }

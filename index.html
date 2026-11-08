@@ -1,4 +1,10 @@
 <!DOCTYPE html>
+<!-- FILE:  tjs-kitchen-site/index.html
+     tjs-kitchen-site/
+     ├── index.html   <-- THIS FILE (Home; text and pictures editable in the admin portal -> Website)
+     └── assets/
+         ├── site.js
+         └── style.css -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -36,25 +42,31 @@
   <main>
     <section class="hero">
       <div class="wrap">
-        <img class="hero-logo" src="/assets/logo-light.png" alt="TJ's Kitchen">
-        <h1>Good food at the course</h1>
-        <p class="lead">Breakfast, sandwiches and more from TJ's Kitchen at Camarillo Springs Golf Course. Order ahead and pick it up, or have it brought to you on the course.</p>
+        <img class="hero-logo" src="/assets/logo-light.png" alt="TJ's Kitchen" data-edit-img="home.hero.image" data-edit-label="Home: top picture">
+        <h1 data-edit="home.hero.title" data-edit-label="Home: big headline">Good food at the course</h1>
+        <p class="lead" data-edit="home.hero.lead" data-edit-label="Home: intro paragraph" data-edit-long>Breakfast, sandwiches and more from TJ's Kitchen at Camarillo Springs Golf Course. Order ahead and pick it up, or have it brought to you on the course.</p>
         <div class="hero-actions">
-          <a class="btn" data-order-link href="https://order.tjskitchenvc.com">Order Online <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></a>
-          <a class="btn btn-outline" href="/menu">See Today's Menu</a>
+          <a class="btn" data-order-link href="https://order.tjskitchenvc.com"><span data-edit="home.hero.btn_order" data-edit-label="Home: Order button">Order Online</span> <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></a>
+          <a class="btn btn-outline" href="/menu"><span data-edit="home.hero.btn_menu" data-edit-label="Home: Menu button">See Today's Menu</span></a>
         </div>
         <div class="status-pill" data-status><span class="status-dot"></span><span data-status-text>Checking hours…</span></div>
       </div>
     </section>
 
+    <!-- Optional photo band (Nov 7 2026): hidden until a photo is added in
+         the admin portal -> Website. -->
+    <section class="section photo-band" data-edit-slot hidden>
+      <div class="wrap"><img data-edit-img="home.photo" data-edit-label="Home: photo band" data-edit-optional alt="TJ's Kitchen at Camarillo Springs"></div>
+    </section>
+
     <section class="section">
       <div class="wrap">
-        <div class="eyebrow">How it works</div>
-        <h2>Three ways to get your food</h2>
+        <div class="eyebrow" data-edit="home.how.eyebrow" data-edit-label="Home: small label above 'Three ways'">How it works</div>
+        <h2 data-edit="home.how.title" data-edit-label="Home: How it works heading">Three ways to get your food</h2>
         <div class="grid-3">
-          <div class="card"><div class="icon"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12l1 13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z"/><path d="M9 10V6a3 3 0 0 1 6 0v4"/></svg></div><h3>Mid-Round Pick-up</h3><p>Order from hole 9 and grab it at our trailer by the 11th green when it's ready, or walk up and order from our Mulligan menu.</p></div>
-          <div class="card"><div class="icon"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h11"/><path d="M7 5v8"/><path d="M14.5 5l1.5 8"/><path d="M3 13h14l3 3v1H3z"/><circle cx="7" cy="18.5" r="1.8"/><circle cx="16.5" cy="18.5" r="1.8"/></svg></div><h3>Course Delivery</h3><p>Out on your round? Tell us your hole and cart number and for 5 bucks we'll bring it to you.</p></div>
-          <div class="card"><div class="icon"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12l-1.5 16a1 1 0 0 1-1 .9h-7a1 1 0 0 1-1-.9z"/><path d="M6.6 9h10.8"/></svg></div><h3>The Local</h3><p>Hanging out at The Local? Order online and we'll deliver it there.</p></div>
+          <div class="card"><div class="icon"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12l1 13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z"/><path d="M9 10V6a3 3 0 0 1 6 0v4"/></svg></div><h3 data-edit="home.how.1.title" data-edit-label="Home: card 1 title">Mid-Round Pick-up</h3><p data-edit="home.how.1.text" data-edit-label="Home: card 1 text" data-edit-long>Order from hole 9 and grab it at our trailer by the 11th green when it's ready, or walk up and order from our Mulligan menu.</p></div>
+          <div class="card"><div class="icon"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h11"/><path d="M7 5v8"/><path d="M14.5 5l1.5 8"/><path d="M3 13h14l3 3v1H3z"/><circle cx="7" cy="18.5" r="1.8"/><circle cx="16.5" cy="18.5" r="1.8"/></svg></div><h3 data-edit="home.how.2.title" data-edit-label="Home: card 2 title">Course Delivery</h3><p data-edit="home.how.2.text" data-edit-label="Home: card 2 text" data-edit-long>Out on your round? Tell us your hole and cart number and for 5 bucks we'll bring it to you.</p></div>
+          <div class="card"><div class="icon"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12l-1.5 16a1 1 0 0 1-1 .9h-7a1 1 0 0 1-1-.9z"/><path d="M6.6 9h10.8"/></svg></div><h3 data-edit="home.how.3.title" data-edit-label="Home: card 3 title">The Local</h3><p data-edit="home.how.3.text" data-edit-label="Home: card 3 text" data-edit-long>Hanging out at The Local? Order online and we'll deliver it there.</p></div>
         </div>
       </div>
     </section>
@@ -63,8 +75,8 @@
          Stays hidden when there's nothing coming up. -->
     <section class="section" data-events-teaser hidden>
       <div class="wrap">
-        <div class="eyebrow">What's on</div>
-        <h2>Upcoming events</h2>
+        <div class="eyebrow" data-edit="home.events.eyebrow" data-edit-label="Home: small label above Upcoming events">What's on</div>
+        <h2 data-edit="home.events.title" data-edit-label="Home: Upcoming events heading">Upcoming events</h2>
         <div class="event-list event-list-teaser" data-event-teaser-list></div>
         <a class="btn btn-outline" href="/events" style="margin-top:18px">See the full calendar <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></a>
       </div>
@@ -73,14 +85,14 @@
     <section class="section">
       <div class="wrap split">
         <div>
-          <div class="eyebrow">Hours</div>
-          <h2>When we're cooking</h2>
+          <div class="eyebrow" data-edit="home.hours.eyebrow" data-edit-label="Home: small label above hours">Hours</div>
+          <h2 data-edit="home.hours.title" data-edit-label="Home: hours heading">When we're cooking</h2>
           <table class="hours-table"><tbody data-hours><tr><td class="muted">Loading hours…</td></tr></tbody></table>
-          <p class="muted small" style="margin-top:10px">Hours can change with the golf schedule and weather. The ordering page always shows whether we're open right now.</p>
+          <p class="muted small" style="margin-top:10px" data-edit="home.hours.note" data-edit-label="Home: note under hours" data-edit-long>Hours can change with the golf schedule and weather. The ordering page always shows whether we're open right now.</p>
         </div>
         <div>
-          <div class="eyebrow">Location</div>
-          <h2>Find us</h2>
+          <div class="eyebrow" data-edit="home.find.eyebrow" data-edit-label="Home: small label above Find us">Location</div>
+          <h2 data-edit="home.find.title" data-edit-label="Home: Find us heading">Find us</h2>
           <ul class="contact-list" data-contact-list></ul>
         </div>
       </div>
@@ -88,7 +100,7 @@
 
     <section class="section">
       <div class="wrap">
-        <div class="notice"><strong>Our full website is coming soon.</strong> In the meantime you can see the menu, check our hours, and order online any time we're open.</div>
+        <div class="notice" data-edit-slot><strong data-edit="home.notice.bold" data-edit-label="Home: notice box (bold part)">Our full website is coming soon.</strong> <span data-edit="home.notice.text" data-edit-label="Home: notice box (rest)" data-edit-long>In the meantime you can see the menu, check our hours, and order online any time we're open.</span></div>
       </div>
     </section>
 

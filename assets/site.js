@@ -8,6 +8,10 @@
  *       ├── site.js     <-- THIS FILE
  *       └── style.css
  *
+ * UPDATE (Nov 7 2026): website editor -- headings, paragraphs, button
+ * labels and pictures can be changed in the admin portal -> Website
+ * (see "Website editor" below).
+ *
  * ============================================================
  *  EDIT YOUR DETAILS HERE (this is the only place to change)
  * ============================================================
@@ -622,14 +626,14 @@ function initSignup() {
   band.id = 'signup'; // direct link: tjskitchenvc.com/signup (or any page + #signup)
   band.innerHTML = `<div class="wrap signup-inner">
     <div>
-      <div class="eyebrow">Stay in the loop</div>
-      <h2>Specials &amp; events by email</h2>
-      <p class="muted">New menu items, tournament food and events at the course. No spam — unsubscribe anytime.</p>
+      <div class="eyebrow" data-edit="signup.eyebrow" data-edit-label="Email sign-up: small label">Stay in the loop</div>
+      <h2 data-edit="signup.title" data-edit-label="Email sign-up: heading">Specials &amp; events by email</h2>
+      <p class="muted" data-edit="signup.text" data-edit-label="Email sign-up: text" data-edit-long>New menu items, tournament food and events at the course. No spam — unsubscribe anytime.</p>
     </div>
     <form class="signup-form" novalidate>
       <input type="text" name="first_name" placeholder="First name (optional)" autocomplete="given-name" maxlength="60" aria-label="First name">
       <input type="email" name="email" placeholder="Email address" autocomplete="email" required maxlength="254" aria-label="Email address">
-      <button class="btn" type="submit">Sign me up</button>
+      <button class="btn" type="submit"><span data-edit="signup.button" data-edit-label="Email sign-up: button">Sign me up</span></button>
       <p class="signup-note" aria-live="polite"></p>
     </form>
   </div>`;
@@ -698,6 +702,139 @@ function initUnsubscribe() {
 }
 
 /* ------------------------------------------------------------
+ * Website editor (Nov 7 2026) -- admin portal -> Website.
+ *
+ * Every editable spot on the site carries a key:
+ *   data-edit="home.hero.title"       text (headline, paragraph, button label)
+ *   data-edit-img="home.hero.image"   picture
+ *   data-edit-label="Home: ..."       the name the admin shows
+ *   data-edit-long                    edited in a big box (paragraphs)
+ *   data-edit-optional                picture slot that stays hidden until
+ *                                     a photo is added
+ *   data-edit-slot                    a box that hides itself when all the
+ *                                     text inside it is cleared
+ *   data-edit-elsewhere="..."         set somewhere else in the admin
+ *
+ * The text written in the HTML is the ORIGINAL. A row in the
+ * site_content table replaces it; "Reset to original" in the admin
+ * deletes the row. Text is always put in as plain text (never HTML), so
+ * nothing typed in the admin can break or take over the page.
+ *
+ * The last copy is kept in this browser so returning visitors see the
+ * edited text straight away; a fresh copy is fetched on every visit.
+ *
+ * EDIT MODE: the admin shows this site in a frame with ?tjs-edit=1.
+ * Then clicks select a spot instead of following links, and the page
+ * talks to the admin with postMessage -- ONLY to the admin's own address
+ * (ADMIN_ORIGINS). Edit mode can't save anything itself: saving happens
+ * in the admin, signed in as staff.
+ * ------------------------------------------------------------ */
+const ADMIN_ORIGINS = ['https://tjs-kitchen-admin.vercel.app'];
+const CONTENT_CACHE = 'tjs-site-content-v1';
+const editMode = (() => {
+  try { return new URLSearchParams(location.search).has('tjs-edit') && window.parent !== window; } catch (e) { return false; }
+})();
+let editParentOrigin = null;
+
+function editEls() { return [...document.querySelectorAll('[data-edit],[data-edit-img]')]; }
+function editKey(el) { return el.getAttribute('data-edit') || el.getAttribute('data-edit-img'); }
+function editKind(el) { return el.hasAttribute('data-edit-img') ? 'image' : 'text'; }
+
+// Remember what the HTML says before anything replaces it.
+function rememberOriginals() {
+  editEls().forEach(el => {
+    if (el.hasAttribute('data-edit-original')) return;
+    el.setAttribute('data-edit-original', editKind(el) === 'image' ? (el.getAttribute('src') || '') : el.textContent);
+  });
+}
+
+// value === null -> back to the original.
+function applyContent(key, value) {
+  document.querySelectorAll(`[data-edit="${CSS.escape(key)}"],[data-edit-img="${CSS.escape(key)}"]`).forEach(el => {
+    const v = value == null ? el.getAttribute('data-edit-original') : value;
+    if (editKind(el) === 'image') {
+      if (v) { el.src = v; el.hidden = false; } else { el.removeAttribute('src'); el.hidden = !editMode; }
+    } else {
+      el.textContent = v;
+      el.style.whiteSpace = v.includes('\n') ? 'pre-line' : '';
+      el.classList.toggle('edit-empty', !v.trim());
+      el.hidden = !v.trim() && !editMode;   // cleared text = hidden on the live site
+    }
+  });
+  refreshSlots();
+}
+
+// A box (notice, photo band) hides when everything editable in it is empty.
+function refreshSlots() {
+  document.querySelectorAll('[data-edit-slot]').forEach(slot => {
+    const parts = [...slot.querySelectorAll('[data-edit],[data-edit-img]')];
+    const anything = parts.some(el => editKind(el) === 'image' ? !!el.getAttribute('src') : !!el.textContent.trim());
+    slot.hidden = !anything && !editMode;
+  });
+}
+
+function applyAll(map) { Object.entries(map || {}).forEach(([k, v]) => applyContent(k, v)); }
+
+function readCache() { try { return JSON.parse(localStorage.getItem(CONTENT_CACHE) || '{}'); } catch (e) { return {}; } }
+function writeCache(map) { try { localStorage.setItem(CONTENT_CACHE, JSON.stringify(map)); } catch (e) { /* private window */ } }
+
+async function initSiteContent() {
+  rememberOriginals();
+  if (!editMode) applyAll(readCache());
+  refreshSlots();
+  let rows = [];
+  try { rows = await sb('site_content?select=key,kind,value'); } catch (e) { console.warn('Site text unavailable:', e); }
+  const map = {};
+  rows.forEach(r => { map[r.key] = r.value; });
+  // Anything that was reset since the last visit goes back to the original.
+  Object.keys(readCache()).forEach(k => { if (!(k in map)) applyContent(k, null); });
+  applyAll(map);
+  if (!editMode) writeCache(map);
+  if (editMode) startEditMode(map);
+}
+
+function startEditMode(saved) {
+  document.documentElement.classList.add('tjs-editing');
+  const page = (location.pathname.replace(/^\/|\.html$/g, '') || 'index');
+  const fieldList = () => editEls().map(el => ({
+    key: editKey(el), kind: editKind(el),
+    label: el.getAttribute('data-edit-label') || editKey(el),
+    long: el.hasAttribute('data-edit-long'),
+    optional: el.hasAttribute('data-edit-optional'),
+    original: el.getAttribute('data-edit-original') || '',
+    value: editKey(el) in saved ? saved[editKey(el)] : null,
+  })).filter((f, i, a) => a.findIndex(x => x.key === f.key) === i);
+  const send = msg => { ADMIN_ORIGINS.forEach(o => { try { window.parent.postMessage(msg, o); } catch (e) {} }); };
+
+  // Clicks pick a spot; nothing on the page navigates or submits.
+  document.addEventListener('click', ev => {
+    ev.preventDefault(); ev.stopPropagation();
+    const el = ev.target.closest('[data-edit],[data-edit-img],[data-edit-elsewhere]');
+    if (!el) return;
+    if (el.hasAttribute('data-edit-elsewhere')) { send({ type: 'tjs-edit-elsewhere', where: el.getAttribute('data-edit-elsewhere') }); return; }
+    document.querySelectorAll('.edit-selected').forEach(x => x.classList.remove('edit-selected'));
+    el.classList.add('edit-selected');
+    send({ type: 'tjs-edit-select', key: editKey(el) });
+  }, true);
+  document.addEventListener('submit', ev => ev.preventDefault(), true);
+
+  window.addEventListener('message', ev => {
+    if (!ADMIN_ORIGINS.includes(ev.origin)) return;   // only the admin portal
+    const m = ev.data || {};
+    if (m.type === 'tjs-edit-apply' && typeof m.key === 'string') {
+      applyContent(m.key, typeof m.value === 'string' ? m.value : null);
+    } else if (m.type === 'tjs-edit-highlight' && typeof m.key === 'string') {
+      document.querySelectorAll('.edit-selected').forEach(x => x.classList.remove('edit-selected'));
+      const el = document.querySelector(`[data-edit="${CSS.escape(m.key)}"],[data-edit-img="${CSS.escape(m.key)}"]`);
+      if (el) { el.classList.add('edit-selected'); if (m.scroll) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    } else if (m.type === 'tjs-edit-hello') {
+      send({ type: 'tjs-edit-ready', page, fields: fieldList() });
+    }
+  });
+  send({ type: 'tjs-edit-ready', page, fields: fieldList() });
+}
+
+/* ------------------------------------------------------------
  * "Push menu to all devices" (admin Dashboard, Nov 7 2026). The admin's
  * button stamps store_settings.menu_board_refresh_at -- the same signal
  * the Apple TV board and the ordering site watch. While a page is open we
@@ -726,4 +863,5 @@ function initMenuPushWatch() {
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
 }
 
-document.addEventListener('DOMContentLoaded', () => { initMenuPushWatch(); initHeaderLines(); initSignup(); initUnsubscribe(); initChrome(); initHours(); initMenu(); initAppleMap(); initEvents(); });
+// initSiteContent runs after initSignup so the sign-up band's text is editable too.
+document.addEventListener('DOMContentLoaded', () => { if (!editMode) initMenuPushWatch(); initHeaderLines(); initSignup(); initSiteContent(); initUnsubscribe(); initChrome(); initHours(); initMenu(); initAppleMap(); initEvents(); });
