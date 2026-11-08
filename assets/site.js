@@ -8,6 +8,9 @@
  *       ├── site.js     <-- THIS FILE
  *       └── style.css
  *
+ * UPDATE (Nov 8 2026): menu items follow the admin portal's order
+ * (display_order), not A-Z.
+ *
  * UPDATE (Nov 7 2026): website editor -- headings, paragraphs, button
  * labels and pictures can be changed in the admin portal -> Website
  * (see "Website editor" below).
@@ -211,7 +214,9 @@ async function initMenu() {
   try {
     const [cats, items] = await Promise.all([
       sb('menu_categories?select=id,name,description,display_order,is_active,visible_start_time,visible_end_time,available_days&is_active=eq.true&order=display_order'),
-      sb('menu_items?select=id,name,description,price,image_url,category_id,is_hidden,is_sold_out,available_days&is_hidden=eq.false&order=name'),
+      // Same order as the admin portal (Categories -> Manage Items), then A-Z --
+      // matches the ordering site and the Apple TV. (Was A-Z only; Nov 8 2026.)
+      sb('menu_items?select=id,name,description,price,image_url,category_id,is_hidden,is_sold_out,available_days&is_hidden=eq.false&order=display_order,name'),
     ]);
     const byCat = {};
     items.forEach(i => { (byCat[i.category_id] = byCat[i.category_id] || []).push(i); });
@@ -445,7 +450,7 @@ async function initEvents() {
     loadPublicEvents(),
     page ? sb('store_hours?select=day_of_week,is_open,open_time,close_time') : Promise.resolve([]),
     // Items only served on certain days (admin: "Days it can be ordered")
-    page ? sb('menu_items?select=name,price,available_days&is_hidden=eq.false&is_available=eq.true&available_days=not.is.null&order=name') : Promise.resolve([]),
+    page ? sb('menu_items?select=name,price,available_days&is_hidden=eq.false&is_available=eq.true&available_days=not.is.null&order=display_order,name') : Promise.resolve([]),
     page ? sb('menu_categories?select=name,available_days&is_active=eq.true&available_days=not.is.null&order=display_order') : Promise.resolve([]),
   ]);
   if (evR.status === 'fulfilled') events = evR.value || []; else console.warn('Events unavailable:', evR.reason);
