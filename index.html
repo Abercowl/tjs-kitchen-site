@@ -68,6 +68,25 @@
           <div class="card"><div class="icon"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h11"/><path d="M7 5v8"/><path d="M14.5 5l1.5 8"/><path d="M3 13h14l3 3v1H3z"/><circle cx="7" cy="18.5" r="1.8"/><circle cx="16.5" cy="18.5" r="1.8"/></svg></div><h3 data-edit="home.how.2.title" data-edit-label="Home: card 2 title">Course Delivery</h3><p data-edit="home.how.2.text" data-edit-label="Home: card 2 text" data-edit-long>Out on your round? Tell us your hole and cart number and for 5 bucks we'll bring it to you.</p></div>
           <div class="card"><div class="icon"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12l-1.5 16a1 1 0 0 1-1 .9h-7a1 1 0 0 1-1-.9z"/><path d="M6.6 9h10.8"/></svg></div><h3 data-edit="home.how.3.title" data-edit-label="Home: card 3 title">The Local</h3><p data-edit="home.how.3.text" data-edit-label="Home: card 3 text" data-edit-long>Hanging out at The Local? Order online and we'll deliver it there.</p></div>
         </div>
+        <!-- Community delivery -- coming soon (Nov 8 2026). Sign-ups go to
+             delivery_interest (admin portal -> Email list). -->
+        <div class="card coming-card" data-delivery-interest>
+          <div class="coming-text">
+            <div class="icon"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg></div>
+            <div>
+              <span class="tag tag-soon" data-edit="home.delivery.tag" data-edit-label="Home: community delivery tag">Coming soon</span>
+              <h3 data-edit="home.delivery.title" data-edit-label="Home: community delivery title">Community Delivery</h3>
+              <p data-edit="home.delivery.text" data-edit-label="Home: community delivery text" data-edit-long>We're planning delivery to the neighborhoods around Camarillo Springs. Interested? Sign up and you'll be the first to know when it starts.</p>
+            </div>
+          </div>
+          <form class="signup-form delivery-form" novalidate>
+            <input type="text" name="first_name" placeholder="First name (optional)" autocomplete="given-name" maxlength="60" aria-label="First name">
+            <input type="email" name="email" placeholder="Email address" autocomplete="email" required maxlength="254" aria-label="Email address">
+            <input type="text" name="area" placeholder="Neighborhood or street (optional)" autocomplete="address-line1" maxlength="120" aria-label="Neighborhood or street">
+            <button class="btn" type="submit"><span data-edit="home.delivery.button" data-edit-label="Home: community delivery button">I'm interested</span></button>
+            <p class="signup-note" aria-live="polite"></p>
+          </form>
+        </div>
       </div>
     </section>
 

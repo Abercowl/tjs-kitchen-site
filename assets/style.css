@@ -264,6 +264,17 @@ a.hl-line:hover .hl-text { color: #fff; }
 .signup h2 { margin-bottom: 6px; }
 .signup .muted { color: var(--muted); }
 .signup-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; }
+/* Community delivery -- coming soon (Nov 8 2026) */
+.coming-card { margin-top: 16px; display: grid; gap: 18px; border-style: dashed; border-color: var(--gold, #b3955e); }
+.coming-text { display: flex; gap: 16px; align-items: flex-start; }
+.coming-text .icon { flex: none; }
+.coming-text h3 { margin: 6px 0 4px; }
+.coming-text p { margin: 0; }
+.tag-soon { display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: 3px 10px; border-radius: 999px; background: var(--evergreen); color: #fff; }
+.delivery-form { grid-template-columns: 1fr 1.2fr 1.3fr auto; }
+.delivery-form .signup-note { grid-column: 1 / -1; margin: 0; }
+@media (max-width: 860px) { .delivery-form { grid-template-columns: 1fr 1fr; } .delivery-form .btn { justify-self: start; } }
+@media (max-width: 560px) { .delivery-form { grid-template-columns: 1fr; } }
 .signup-form input { width: 100%; min-width: 0; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 999px; padding: 11px 16px; font: inherit; font-size: 0.95rem; }
 .signup-form input:focus { outline: none; border-color: var(--evergreen); }
 .signup-form .btn:disabled { opacity: .6; cursor: default; transform: none; }

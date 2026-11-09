@@ -646,6 +646,30 @@ async function initHeaderLines() {
  * the admin portal (Email list); this site can only add or remove the
  * address someone types.
  * ------------------------------------------------------------ */
+/* ------------------------------------------------------------
+ * Community delivery "coming soon" sign-up (Nov 8 2026), home page.
+ * Saved with delivery_interest_signup() -> delivery_interest table
+ * (admin portal -> Email list -> Community delivery interest).
+ * ------------------------------------------------------------ */
+function initDeliveryInterest() {
+  const box = document.querySelector('[data-delivery-interest]');
+  if (!box) return;
+  const form = box.querySelector('form');
+  const note = box.querySelector('.signup-note');
+  form.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const email = form.email.value.trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { note.textContent = 'Please enter a valid email address.'; note.className = 'signup-note err'; return; }
+    const btn = form.querySelector('button'); btn.disabled = true;
+    try {
+      const r = await sbRpc('delivery_interest_signup', { p_email: email, p_first_name: form.first_name.value.trim() || null, p_area: form.area.value.trim() || null });
+      if (r && r.ok) { form.reset(); note.textContent = "Thanks! We'll let you know as soon as community delivery starts."; note.className = 'signup-note ok'; }
+      else { note.textContent = (r && r.error) || 'Something went wrong -- please try again.'; note.className = 'signup-note err'; }
+    } catch (e) { note.textContent = 'Something went wrong -- please try again.'; note.className = 'signup-note err'; }
+    btn.disabled = false;
+  });
+}
+
 function initSignup() {
   const footer = document.querySelector('.site-footer');
   if (!footer || document.body.hasAttribute('data-no-signup')) return;
@@ -892,4 +916,4 @@ function initMenuPushWatch() {
 }
 
 // initSiteContent runs after initSignup so the sign-up band's text is editable too.
-document.addEventListener('DOMContentLoaded', () => { if (!editMode) initMenuPushWatch(); initHeaderLines(); initSignup(); initSiteContent(); initUnsubscribe(); initChrome(); initHours(); initMenu(); initAppleMap(); initEvents(); });
+document.addEventListener('DOMContentLoaded', () => { if (!editMode) initMenuPushWatch(); initHeaderLines(); initSignup(); initDeliveryInterest(); initSiteContent(); initUnsubscribe(); initChrome(); initHours(); initMenu(); initAppleMap(); initEvents(); });
