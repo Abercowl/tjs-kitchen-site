@@ -227,6 +227,12 @@ h3 { font-size: 1.15rem; }
 .event-where { color: var(--muted); font-size: 0.9rem; }
 .event-desc { color: var(--text); font-size: 0.95rem; margin-top: 8px; white-space: pre-line; }
 .event-add { display: inline-block; margin-top: 10px; font-size: 0.85rem; }
+/* Event web link (Nov 8 2026) */
+.event-links { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: baseline; }
+.event-more { display: inline-flex; align-items: center; gap: 5px; margin-top: 10px; font-size: 0.85rem; font-weight: 600; }
+.event-more .ic { width: 14px; height: 14px; }
+.event-title a { color: inherit; text-decoration: none; }
+.event-title a:hover { text-decoration: underline; }
 .event-list-teaser { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-top: 20px; }
 @media (max-width: 760px) {
   .events-layout { grid-template-columns: 1fr; gap: 24px; }

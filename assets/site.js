@@ -8,6 +8,9 @@
  *       ├── site.js     <-- THIS FILE
  *       └── style.css
  *
+ * UPDATE (Nov 8 2026): events can link to a web page (events.link_url) --
+ * the title and a "Details & sign-up" link open it.
+ *
  * UPDATE (Nov 8 2026): menu items follow the admin portal's order
  * (display_order), not A-Z.
  *
@@ -72,6 +75,7 @@ async function sbRpc(fn, args) {
 /* Line icons -- the same set as the ordering site (components/Icon.js).
  * Never emoji: they look different on every phone. */
 const ICONS = {
+  external: '<path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
   "arrowRight": "<path d=\"M5 12h14\"/><path d=\"M13 6l6 6-6 6\"/>",
   "phone": "<path d=\"M5 4h3l1.5 4.5-2 1.2a11 11 0 0 0 6.8 6.8l1.2-2L20 16v3a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z\"/>",
   "mail": "<rect x=\"3\" y=\"5.5\" width=\"18\" height=\"13\" rx=\"2\"/><path d=\"M3.5 7l8.5 6 8.5-6\"/>",
@@ -420,6 +424,13 @@ function evIcs(e) {
   return 'data:text/calendar;charset=utf-8,' + encodeURIComponent(lines.join('\r\n'));
 }
 
+// Event web link (admin: Calendar -> event -> Link, Nov 8 2026). Only
+// plain http(s) addresses are ever used.
+function evLink(e) {
+  const u = String(e.link_url || '').trim();
+  return /^https?:\/\/[^\s"'<>]+$/i.test(u) ? u : '';
+}
+
 function evCard(e) {
   const mon = evFmt(e.starts_at, { month: 'short' });
   const day = evFmt(e.starts_at, { day: 'numeric' });
@@ -427,18 +438,21 @@ function evCard(e) {
   return `<article class="event" id="event-${esc(e.id)}" data-days="${evDays(e).join(' ')}">
     <div class="event-date"><span>${esc(mon)}</span><strong>${esc(day)}</strong></div>
     <div class="event-body">
-      <div class="event-title">${esc(e.title)}</div>
+      <div class="event-title">${evLink(e) ? `<a href="${esc(evLink(e))}" target="_blank" rel="noopener">${esc(e.title)}</a>` : esc(e.title)}</div>
       <div class="event-when">${esc(evWhen(e))}</div>
       ${e.location ? `<div class="event-where">${esc(e.location)}</div>` : ''}
       ${e.description ? `<div class="event-desc">${esc(e.description)}</div>` : ''}
-      <a class="event-add" href="${evIcs(e)}" download="${esc(file)}.ics">+ Add to my calendar</a>
+      <div class="event-links">
+        ${evLink(e) ? `<a class="event-more" href="${esc(evLink(e))}" target="_blank" rel="noopener">Details &amp; sign-up ${icon('external')}</a>` : ''}
+        <a class="event-add" href="${evIcs(e)}" download="${esc(file)}.ics">+ Add to my calendar</a>
+      </div>
     </div>
   </article>`;
 }
 
 async function loadPublicEvents() {
   const since = new Date(Date.now() - 120 * 86400000).toISOString();
-  return sb(`events?select=id,title,description,location,starts_at,ends_at,all_day&is_published=eq.true&or=(starts_at.gte.${since},ends_at.gte.${since})&order=starts_at&limit=500`);
+  return sb(`events?select=id,title,description,location,starts_at,ends_at,all_day,link_url&is_published=eq.true&or=(starts_at.gte.${since},ends_at.gte.${since})&order=starts_at&limit=500`);
 }
 
 async function initEvents() {
