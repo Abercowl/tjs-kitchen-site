@@ -517,7 +517,9 @@ async function initEvents() {
     const h = hours.find(x => x.day_of_week === dow);
     const hoursText = !hours.length ? '' : (!h || !h.is_open ? 'Kitchen closed' : `Kitchen open ${fmtTime(h.open_time)} – ${fmtTime(h.close_time)}`);
     const specials = itemsOn(key);
-    const openCats = catsOn(key);
+    // Nov 8 2026: categories open only some days (e.g. TJ's Cafe) are no
+    // longer listed separately here -- they're part of the regular menu.
+    const openCats = [];
     const past = key < todayKey;
     const tee = SITE.teeTimesUrl + (SITE.teeTimesUrl.includes('?') ? '&' : '?') + 'date=' + key;
     dayCard.innerHTML = `<div class="day-card-head">
@@ -553,7 +555,7 @@ async function initEvents() {
     for (let d = 1; d <= daysIn; d++) {
       const key = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       const evs = byDay.get(key) || [];
-      const special = itemsOn(key).length > 0 || catsOn(key).length > 0;
+      const special = itemsOn(key).length > 0;
       const cls = ['cal-day', key === todayKey ? 'today' : '', evs.length ? 'has' : '', key < todayKey ? 'past' : '', special ? 'special' : '', key === selKey ? 'sel' : ''].join(' ');
       const label = `${first.toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' })} ${d}${evs.length ? ', ' + evs.length + ' event' + (evs.length > 1 ? 's' : '') : ''}${special ? ', day specials' : ''}`;
       // Every day can be tapped: shows what's served + the tee-time link.
