@@ -569,9 +569,10 @@ async function initEvents() {
     for (let d = 1; d <= daysIn; d++) {
       const key = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       const evs = byDay.get(key) || [];
-      const special = itemsOn(key).length > 0;
+      // Nov 8 2026: the dot marks every day the kitchen is OPEN (store_hours).
+      const special = hours.length > 0 && !closedOn(key);
       const cls = ['cal-day', key === todayKey ? 'today' : '', evs.length ? 'has' : '', key < todayKey ? 'past' : '', special ? 'special' : '', key === selKey ? 'sel' : ''].join(' ');
-      const label = `${first.toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' })} ${d}${evs.length ? ', ' + evs.length + ' event' + (evs.length > 1 ? 's' : '') : ''}${special ? ', day specials' : ''}`;
+      const label = `${first.toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' })} ${d}${evs.length ? ', ' + evs.length + ' event' + (evs.length > 1 ? 's' : '') : ''}${special ? ', TJ\'s Kitchen open' : ''}`;
       // Every day can be tapped: shows what's served + the tee-time link.
       html += `<button type="button" class="${cls}" data-day="${key}" aria-label="${esc(label)}"><span class="num">${d}${special ? '<i class="cal-dot" aria-hidden="true"></i>' : ''}</span>${evs.slice(0, 2).map(e => `<span class="cal-chip">${esc(e.title)}</span>`).join('')}${evs.length > 2 ? `<span class="cal-more">+${evs.length - 2} more</span>` : ''}</button>`;
     }
