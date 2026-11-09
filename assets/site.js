@@ -546,6 +546,20 @@ async function initEvents() {
       : `<p class="muted">Nothing on the calendar yet — check back soon, or follow along on our <a href="/">home page</a>.</p>`;
   }
 
+  // One week of events (Nov 8 2026): the list under the calendar shows the
+  // 7 days starting at the selected day (today when the page opens, the
+  // 1st when you move to another month), not everything coming up.
+  const addDays = (key, n) => { const d = new Date(key + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  function showWeek(startKey) {
+    const endKey = addDays(startKey, 6);
+    const inWeek = events.filter(e => evDays(e).some(k => k >= startKey && k <= endKey));
+    const fmt = k => evFmt(k + 'T12:00:00Z', { month: 'short', day: 'numeric' });
+    const title = (startKey === todayKey ? 'This week' : 'Week of ' + fmt(startKey)) + ' · ' + fmt(startKey) + ' – ' + fmt(endKey);
+    heading.textContent = title;
+    listEl.innerHTML = inWeek.length ? inWeek.map(evCard).join('')
+      : '<p class="muted">Nothing on the calendar this week.</p>';
+  }
+
   function renderMonth() {
     const first = new Date(Date.UTC(y, m - 1, 1));
     const daysIn = new Date(Date.UTC(y, m, 0)).getUTCDate();
@@ -564,11 +578,7 @@ async function initEvents() {
     daysEl.innerHTML = html;
     const monthKey = `${y}-${String(m).padStart(2, '0')}`;
     const isThisMonth = monthKey === todayKey.slice(0, 7);
-    if (isThisMonth) showList(upcoming.slice(0, 20), 'Coming up');
-    else {
-      const inMonth = events.filter(e => evDays(e).some(k => k.startsWith(monthKey)));
-      showList(inMonth, titleEl.textContent);
-    }
+    showWeek(isThisMonth ? todayKey : `${monthKey}-01`);
   }
 
   daysEl.addEventListener('click', ev => {
@@ -579,10 +589,7 @@ async function initEvents() {
     daysEl.querySelectorAll('.cal-day.sel').forEach(x => x.classList.remove('sel'));
     btn.classList.add('sel');
     renderDayCard(key);
-    const evs = byDay.get(key) || [];
-    const label = 'Events · ' + evFmt(key + 'T12:00:00Z', { weekday: 'long', month: 'long', day: 'numeric' });
-    if (evs.length) showList(evs, label);
-    else { heading.textContent = label; listEl.innerHTML = '<p class="muted">No events this day.</p>'; }
+    showWeek(key);
     // On phones the card sits under the calendar -- bring it into view.
     if (window.matchMedia('(max-width: 760px)').matches && dayCard) dayCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
