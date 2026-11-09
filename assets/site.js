@@ -35,6 +35,9 @@ const SITE = {
   // Camarillo Springs' own tee sheet (TeeItUp -- GolfNow's booking engine).
   // The Events calendar adds &date=YYYY-MM-DD so it opens on that day.
   teeTimesUrl: 'https://camarillo-springs-golf-course.book.teeitup.com/?course=4796&max=999999',
+  // Days the course runs its drink cart (0 = Sun ... 6 = Sat). Shown in the
+  // day box on the Specials & Events page. Nov 8 2026: Thursday-Sunday.
+  drinkCartDays: [4, 5, 6, 0],
   address: '791 Camarillo Springs Rd, Camarillo, CA 93012',
   placeName: 'Camarillo Springs Golf Course',
   windowSpot: 'Our trailer is at the 11th green',  // shown under the address
@@ -75,6 +78,7 @@ async function sbRpc(fn, args) {
 /* Line icons -- the same set as the ordering site (components/Icon.js).
  * Never emoji: they look different on every phone. */
 const ICONS = {
+  cup: '<path d="M6 4h12l-1.5 16a1 1 0 0 1-1 .9h-7a1 1 0 0 1-1-.9z"/><path d="M6.6 9h10.8"/>',
   external: '<path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
   "arrowRight": "<path d=\"M5 12h14\"/><path d=\"M13 6l6 6-6 6\"/>",
   "phone": "<path d=\"M5 4h3l1.5 4.5-2 1.2a11 11 0 0 0 6.8 6.8l1.2-2L20 16v3a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z\"/>",
@@ -524,7 +528,8 @@ async function initEvents() {
     const tee = SITE.teeTimesUrl + (SITE.teeTimesUrl.includes('?') ? '&' : '?') + 'date=' + key;
     dayCard.innerHTML = `<div class="day-card-head">
         <div><div class="eyebrow">${past ? 'Past day' : 'Plan your round'}</div><h3 class="day-card-title">${esc(label)}</h3>
-        ${hoursText ? `<div class="day-card-hours">${icon('flag')} ${esc(hoursText)}</div>` : ''}</div>
+        ${hoursText ? `<div class="day-card-hours">${icon('flag')} ${esc(hoursText)}</div>` : ''}
+        ${(SITE.drinkCartDays || []).includes(dow) ? `<div class="day-card-hours">${icon('cup')} Drink cart out on the course</div>` : ''}</div>
       </div>
       ${closedOn(key) ? `<div class="day-card-menu"><div class="day-card-sub">TJ's Kitchen is closed</div><p class="small muted">We're closed on this day. The course is still open for tee times.</p></div>` : `<div class="day-card-menu">
         <div class="day-card-sub">${specials.length || openCats.length ? 'Only on this day' : 'On the menu'}</div>
