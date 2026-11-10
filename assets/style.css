@@ -358,3 +358,11 @@ a.hl-line:hover .hl-btn { background: #e2b866; }
   color: var(--muted); font-weight: 600; pointer-events: none;
 }
 .tjs-editing .photo-band:has(img[src]) .wrap::after { display: none; }
+
+/* ---- Privacy & texting terms page (Nov 9 2026) ---- */
+.legal h2 { font-size: 22px; margin: 32px 0 10px; }
+.legal h2:first-child { margin-top: 0; }
+.legal p, .legal li { line-height: 1.65; }
+.legal ul { padding-left: 20px; margin: 0; display: grid; gap: 6px; }
+.site-footer a { color: inherit; text-decoration: underline; }
+.legal p + p { margin-top: 12px; }
