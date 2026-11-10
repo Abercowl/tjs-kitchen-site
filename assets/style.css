@@ -148,6 +148,9 @@ h3 { font-size: 1.15rem; }
 .site-footer .wrap { display: flex; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
 .site-footer a { color: var(--muted); }
 .site-footer a:hover { color: var(--gold); }
+.footer-social { display: flex; gap: 14px; align-items: center; }
+.site-footer .footer-social a { text-decoration: none; display: inline-flex; }
+.footer-social .ic { width: 22px; height: 22px; }
 .footer-links { display: flex; gap: 16px; flex-wrap: wrap; }
 
 /* ---------- mobile ---------- */

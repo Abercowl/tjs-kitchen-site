@@ -42,8 +42,8 @@
 const SITE = {
   phone: '(805) 670-5686',
   email: 'tjskitchen0001@gmail.com',
-  instagram: '',      // e.g. 'tjskitchenvc'  (handle only, no @)
-  facebook: '',       // full link, e.g. 'https://facebook.com/...'
+  instagram: 'tjskitchenvc',      // handle only, no @
+  facebook: 'https://www.facebook.com/profile.php?id=1121273467744715',  // TJ's Kitchen page (Nov 9 2026)
   // Exact spot of the TJ's Kitchen building. The map on the Contact page
   // puts the TJ pin here, and "Directions" routes people to this spot.
   mapPin: { lat: 34.20194, lng: -118.98951 },  // 34.20194° N, 118.98951° W
@@ -94,6 +94,8 @@ async function sbRpc(fn, args) {
 /* Line icons -- the same set as the ordering site (components/Icon.js).
  * Never emoji: they look different on every phone. */
 const ICONS = {
+  instagram: '<rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r=".6"/>',
+  facebook: '<path d="M14 8h2.5V4.5H14A3.5 3.5 0 0 0 10.5 8v2.5H8V14h2.5v6.5H14V14h2.5l.5-3.5h-3V8z"/>',
   cup: '<path d="M6 4h12l-1.5 16a1 1 0 0 1-1 .9h-7a1 1 0 0 1-1-.9z"/><path d="M6.6 9h10.8"/>',
   external: '<path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
   "arrowRight": "<path d=\"M5 12h14\"/><path d=\"M13 6l6 6-6 6\"/>",
@@ -205,10 +207,19 @@ function renderContactBits() {
   if (SITE.phone) items.push(`<li><span class="ci">${icon('phone')}</span><div><strong>Phone</strong><br><a href="tel:${esc(SITE.phone.replace(/[^\d+]/g, ''))}">${esc(SITE.phone)}</a></div></li>`);
   if (SITE.email) items.push(`<li><span class="ci">${icon('mail')}</span><div><strong>Email</strong><br><a href="mailto:${esc(SITE.email)}">${esc(SITE.email)}</a></div></li>`);
   items.push(`<li><span class="ci">${icon('pin')}</span><div><strong>Find us</strong><br>${esc(SITE.placeName)}<br><span class="muted">${esc(SITE.address)}</span><br>${SITE.windowSpot ? `<span class="muted ci-inline">${icon('flag')} ${esc(SITE.windowSpot)}</span><br>` : ''}<a ${directionsAttrs()}>Get directions ${icon('arrowRight')}</a></div></li>`);
-  if (SITE.instagram) items.push(`<li><span class="ci">${icon('camera')}</span><div><strong>Instagram</strong><br><a href="https://instagram.com/${esc(SITE.instagram)}" target="_blank" rel="noopener">@${esc(SITE.instagram)}</a></div></li>`);
-  if (SITE.facebook) items.push(`<li><span class="ci">${icon('thumbsUp')}</span><div><strong>Facebook</strong><br><a href="${esc(SITE.facebook)}" target="_blank" rel="noopener">Follow us</a></div></li>`);
+  if (SITE.instagram) items.push(`<li><span class="ci">${icon('instagram')}</span><div><strong>Instagram</strong><br><a href="https://instagram.com/${esc(SITE.instagram)}" target="_blank" rel="noopener">@${esc(SITE.instagram)}</a></div></li>`);
+  if (SITE.facebook) items.push(`<li><span class="ci">${icon('facebook')}</span><div><strong>Facebook</strong><br><a href="${esc(SITE.facebook)}" target="_blank" rel="noopener">TJ's Kitchen on Facebook</a></div></li>`);
   if (!SITE.phone && !SITE.email) items.push(`<li><span class="ci">${icon('chat')}</span><div class="muted">Phone and email coming soon. The fastest way to reach us right now is to stop by the trailer or order online.</div></li>`);
   document.querySelectorAll('[data-contact-list]').forEach(el => { el.innerHTML = items.join(''); });
+  // Nov 9 2026: Instagram + Facebook icons in every page's footer.
+  const social = [
+    SITE.instagram ? `<a href="https://instagram.com/${esc(SITE.instagram)}" target="_blank" rel="noopener" aria-label="TJ's Kitchen on Instagram">${icon('instagram')}</a>` : '',
+    SITE.facebook ? `<a href="${esc(SITE.facebook)}" target="_blank" rel="noopener" aria-label="TJ's Kitchen on Facebook">${icon('facebook')}</a>` : '',
+  ].join('');
+  document.querySelectorAll('.site-footer .wrap').forEach(w => {
+    if (!social || w.querySelector('.footer-social')) return;
+    const d = document.createElement('div'); d.className = 'footer-social'; d.innerHTML = social; w.appendChild(d);
+  });
 }
 
 /* ---------- hours + open/closed (home & contact) ---------- */
