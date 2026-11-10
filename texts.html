@@ -2,7 +2,8 @@
 <!-- FILE:  tjs-kitchen-site/texts.html
      tjs-kitchen-site/
      ├── texts.html     <-- THIS FILE (new Nov 9 2026: sign up for texted specials;
-     │                   the "Get our specials" QR sign at the trailer points here)
+     │                   the "Get our specials" QR sign at the trailer points here;
+     │                   Nov 9 2026 night: label, button and note editable in the admin)
      └── assets/
          ├── site.js
          └── style.css -->
@@ -42,7 +43,7 @@
   <main>
     <section class="section" style="padding-bottom:24px">
       <div class="wrap" style="max-width:640px">
-        <div class="eyebrow">Stay in the loop</div>
+        <div class="eyebrow" data-edit="texts.eyebrow" data-edit-label="Texts sign-up: small label">Stay in the loop</div>
         <h1 data-edit="texts.title" data-edit-label="Texts sign-up: headline">Get our specials by text</h1>
         <p class="lead" style="margin-top:10px" data-edit="texts.lead" data-edit-label="Texts sign-up: intro" data-edit-long>Weekly specials and where we're cooking next &mdash; like cheesesteak weekend at Cam Springs. Up to 4 texts a month, never spam.</p>
       </div>
@@ -56,8 +57,8 @@
             <input type="checkbox" name="consent">
             <span>Yes, text me TJ's Kitchen specials and news at this number (up to 4 msgs/month). Consent isn't required to buy anything. Msg &amp; data rates may apply. Reply HELP for help, STOP to cancel. See our <a href="/privacy#texting">privacy &amp; texting terms</a>.</span>
           </label>
-          <button class="btn" type="submit">Text me specials</button>
-          <p class="muted" style="font-size:13px;margin:0">We'll text you once to confirm -- just reply JOIN.</p>
+          <button class="btn" type="submit"><span data-edit="texts.button" data-edit-label="Texts sign-up: button">Text me specials</span></button>
+          <p class="muted" style="font-size:13px;margin:0" data-edit="texts.confirm" data-edit-label="Texts sign-up: note under the button">We'll text you once to confirm -- just reply JOIN.</p>
           <p class="signup-note" aria-live="polite"></p>
         </form>
       </div>
