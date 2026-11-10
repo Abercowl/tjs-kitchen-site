@@ -771,7 +771,7 @@ function initSignup() {
     <div>
       <div class="eyebrow" data-edit="signup.eyebrow" data-edit-label="Email sign-up: small label">Stay in the loop</div>
       <h2 data-edit="signup.title" data-edit-label="Email sign-up: heading">Specials &amp; where we're cooking next</h2>
-      <p class="muted" data-edit="signup.text" data-edit-label="Email sign-up: text" data-edit-long>Sign up for our daily specials and find out where we're cooking next, on the course or out in the community. No spam, unsubscribe anytime.</p>
+      <p class="muted" data-edit="signup.text" data-edit-label="Email sign-up: text" data-edit-long>Join the list for this week's specials and where to find us next, on the course or out in the community. No spam, and you can opt out anytime.</p>
     </div>
     <form class="signup-form signup-form-3" novalidate>
       <input type="text" name="first_name" placeholder="Name" autocomplete="given-name" required maxlength="40" aria-label="Name">
