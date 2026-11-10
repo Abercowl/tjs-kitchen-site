@@ -43,7 +43,7 @@ const SITE = {
   phone: '(805) 670-5686',
   email: 'tjskitchen0001@gmail.com',
   instagram: 'tjskitchenvc',      // handle only, no @
-  facebook: '',       // hidden Nov 10 2026: the ID link showed "content isn't available" -- paste the page's real link (Share -> Copy link)
+  facebook: 'https://www.facebook.com/profile.php?id=61591105646076',  // TJ's Kitchen page (Nov 10 2026; swap for facebook.com/<username> once set)
   // Exact spot of the TJ's Kitchen building. The map on the Contact page
   // puts the TJ pin here, and "Directions" routes people to this spot.
   mapPin: { lat: 34.20194, lng: -118.98951 },  // 34.20194° N, 118.98951° W
