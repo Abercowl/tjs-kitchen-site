@@ -5,6 +5,11 @@
       "source": "/signup",
       "destination": "/#signup",
       "permanent": false
+    },
+    {
+      "source": "/terms",
+      "destination": "/privacy#texting",
+      "permanent": false
     }
   ]
 }
