@@ -8,6 +8,12 @@
  *       ├── site.js     <-- THIS FILE
  *       └── style.css
  *
+ * UPDATE (Nov 9 2026): special days (admin -> Store -> Special days,
+ * table store_special_days). Hours on the home/contact pages list the
+ * next few special days under the weekly hours, and the Specials &
+ * Events calendar shows that day's own hours (or "closed") instead of
+ * the usual weekday hours. The weekly table always shows REGULAR hours.
+ *
  * UPDATE (Nov 8 2026): events can link to a web page (events.link_url) --
  * the title and a "Details & sign-up" link open it.
  *
@@ -127,6 +133,20 @@ function fmtTime(t) {
   return `${h12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
 }
 
+// Special days (Nov 9 2026). While a special day is running, that
+// weekday's store_hours row holds the special hours and the regular ones
+// are in base_*; this gives back the regular weekly hours.
+const HOURS_SELECT = 'day_of_week,is_open,open_time,close_time,special_day,base_is_open,base_open_time,base_close_time';
+const regularHours = hours => hours.map(h => h.special_day
+  ? { ...h, is_open: h.base_is_open, open_time: h.base_open_time, close_time: h.base_close_time } : h);
+// Today's date in California, YYYY-MM-DD.
+const pacificDateKey = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date());
+// Upcoming special days; [] if the table isn't there or can't be read.
+async function loadSpecialDays(fromKey, limit = 60) {
+  try { return (await sb(`store_special_days?select=day,is_open,open_time,close_time,note&day=gte.${fromKey}&order=day&limit=${limit}`)) || []; }
+  catch (e) { return []; }
+}
+
 // Everything is judged in California time, wherever the visitor is.
 function pacificNow() {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -187,18 +207,34 @@ async function initHours() {
   const pills = document.querySelectorAll('[data-status]');
   if (!tables.length && !pills.length) return;
   try {
-    const [settingsRows, hours] = await Promise.all([
+    const [settingsRows, hours, specials] = await Promise.all([
       sb('store_settings?id=eq.1&select=is_accepting_orders,schedule_enabled,override,closed_message'),
-      sb('store_hours?select=day_of_week,is_open,open_time,close_time&order=day_of_week'),
+      sb(`store_hours?select=${HOURS_SELECT}&order=day_of_week`),
+      loadSpecialDays(pacificDateKey(), 4),
     ]);
     const settings = settingsRows[0] || null;
     const today = pacificNow().day;
+    const weekly = regularHours(hours);
     const rows = [1, 2, 3, 4, 5, 6, 0].map(d => {
-      const h = hours.find(x => x.day_of_week === d);
+      const h = weekly.find(x => x.day_of_week === d);
       const val = !h || !h.is_open ? 'Closed' : `${fmtTime(h.open_time)} – ${fmtTime(h.close_time)}`;
       return `<tr class="${d === today ? 'today' : ''}"><td>${DAY_NAMES[d]}</td><td>${val}</td></tr>`;
     }).join('');
     tables.forEach(t => { t.innerHTML = hours.length ? rows : '<tr><td class="muted">Hours coming soon.</td></tr>'; });
+    // Special days coming up (only while the weekly schedule is in use).
+    const todayKey = pacificDateKey();
+    const special = settings && settings.schedule_enabled && hours.length ? specials.filter(s => s.day >= todayKey) : [];
+    tables.forEach(t => {
+      const table = t.closest('table');
+      let note = table.nextElementSibling;
+      if (!note || !note.matches('.special-hours')) { note = document.createElement('div'); note.className = 'special-hours'; table.after(note); }
+      note.hidden = !special.length;
+      note.innerHTML = special.length ? '<strong>Special hours</strong><ul>' + special.map(s => {
+        const day = s.day === todayKey ? 'Today' : new Date(s.day + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
+        const val = s.is_open ? `${fmtTime(s.open_time)} – ${fmtTime(s.close_time)}` : 'Closed';
+        return `<li><span>${esc(day)}${s.note ? ' · ' + esc(s.note) : ''}</span><span>${val}</span></li>`;
+      }).join('') + '</ul>' : '';
+    });
 
     const open = isOpenNow(settings, hours);
     pills.forEach(p => {
@@ -463,16 +499,20 @@ async function initEvents() {
   const page = document.querySelector('[data-events]');
   const teaser = document.querySelector('[data-events-teaser]');
   if (!page && !teaser) return;
-  let events = [], hours = [], dayItems = [];
-  const [evR, hrR, itR, catR] = await Promise.allSettled([
+  let events = [], hours = [], dayItems = [], specialDays = [], scheduleOn = true;
+  const [evR, hrR, itR, catR, spR, stR] = await Promise.allSettled([
     loadPublicEvents(),
-    page ? sb('store_hours?select=day_of_week,is_open,open_time,close_time') : Promise.resolve([]),
+    page ? sb(`store_hours?select=${HOURS_SELECT}`) : Promise.resolve([]),
     // Items only served on certain days (admin: "Days it can be ordered")
     page ? sb('menu_items?select=name,price,available_days&is_hidden=eq.false&is_available=eq.true&available_days=not.is.null&order=display_order,name') : Promise.resolve([]),
     page ? sb('menu_categories?select=name,available_days&is_active=eq.true&available_days=not.is.null&order=display_order') : Promise.resolve([]),
+    page ? loadSpecialDays(new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10), 400) : Promise.resolve([]),
+    page ? sb('store_settings?id=eq.1&select=schedule_enabled') : Promise.resolve([]),
   ]);
+  if (spR.status === 'fulfilled') specialDays = spR.value || [];
+  if (stR.status === 'fulfilled' && stR.value && stR.value[0]) scheduleOn = !!stR.value[0].schedule_enabled;
   if (evR.status === 'fulfilled') events = evR.value || []; else console.warn('Events unavailable:', evR.reason);
-  if (hrR.status === 'fulfilled') hours = hrR.value || [];
+  if (hrR.status === 'fulfilled') hours = regularHours(hrR.value || []);
   const dayCats = catR.status === 'fulfilled' ? (catR.value || []).filter(c => Array.isArray(c.available_days) && c.available_days.length && c.available_days.length < 7) : [];
   if (itR.status === 'fulfilled') dayItems = (itR.value || []).filter(i => Array.isArray(i.available_days) && i.available_days.length && i.available_days.length < 7);
   events.sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
@@ -498,7 +538,10 @@ async function initEvents() {
   // Closed days (Nov 7 2026): if store_hours says we're closed that weekday
   // (e.g. Tue/Wed), nothing is served -- no "X is open" or day-only items,
   // and no dot on the calendar, even if a category is set to "weekdays".
-  const closedOn = key => { const h = hours.find(x => x.day_of_week === dowOf(key)); return hours.length > 0 && (!h || !h.is_open); };
+  // Special days (Nov 9 2026) replace the weekday's hours for that date.
+  const specialOn = key => scheduleOn ? specialDays.find(s => s.day === key) : undefined;
+  const hoursOn = key => specialOn(key) || hours.find(x => x.day_of_week === dowOf(key));
+  const closedOn = key => { const h = hoursOn(key); return hours.length > 0 && (!h || !h.is_open); };
   const itemsOn = key => closedOn(key) ? [] : dayItems.filter(i => i.available_days.map(Number).includes(dowOf(key)));
   const catsOn = key => closedOn(key) ? [] : dayCats.filter(c => c.available_days.map(Number).includes(dowOf(key)));
   const heading = page.querySelector('[data-events-heading]');
@@ -518,8 +561,10 @@ async function initEvents() {
     const dow = dowOf(key);
     const label = key === todayKey ? 'Today · ' + evFmt(key + 'T12:00:00Z', { weekday: 'long', month: 'long', day: 'numeric' })
       : evFmt(key + 'T12:00:00Z', { weekday: 'long', month: 'long', day: 'numeric' });
-    const h = hours.find(x => x.day_of_week === dow);
-    const hoursText = !hours.length ? '' : (!h || !h.is_open ? 'Kitchen closed' : `Kitchen open ${fmtTime(h.open_time)} – ${fmtTime(h.close_time)}`);
+    const h = hoursOn(key);
+    const sp = specialOn(key);
+    const hoursText = !hours.length ? '' : (sp && sp.note ? sp.note + ': ' : sp ? 'Special hours: ' : '')
+      + (!h || !h.is_open ? 'Kitchen closed' : `Kitchen open ${fmtTime(h.open_time)} – ${fmtTime(h.close_time)}`);
     const specials = itemsOn(key);
     // Nov 8 2026: categories open only some days (e.g. TJ's Cafe) are no
     // longer listed separately here -- they're part of the regular menu.
@@ -531,7 +576,7 @@ async function initEvents() {
         ${hoursText ? `<div class="day-card-hours">${icon('flag')} ${esc(hoursText)}</div>` : ''}
         ${(SITE.drinkCartDays || []).includes(dow) ? `<div class="day-card-hours">${icon('cup')} Drink cart out on the course</div>` : ''}</div>
       </div>
-      ${closedOn(key) ? `<div class="day-card-menu"><div class="day-card-sub">TJ's Kitchen is closed</div><p class="small muted">We're closed on this day. The course is still open for tee times.</p></div>` : `<div class="day-card-menu">
+      ${closedOn(key) ? `<div class="day-card-menu"><div class="day-card-sub">TJ's Kitchen is closed</div><p class="small muted">We're closed on this day${sp && sp.note ? ' (' + esc(sp.note) + ')' : ''}. The course is still open for tee times.</p></div>` : `<div class="day-card-menu">
         <div class="day-card-sub">${specials.length || openCats.length ? 'Only on this day' : 'On the menu'}</div>
         ${openCats.length ? `<ul class="day-specials">${openCats.map(c => `<li><span>${esc(c.name)} is open</span><span class="tag tag-days">${esc(openDaysTag(c))}</span></li>`).join('')}</ul>` : ''}
         ${specials.length
