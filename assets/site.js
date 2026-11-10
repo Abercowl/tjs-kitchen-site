@@ -701,7 +701,9 @@ function initTextSignup() {
       const out = await res.json().catch(() => null);
       if (!res.ok) throw new Error((out && out.message) || 'Something went wrong -- please try again.');
       form.reset();
-      note.textContent = out === 'already' ? "You're already on the list -- thanks!" : "You're in! Watch for a welcome text from us.";
+      // Double opt-in (Nov 9 2026): they're only on the list after replying JOIN.
+      note.textContent = out === 'already' ? "You're already on the list -- thanks!"
+        : "Almost done! We just texted you -- reply JOIN to confirm.";
       note.className = 'signup-note ok';
     } catch (e) { note.textContent = e.message; note.className = 'signup-note err'; }
     btn.disabled = false;
