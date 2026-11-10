@@ -536,8 +536,8 @@ async function initEvents() {
         ${openCats.length ? `<ul class="day-specials">${openCats.map(c => `<li><span>${esc(c.name)} is open</span><span class="tag tag-days">${esc(openDaysTag(c))}</span></li>`).join('')}</ul>` : ''}
         ${specials.length
           ? `<ul class="day-specials">${specials.map(i => `<li><span>${esc(i.name)}</span><span class="price">$${Number(i.price).toFixed(2)}</span></li>`).join('')}</ul>
-             <p class="small muted">Plus everything on our <a href="/menu">regular menu</a>.</p>`
-          : `<p class="small muted">${openCats.length ? 'Plus our' : 'Our'} <a href="/menu">regular menu</a>.</p>`}
+             <p class="small muted">Plus everything on our <a href="https://order.tjskitchenvc.com/menu">regular menu</a>.</p>`
+          : `<p class="small muted">${openCats.length ? 'Plus our' : 'Our'} <a href="https://order.tjskitchenvc.com/menu">regular menu</a>.</p>`}
       </div>`}
       ${past ? '' : `<div class="day-card-actions">
         <a class="btn" href="${esc(tee)}" target="_blank" rel="noopener">Book a tee time ${icon('arrowRight')}</a>

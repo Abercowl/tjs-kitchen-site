@@ -10,6 +10,11 @@
       "source": "/terms",
       "destination": "/privacy#texting",
       "permanent": false
+    },
+    {
+      "source": "/menu",
+      "destination": "https://order.tjskitchenvc.com/menu",
+      "permanent": false
     }
   ]
 }
