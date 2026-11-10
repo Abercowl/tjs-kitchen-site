@@ -288,6 +288,13 @@ a.hl-line:hover .hl-text { color: #fff; }
 .signup-note.ok { color: var(--open); }
 .signup-note.err { color: var(--closed); }
 [data-unsub] .signup-form { grid-template-columns: 1fr auto; }
+/* Name + email + mobile sign-up (Nov 9 2026) */
+.signup-form-3 { grid-template-columns: 1fr 1fr; }
+.signup-form-3 .consent { grid-column: 1 / -1; display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.5; color: var(--muted); cursor: pointer; }
+.signup-form-3 .consent[hidden] { display: none; }
+.signup-form-3 .consent input { width: 18px; height: 18px; flex: none; margin-top: 2px; padding: 0; border-radius: 4px; }
+.signup-form-3 .consent a { color: inherit; text-decoration: underline; }
+@media (max-width: 820px) { .signup-form-3 .consent { order: 1; } .signup-form-3 .btn { order: 2; } .signup-form-3 .signup-note { order: 3; } }
 @media (max-width: 820px) {
   .signup-inner { grid-template-columns: 1fr; gap: 16px; }
   .signup-form, [data-unsub] .signup-form { grid-template-columns: 1fr; }
