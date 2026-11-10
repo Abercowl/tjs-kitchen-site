@@ -16,5 +16,25 @@
       "destination": "https://order.tjskitchenvc.com/menu",
       "permanent": false
     }
+  ],
+  "headers": [
+    {
+      "source": "/assets/(site\\.js|style\\.css)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/((?!assets/).*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    }
   ]
 }

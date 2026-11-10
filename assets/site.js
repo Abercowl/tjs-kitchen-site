@@ -8,6 +8,10 @@
  *       ├── site.js     <-- THIS FILE
  *       └── style.css
  *
+ * UPDATE (Nov 9 2026, night): website-editor changes now also show on
+ * phones that already had the site open -- the text is re-checked when the
+ * page comes back on screen (see initSiteContent).
+ *
  * UPDATE (Nov 9 2026, later): the sign-up band at the bottom of every
  * page asks for name, mobile number and email. Email -> email list
  * (email_subscribe). Mobile -> texted specials (sms_specials_signup,
@@ -962,8 +966,26 @@ async function initSiteContent() {
   rememberOriginals();
   if (!editMode) applyAll(readCache());
   refreshSlots();
-  let rows = [];
-  try { rows = await sb('site_content?select=key,kind,value'); } catch (e) { console.warn('Site text unavailable:', e); }
+  await loadSiteContent();
+  if (editMode) return;
+  // Nov 9 2026: phones keep an open tab as it was -- switching back to
+  // Safari / Chrome (or tapping Back) shows the page from memory without
+  // reloading. Re-check the admin's edits whenever the page comes back on
+  // screen (at most every 20 seconds), so changes show up there too.
+  let last = Date.now();
+  const recheck = () => {
+    if (document.visibilityState !== 'visible' || Date.now() - last < 20000) return;
+    last = Date.now();
+    loadSiteContent();
+  };
+  document.addEventListener('visibilitychange', recheck);
+  window.addEventListener('pageshow', ev => { if (ev.persisted) { last = 0; recheck(); } });
+}
+
+async function loadSiteContent() {
+  let rows = [], loaded = false;
+  try { rows = await sb('site_content?select=key,kind,value'); loaded = true; } catch (e) { console.warn('Site text unavailable:', e); }
+  if (!loaded && !editMode) return; // couldn't load -- keep what's showing
   const map = {};
   rows.forEach(r => { map[r.key] = r.value; });
   // Anything that was reset since the last visit goes back to the original.
