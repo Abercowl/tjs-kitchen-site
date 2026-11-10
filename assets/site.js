@@ -25,7 +25,7 @@
  */
 const SITE = {
   phone: '(805) 670-5686',
-  email: 'tjskitchenvc0001@gmail.com',
+  email: 'tjskitchen0001@gmail.com',
   instagram: '',      // e.g. 'tjskitchenvc'  (handle only, no @)
   facebook: '',       // full link, e.g. 'https://facebook.com/...'
   // Exact spot of the TJ's Kitchen building. The map on the Contact page
