@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<!-- FILE:  tjs-kitchen-site/texts.html
+     tjs-kitchen-site/
+     ├── texts.html     <-- THIS FILE (new Nov 9 2026: sign up for texted specials;
+     │                   the "Get our specials" QR sign at the trailer points here)
+     └── assets/
+         ├── site.js
+         └── style.css -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Specials by Text | TJ's Kitchen</title>
+  <meta name="description" content="TJ's Kitchen at Camarillo Springs Golf Course — order ahead for pick-up or delivery to your hole.">
+  <meta property="og:title" content="Specials by Text | TJ's Kitchen">
+  <meta property="og:description" content="TJ's Kitchen at Camarillo Springs Golf Course — order ahead for pick-up or delivery to your hole.">
+  <meta property="og:image" content="/assets/logo.png">
+  <meta name="theme-color" content="#1c3a2e">
+  <link rel="icon" href="/assets/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&family=Lobster&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/style.css">
+  <script src="/assets/site.js" defer></script>
+</head>
+<body data-no-signup>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="/"><img src="/assets/logo-light.png" alt="TJ's Kitchen logo"><span>TJ's Kitchen</span></a>
+      <button class="menu-toggle" aria-label="Open menu"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg></button>
+      <nav class="nav">
+        <a href="/">Home</a>
+        <a href="/menu">Menu</a>
+        <a href="/about">About</a>
+        <a href="/events">Specials &amp; Events</a>
+        <a href="/contact">Contact</a>
+        <a class="btn btn-sm" data-order-link href="https://order.tjskitchenvc.com">Order Online</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="section" style="padding-bottom:24px">
+      <div class="wrap" style="max-width:640px">
+        <div class="eyebrow">Stay in the loop</div>
+        <h1 data-edit="texts.title" data-edit-label="Texts sign-up: headline">Get our specials by text</h1>
+        <p class="lead" style="margin-top:10px" data-edit="texts.lead" data-edit-label="Texts sign-up: intro" data-edit-long>Weekly specials and where we're cooking next &mdash; like cheesesteak weekend at Cam Springs. Up to 4 texts a month, never spam.</p>
+      </div>
+    </section>
+    <section class="section" style="border-top:0;padding-top:8px">
+      <div class="wrap" style="max-width:640px">
+        <form class="card text-signup" data-text-signup novalidate>
+          <input type="text" name="first_name" placeholder="First name (optional)" autocomplete="given-name" maxlength="40" aria-label="First name">
+          <input type="tel" name="phone" placeholder="Mobile number" autocomplete="tel-national" inputmode="tel" required maxlength="20" aria-label="Mobile number">
+          <label class="consent">
+            <input type="checkbox" name="consent">
+            <span>Yes, text me TJ's Kitchen specials and news at this number (up to 4 msgs/month). Consent isn't required to buy anything. Msg &amp; data rates may apply. Reply HELP for help, STOP to cancel. See our <a href="/privacy#texting">privacy &amp; texting terms</a>.</span>
+          </label>
+          <button class="btn" type="submit">Text me specials</button>
+          <p class="signup-note" aria-live="polite"></p>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <div>© <span data-year></span> TJ's Kitchen · <span data-address></span> · <a href="/privacy">Privacy &amp; texting terms</a></div>
+    </div>
+  </footer>
+</body>
+</html>

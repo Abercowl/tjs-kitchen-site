@@ -676,6 +676,38 @@ function initDeliveryInterest() {
   });
 }
 
+// Texted specials sign-up (texts.html, Nov 9 2026). Calls the
+// sms_specials_signup database function; the welcome text then comes from
+// Twilio within a minute. The consent box must be ticked by the customer.
+function initTextSignup() {
+  const form = document.querySelector('[data-text-signup]');
+  if (!form) return;
+  const note = form.querySelector('.signup-note');
+  const pretty = v => { const d = v.replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '').slice(0, 10);
+    return d.length < 4 ? d : d.length < 7 ? `(${d.slice(0,3)}) ${d.slice(3)}` : `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`; };
+  form.phone.addEventListener('input', () => { form.phone.value = pretty(form.phone.value); });
+  form.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const digits = form.phone.value.replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
+    if (!/^[2-9]\d{9}$/.test(digits)) { note.textContent = 'Please enter a 10-digit mobile number.'; note.className = 'signup-note err'; return; }
+    if (!form.consent.checked) { note.textContent = 'Please tick the box to agree to get texts.'; note.className = 'signup-note err'; return; }
+    const btn = form.querySelector('button'); btn.disabled = true;
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/sms_specials_signup`, {
+        method: 'POST',
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_phone: digits, p_first_name: form.first_name.value.trim() || null, p_source: 'website' }),
+      });
+      const out = await res.json().catch(() => null);
+      if (!res.ok) throw new Error((out && out.message) || 'Something went wrong -- please try again.');
+      form.reset();
+      note.textContent = out === 'already' ? "You're already on the list -- thanks!" : "You're in! Watch for a welcome text from us.";
+      note.className = 'signup-note ok';
+    } catch (e) { note.textContent = e.message; note.className = 'signup-note err'; }
+    btn.disabled = false;
+  });
+}
+
 function initSignup() {
   const footer = document.querySelector('.site-footer');
   if (!footer || document.body.hasAttribute('data-no-signup')) return;
@@ -922,4 +954,4 @@ function initMenuPushWatch() {
 }
 
 // initSiteContent runs after initSignup so the sign-up band's text is editable too.
-document.addEventListener('DOMContentLoaded', () => { if (!editMode) initMenuPushWatch(); initHeaderLines(); initSignup(); initDeliveryInterest(); initSiteContent(); initUnsubscribe(); initChrome(); initHours(); initMenu(); initAppleMap(); initEvents(); });
+document.addEventListener('DOMContentLoaded', () => { if (!editMode) initMenuPushWatch(); initHeaderLines(); initSignup(); initDeliveryInterest(); initTextSignup(); initSiteContent(); initUnsubscribe(); initChrome(); initHours(); initMenu(); initAppleMap(); initEvents(); });
