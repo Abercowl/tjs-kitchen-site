@@ -680,7 +680,6 @@ async function initEvents() {
       ${past ? '' : `<p class="course-link"><a href="${esc(SITE.courseUrl)}" target="_blank" rel="noopener">Check out the course's official page ${icon('external')}</a></p>
       <div class="day-card-actions">
         <a class="btn" href="${esc(tee)}" target="_blank" rel="noopener">Or book a tee time ${icon('arrowRight')}</a>
-        ${key === todayKey ? `<a class="btn btn-outline" href="${SITE.orderUrl}">Order food</a>` : ''}
       </div>`}`;
   }
 
