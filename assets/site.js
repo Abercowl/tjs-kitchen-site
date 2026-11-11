@@ -8,6 +8,9 @@
  *       ├── site.js     <-- THIS FILE
  *       └── style.css
  *
+ * UPDATE (Nov 11 2026): the sign-up is a MAILING LIST (special events,
+ * new menu items, new services) -- not weekly specials.
+ *
  * UPDATE (Nov 10 2026, later): question form on the FAQs page (name,
  * email, subject -> submit_inquiry -> admin "Inquiries"). The "Stay in
  * the loop" sign-up band now shows on the HOME page only.
@@ -862,8 +865,8 @@ function initSignup() {
   band.innerHTML = `<div class="wrap signup-inner">
     <div>
       <div class="eyebrow" data-edit="signup.eyebrow" data-edit-label="Email sign-up: small label">Stay in the loop</div>
-      <h2 data-edit="signup.title" data-edit-label="Email sign-up: heading">Specials &amp; where we're cooking next</h2>
-      <p class="muted" data-edit="signup.text" data-edit-label="Email sign-up: text" data-edit-long>Join the list for this week's specials and where to find us next, on the course or out in the community. No spam, and you can opt out anytime.</p>
+      <h2 data-edit="signup.title" data-edit-label="Email sign-up: heading">Join our mailing list</h2>
+      <p class="muted" data-edit="signup.text" data-edit-label="Email sign-up: text" data-edit-long>Be the first to hear about special events, new menu items and new services, on the course or out in the community. No spam, and you can opt out anytime.</p>
     </div>
     <form class="signup-form signup-form-3" novalidate>
       <input type="text" name="first_name" placeholder="Name" autocomplete="given-name" required maxlength="40" aria-label="Name">
@@ -872,7 +875,7 @@ function initSignup() {
       <button class="btn" type="submit"><span data-edit="signup.button" data-edit-label="Email sign-up: button">Sign me up</span></button>
       <label class="consent" hidden>
         <input type="checkbox" name="sms_consent">
-        <span>Yes, text me TJ's Kitchen specials and news at this number (up to 4 msgs/month). Consent isn't required to buy anything. Msg &amp; data rates may apply. Reply HELP for help, STOP to cancel. See our <a href="/privacy#texting">privacy &amp; texting terms</a>.</span>
+        <span>Yes, text me TJ's Kitchen news (special events, new menu items and services) at this number (up to 4 msgs/month). Consent isn't required to buy anything. Msg &amp; data rates may apply. Reply HELP for help, STOP to cancel. See our <a href="/privacy#texting">privacy &amp; texting terms</a>.</span>
       </label>
       <p class="signup-note" aria-live="polite"></p>
     </form>
@@ -913,7 +916,7 @@ function initSignup() {
     if (!email && !digits) return say('Please enter your email, your mobile number, or both.');
     if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return say('Please enter a valid email address.');
     if (digits && !/^[2-9]\d{9}$/.test(digits)) return say('Please enter a 10-digit US mobile number.');
-    if (digits && !form.sms_consent.checked) return say('Tick the box to get our specials by text — or clear the number to sign up by email only.');
+    if (digits && !form.sms_consent.checked) return say('Tick the box to join by text — or clear the number to sign up by email only.');
     const btn = form.querySelector('button'); btn.disabled = true;
     const done = [], problems = [];
     if (email) {
