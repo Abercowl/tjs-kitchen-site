@@ -417,6 +417,6 @@ a.hl-line:hover .hl-btn { background: #e2b866; }
 .text-signup .btn { justify-self: start; }
 
 /* Course website link above "Or book a tee time" (Nov 10 2026) */
-.course-link { margin: 16px 0 8px; font-weight: 600; }
+.course-link { margin: 16px 0 8px; font-weight: 600; display: flex; flex-wrap: wrap; gap: 8px 22px; }
 .course-link a { color: var(--gold); display: inline-flex; align-items: center; gap: 6px; }
 .course-link .ic { width: 16px; height: 16px; }
