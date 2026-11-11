@@ -3,6 +3,7 @@
      tjs-kitchen-site/
      ├── faq.html     <-- THIS FILE (new Nov 10 2026). Questions & answers come from
      │                Supabase site_faqs -- edited in admin -> Website -> FAQs.
+     │                Bottom: question form -> customer_inquiries -> admin -> Inquiries.
      └── assets/
          ├── site.js
          └── style.css -->
@@ -51,7 +52,20 @@
       <div class="wrap faq-wrap">
         <!-- Filled in from the admin portal -> Website -> FAQs -->
         <div class="faq-list" data-faqs><p class="muted">Loading…</p></div>
-        <div class="notice" style="margin-top:28px"><strong data-edit="faq.more.bold" data-edit-label="FAQs: bottom box (bold part)">Still have a question?</strong> <span data-edit="faq.more.text" data-edit-label="FAQs: bottom box (rest)" data-edit-long>Call us at (805) 670-5686 or email tjskitchen0001@gmail.com.</span></div>
+        <!-- "Have a question? Just ask." form (Nov 10 2026). Goes to admin -> Inquiries. -->
+        <div class="ask" id="ask">
+          <h2 data-edit="faq.ask.title" data-edit-label="FAQs: question form heading">Have a question? Just ask.</h2>
+          <p class="muted" data-edit="faq.ask.text" data-edit-label="FAQs: question form text" data-edit-optional>Send us a note and we'll get back to you by email.</p>
+          <form class="ask-form" novalidate>
+            <input type="text" name="name" placeholder="Name" autocomplete="name" required maxlength="80" aria-label="Name">
+            <input type="email" name="email" placeholder="Email" autocomplete="email" required maxlength="254" aria-label="Email">
+            <textarea name="subject" placeholder="Subject — what's your question?" required maxlength="2000" rows="4" aria-label="Subject"></textarea>
+            <!-- leave empty: catches bots -->
+            <input type="text" name="website" tabindex="-1" autocomplete="off" class="hp" aria-hidden="true">
+            <button class="btn" type="submit"><span data-edit="faq.ask.button" data-edit-label="FAQs: question form button">Send</span></button>
+            <p class="ask-note" aria-live="polite"></p>
+          </form>
+        </div>
       </div>
     </section>
   </main>

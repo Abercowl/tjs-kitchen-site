@@ -110,6 +110,20 @@ h3 { font-size: 1.15rem; }
 .faq summary:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
 .faq-a { padding: 0 20px 18px; color: var(--text); line-height: 1.6; }
 .faq-a a { color: var(--gold); }
+.ask { margin-top: 32px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; }
+.ask h2 { margin: 0 0 6px; }
+.ask .muted { margin: 0 0 16px; }
+.ask-form { display: grid; gap: 12px; }
+.ask-form input, .ask-form textarea { width: 100%; box-sizing: border-box; font: inherit; padding: 13px 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg); color: var(--text); }
+.ask-form input { border-radius: 999px; }
+.ask-form textarea { resize: vertical; min-height: 110px; }
+.ask-form input:focus, .ask-form textarea:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+.ask-form .btn { justify-self: start; min-width: 140px; }
+.ask-form .hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.ask-note { margin: 0; font-size: 14px; }
+.ask-note.ok { color: var(--open); font-weight: 600; }
+.ask-note.err { color: var(--closed); }
+@media (max-width: 600px) { .ask { padding: 18px; } .ask-form .btn { justify-self: stretch; } }
 
 /* ---------- hours ---------- */
 .hours-table { width: 100%; border-collapse: collapse; margin-top: 8px; }

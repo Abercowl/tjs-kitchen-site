@@ -8,6 +8,10 @@
  *       ├── site.js     <-- THIS FILE
  *       └── style.css
  *
+ * UPDATE (Nov 10 2026, later): question form on the FAQs page (name,
+ * email, subject -> submit_inquiry -> admin "Inquiries"). The "Stay in
+ * the loop" sign-up band now shows on the HOME page only.
+ *
  * UPDATE (Nov 10 2026): FAQs page (/faq). Questions & answers come from
  * site_faqs (admin -> Website -> FAQs). Web addresses, emails, phone
  * numbers and @instagram in answers become links. Adds FAQ structured
@@ -216,7 +220,7 @@ async function initFaqs() {
   let rows = [];
   try { rows = await sb('site_faqs?select=question,answer&is_published=eq.true&order=sort_order,created_at'); }
   catch (e) { box.innerHTML = '<p class="muted">Questions are loading slowly — please refresh the page.</p>'; return; }
-  if (!rows.length) { box.innerHTML = '<p class="muted">Questions coming soon.</p>'; return; }
+  if (!rows.length) { box.innerHTML = ''; box.hidden = true; return; } // no questions yet -- just the form
   box.innerHTML = rows.map((r, i) => `<details class="faq"${i === 0 ? ' open' : ''}>
       <summary><span>${esc(r.question)}</span>${icon('chevronDown')}</summary>
       <div class="faq-a">${faqLinkify(r.answer)}</div>
@@ -227,6 +231,35 @@ async function initFaqs() {
   ld.textContent = JSON.stringify({ '@context': 'https://schema.org', '@type': 'FAQPage',
     mainEntity: rows.map(r => ({ '@type': 'Question', name: r.question, acceptedAnswer: { '@type': 'Answer', text: r.answer } })) });
   document.head.appendChild(ld);
+}
+
+// "Have a question? Just ask." (FAQs page)
+function initAskForm() {
+  const form = document.querySelector('.ask-form');
+  if (!form) return;
+  const note = form.querySelector('.ask-note');
+  const say = (msg, ok) => { note.textContent = msg; note.className = 'ask-note ' + (ok ? 'ok' : 'err'); };
+  form.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    if (editMode) return;
+    const name = form.name.value.trim(), email = form.email.value.trim(), subject = form.subject.value.trim();
+    if (!name) return say('Please enter your name.');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return say('Please enter a valid email address.');
+    if (subject.length < 2) return say("Please tell us what your question is about.");
+    const btn = form.querySelector('button'); btn.disabled = true;
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/submit_inquiry`, {
+        method: 'POST',
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_name: name, p_email: email, p_subject: subject, p_page: location.pathname, p_website: form.website.value }),
+      });
+      const out = await res.json().catch(() => null);
+      if (!res.ok) throw new Error((out && out.message) || 'Something went wrong — please try again.');
+      form.reset();
+      say(`Thanks, ${name.split(' ')[0]}! We got your question and will email you back soon.`, true);
+    } catch (e) { say(e.message.replace(/ -- /g, ' — ')); }
+    btn.disabled = false;
+  });
 }
 
 function initChrome() {
@@ -816,6 +849,8 @@ function initTextSignup() {
 function initSignup() {
   const footer = document.querySelector('.site-footer');
   if (!footer || document.body.hasAttribute('data-no-signup')) return;
+  // Nov 10 2026: home page only (it used to be on every page).
+  if (!/^\/(index(\.html)?)?$/.test(location.pathname)) return;
   const band = document.createElement('section');
   band.className = 'signup';
   band.id = 'signup'; // direct link: tjskitchenvc.com/signup (or any page + #signup)
@@ -1114,4 +1149,4 @@ function initMenuPushWatch() {
 }
 
 // initSiteContent runs after initSignup so the sign-up band's text is editable too.
-document.addEventListener('DOMContentLoaded', () => { initFaqs(); if (!editMode) initMenuPushWatch(); initHeaderLines(); initSignup(); initDeliveryInterest(); initTextSignup(); initSiteContent(); initUnsubscribe(); initChrome(); initHours(); initMenu(); initAppleMap(); initEvents(); });
+document.addEventListener('DOMContentLoaded', () => { initFaqs(); initAskForm(); if (!editMode) initMenuPushWatch(); initHeaderLines(); initSignup(); initDeliveryInterest(); initTextSignup(); initSiteContent(); initUnsubscribe(); initChrome(); initHours(); initMenu(); initAppleMap(); initEvents(); });
