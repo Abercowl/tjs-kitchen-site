@@ -416,7 +416,10 @@ a.hl-line:hover .hl-btn { background: #e2b866; }
 .text-signup input:focus { outline: none; border-color: var(--evergreen); }
 .text-signup .btn { justify-self: start; }
 
-/* Course website link above "Or book a tee time" (Nov 10 2026) */
-.course-link { margin: 16px 0 8px; font-weight: 600; display: flex; flex-wrap: wrap; gap: 8px 22px; }
-.course-link a { color: var(--gold); display: inline-flex; align-items: center; gap: 6px; }
-.course-link .ic { width: 16px; height: 16px; }
+/* Golf links in the day box (Nov 10 2026): title + button each */
+.golf-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.golf-link { display: flex; flex-direction: column; justify-content: space-between; gap: 2px; }
+.golf-link .eyebrow { font-size: 0.72rem; margin-bottom: 8px; }
+.golf-link .btn { width: 100%; justify-content: center; }
+.golf-link.tee { grid-column: 1 / -1; }
+.golf-link .btn .ic { width: 16px; height: 16px; }

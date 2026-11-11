@@ -679,9 +679,10 @@ async function initEvents() {
              <p class="small muted">Plus everything on our <a href="https://order.tjskitchenvc.com/menu">regular menu</a>.</p>`
           : `<p class="small muted">${openCats.length ? 'Plus our' : 'Our'} <a href="https://order.tjskitchenvc.com/menu">regular menu</a>.</p>`}
       </div>`}
-      ${past ? '' : `<p class="course-link"><a href="${esc(SITE.courseUrl)}" target="_blank" rel="noopener">Check out the course's official page ${icon('external')}</a><a href="${esc(SITE.proUrl)}" target="_blank" rel="noopener">Meet our pro ${icon('external')}</a></p>
-      <div class="day-card-actions">
-        <a class="btn" href="${esc(tee)}" target="_blank" rel="noopener">Or book a tee time ${icon('arrowRight')}</a>
+      ${past ? '' : `<div class="golf-links">
+        <div class="golf-link"><div class="eyebrow">Check out the course</div><a class="btn btn-outline" href="${esc(SITE.courseUrl)}" target="_blank" rel="noopener">Official course page ${icon('external')}</a></div>
+        <div class="golf-link"><div class="eyebrow">Meet our pro</div><a class="btn btn-outline" href="${esc(SITE.proUrl)}" target="_blank" rel="noopener">Jacob Lusk Golf ${icon('external')}</a></div>
+        <div class="golf-link tee"><div class="eyebrow">Ready to play?</div><a class="btn" href="${esc(tee)}" target="_blank" rel="noopener">Book a tee time ${icon('arrowRight')}</a></div>
       </div>`}`;
   }
 
