@@ -736,8 +736,8 @@ function initDeliveryInterest() {
     try {
       const r = await sbRpc('delivery_interest_signup', { p_email: email, p_first_name: form.first_name.value.trim() || null, p_area: form.area.value.trim() || null });
       if (r && r.ok) { form.reset(); note.textContent = "Thanks! We'll let you know as soon as community delivery starts."; note.className = 'signup-note ok'; }
-      else { note.textContent = (r && r.error) || 'Something went wrong -- please try again.'; note.className = 'signup-note err'; }
-    } catch (e) { note.textContent = 'Something went wrong -- please try again.'; note.className = 'signup-note err'; }
+      else { note.textContent = (r && r.error) || 'Something went wrong — please try again.'; note.className = 'signup-note err'; }
+    } catch (e) { note.textContent = 'Something went wrong — please try again.'; note.className = 'signup-note err'; }
     btn.disabled = false;
   });
 }
@@ -765,11 +765,11 @@ function initTextSignup() {
         body: JSON.stringify({ p_phone: digits, p_first_name: form.first_name.value.trim() || null, p_source: 'website' }),
       });
       const out = await res.json().catch(() => null);
-      if (!res.ok) throw new Error((out && out.message) || 'Something went wrong -- please try again.');
+      if (!res.ok) throw new Error((out && out.message) || 'Something went wrong — please try again.');
       form.reset();
       // Double opt-in (Nov 9 2026): they're only on the list after replying JOIN.
-      note.textContent = out === 'already' ? "You're already on the list -- thanks!"
-        : "Almost done! We just texted you -- reply JOIN to confirm.";
+      note.textContent = out === 'already' ? "You're already on the list — thanks!"
+        : "Almost done! We just texted you — reply JOIN to confirm.";
       note.className = 'signup-note ok';
     } catch (e) { note.textContent = e.message; note.className = 'signup-note err'; }
     btn.disabled = false;
@@ -836,7 +836,7 @@ function initSignup() {
     if (!email && !digits) return say('Please enter your email, your mobile number, or both.');
     if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return say('Please enter a valid email address.');
     if (digits && !/^[2-9]\d{9}$/.test(digits)) return say('Please enter a 10-digit US mobile number.');
-    if (digits && !form.sms_consent.checked) return say('Tick the box to get our specials by text -- or clear the number to sign up by email only.');
+    if (digits && !form.sms_consent.checked) return say('Tick the box to get our specials by text — or clear the number to sign up by email only.');
     const btn = form.querySelector('button'); btn.disabled = true;
     const done = [], problems = [];
     if (email) {
@@ -862,8 +862,8 @@ function initSignup() {
     if (problems.length) return say((done.includes('email') ? "You're on the email list. " : '') + problems.join(' ') + ' Please try again.');
     form.reset(); consentRow.hidden = true;
     say(textState && textState !== 'already'
-      ? (done.includes('email') ? "You're on the email list! " : '') + 'We just texted you -- reply JOIN to confirm texts.'
-      : "You're on the list -- thanks!", true);
+      ? (done.includes('email') ? "You're on the email list! " : '') + 'We just texted you — reply JOIN to confirm texts.'
+      : "You're on the list — thanks!", true);
   });
 }
 
@@ -888,10 +888,10 @@ function initUnsubscribe() {
       await sbRpc('email_unsubscribe', args);
       form.remove();
       done.hidden = false; done.className = 'signup-note ok';
-      done.innerHTML = "You're unsubscribed -- you won't get any more emails from us. Changed your mind? Sign up again at the bottom of <a href=\"/\">any page</a>.";
+      done.innerHTML = "You're unsubscribed — you won't get any more emails from us. Changed your mind? Sign up again at the bottom of <a href=\"/\">any page</a>.";
     } catch (e) {
       form.querySelector('button').disabled = false;
-      done.hidden = false; done.textContent = 'Something went wrong -- please try again.'; done.className = 'signup-note err';
+      done.hidden = false; done.textContent = 'Something went wrong — please try again.'; done.className = 'signup-note err';
     }
   });
 }
