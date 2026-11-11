@@ -415,3 +415,8 @@ a.hl-line:hover .hl-btn { background: #e2b866; }
 .text-signup input[type=text], .text-signup input[type=tel] { width: 100%; min-width: 0; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 999px; padding: 12px 16px; font: inherit; font-size: 1rem; }
 .text-signup input:focus { outline: none; border-color: var(--evergreen); }
 .text-signup .btn { justify-self: start; }
+
+/* Course website link above "Or book a tee time" (Nov 10 2026) */
+.course-link { margin: 16px 0 8px; font-weight: 600; }
+.course-link a { color: var(--gold); display: inline-flex; align-items: center; gap: 6px; }
+.course-link .ic { width: 16px; height: 16px; }

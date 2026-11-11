@@ -60,6 +60,8 @@ const SITE = {
   // Camarillo Springs' own tee sheet (TeeItUp -- GolfNow's booking engine).
   // The Events calendar adds &date=YYYY-MM-DD so it opens on that day.
   teeTimesUrl: 'https://camarillo-springs-golf-course.book.teeitup.com/?course=4796&max=999999',
+  // Nov 10 2026: the course's own website, linked above "Or book a tee time".
+  courseUrl: 'https://camarillospringsgolf.com',
   // Days the course runs its drink cart (0 = Sun ... 6 = Sat). Shown in the
   // day box on the Specials & Events page. Nov 8 2026: Thursday-Sunday.
   drinkCartDays: [4, 5, 6, 0],
@@ -675,8 +677,9 @@ async function initEvents() {
              <p class="small muted">Plus everything on our <a href="https://order.tjskitchenvc.com/menu">regular menu</a>.</p>`
           : `<p class="small muted">${openCats.length ? 'Plus our' : 'Our'} <a href="https://order.tjskitchenvc.com/menu">regular menu</a>.</p>`}
       </div>`}
-      ${past ? '' : `<div class="day-card-actions">
-        <a class="btn" href="${esc(tee)}" target="_blank" rel="noopener">Book a tee time ${icon('arrowRight')}</a>
+      ${past ? '' : `<p class="course-link"><a href="${esc(SITE.courseUrl)}" target="_blank" rel="noopener">Check out the course's official page ${icon('external')}</a></p>
+      <div class="day-card-actions">
+        <a class="btn" href="${esc(tee)}" target="_blank" rel="noopener">Or book a tee time ${icon('arrowRight')}</a>
         ${key === todayKey ? `<a class="btn btn-outline" href="${SITE.orderUrl}">Order food</a>` : ''}
       </div>`}`;
   }
