@@ -8,6 +8,11 @@
  *       ├── site.js     <-- THIS FILE
  *       └── style.css
  *
+ * UPDATE (Nov 10 2026): FAQs page (/faq). Questions & answers come from
+ * site_faqs (admin -> Website -> FAQs). Web addresses, emails, phone
+ * numbers and @instagram in answers become links. Adds FAQ structured
+ * data so Google can show the answers in search.
+ *
  * UPDATE (Nov 9 2026, night): website-editor changes now also show on
  * phones that already had the site open -- the text is re-checked when the
  * page comes back on screen (see initSiteContent).
@@ -96,6 +101,7 @@ async function sbRpc(fn, args) {
 const ICONS = {
   instagram: '<rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r=".6"/>',
   facebook: '<path d="M14 8h2.5V4.5H14A3.5 3.5 0 0 0 10.5 8v2.5H8V14h2.5v6.5H14V14h2.5l.5-3.5h-3V8z"/>',
+  chevronDown: '<path d="M6 9l6 6 6-6"/>',
   cup: '<path d="M6 4h12l-1.5 16a1 1 0 0 1-1 .9h-7a1 1 0 0 1-1-.9z"/><path d="M6.6 9h10.8"/>',
   external: '<path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
   "arrowRight": "<path d=\"M5 12h14\"/><path d=\"M13 6l6 6-6 6\"/>",
@@ -192,6 +198,37 @@ function isOpenNow(settings, hours) {
 }
 
 /* ---------- shared bits on every page ---------- */
+// ---------- FAQs page (Nov 10 2026) ----------
+// Plain-text answer -> safe HTML with links (escape first, then link).
+function faqLinkify(text) {
+  return esc(text)
+    .replace(/\b(https?:\/\/[^\s<]+[^\s<.,;:!?)])/g, '<a href="$1" target="_blank" rel="noopener">$1</a>')
+    .replace(/(^|[\s(])((?:order\.)?tjskitchenvc\.com(?:\/[^\s<]*[^\s<.,;:!?)])?)/g, '$1<a href="https://$2">$2</a>')
+    .replace(/([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/g, '<a href="mailto:$1">$1</a>')
+    .replace(/(^|[\s(])@([A-Za-z0-9_.]{3,30})\b/g, '$1<a href="https://instagram.com/$2" target="_blank" rel="noopener">@$2</a>')
+    .replace(/\(?(\d{3})\)?[ .-]?(\d{3})[ .-](\d{4})/g, (m, a, b, c) => `<a href="tel:+1${a}${b}${c}">${m}</a>`)
+    .replace(/Specials &amp; Events page/g, '<a href="/events">Specials &amp; Events page</a>')
+    .replace(/\n/g, '<br>');
+}
+async function initFaqs() {
+  const box = document.querySelector('[data-faqs]');
+  if (!box) return;
+  let rows = [];
+  try { rows = await sb('site_faqs?select=question,answer&is_published=eq.true&order=sort_order,created_at'); }
+  catch (e) { box.innerHTML = '<p class="muted">Questions are loading slowly — please refresh the page.</p>'; return; }
+  if (!rows.length) { box.innerHTML = '<p class="muted">Questions coming soon.</p>'; return; }
+  box.innerHTML = rows.map((r, i) => `<details class="faq"${i === 0 ? ' open' : ''}>
+      <summary><span>${esc(r.question)}</span>${icon('chevronDown')}</summary>
+      <div class="faq-a">${faqLinkify(r.answer)}</div>
+    </details>`).join('');
+  // Lets Google show these answers in search results.
+  const ld = document.createElement('script');
+  ld.type = 'application/ld+json';
+  ld.textContent = JSON.stringify({ '@context': 'https://schema.org', '@type': 'FAQPage',
+    mainEntity: rows.map(r => ({ '@type': 'Question', name: r.question, acceptedAnswer: { '@type': 'Answer', text: r.answer } })) });
+  document.head.appendChild(ld);
+}
+
 function initChrome() {
   const toggle = document.querySelector('.menu-toggle');
   const nav = document.querySelector('.nav');
@@ -1077,4 +1114,4 @@ function initMenuPushWatch() {
 }
 
 // initSiteContent runs after initSignup so the sign-up band's text is editable too.
-document.addEventListener('DOMContentLoaded', () => { if (!editMode) initMenuPushWatch(); initHeaderLines(); initSignup(); initDeliveryInterest(); initTextSignup(); initSiteContent(); initUnsubscribe(); initChrome(); initHours(); initMenu(); initAppleMap(); initEvents(); });
+document.addEventListener('DOMContentLoaded', () => { initFaqs(); if (!editMode) initMenuPushWatch(); initHeaderLines(); initSignup(); initDeliveryInterest(); initTextSignup(); initSiteContent(); initUnsubscribe(); initChrome(); initHours(); initMenu(); initAppleMap(); initEvents(); });
