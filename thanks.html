@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<!-- FILE:  tjs-kitchen-site/thanks.html
+     tjs-kitchen-site/
+     ├── thanks.html  <-- THIS FILE (new Nov 13 2026). Thank You page (/thanks).
+     │                The thank-you cards come from Supabase site_thanks -- edited
+     │                in admin -> Website -> Thank you. Headline/text edit like any page.
+     └── assets/
+         ├── site.js
+         └── style.css -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thank You | TJ's Kitchen</title>
+  <meta name="description" content="Thank you to the people and businesses who help make TJ's Kitchen at Camarillo Springs Golf Course what it is.">
+  <meta property="og:title" content="Thank You | TJ's Kitchen">
+  <meta property="og:description" content="Thank you to the people and businesses who help make TJ's Kitchen at Camarillo Springs Golf Course what it is.">
+  <meta property="og:image" content="/assets/logo.png">
+  <meta name="theme-color" content="#1c3a2e">
+  <link rel="icon" href="/assets/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&family=Lobster&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/style.css">
+  <script src="/assets/site.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="/"><img src="/assets/logo-light.png" alt="TJ's Kitchen logo"><span>TJ's Kitchen</span></a>
+      <button class="menu-toggle" aria-label="Open menu"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg></button>
+      <nav class="nav">
+        <a href="/">Home</a>
+        <a href="/about">About</a>
+        <a href="/events">Specials &amp; Events</a>
+        <a href="/faq">FAQs</a>
+        <a href="/contact">Contact</a>
+        <a class="btn btn-sm" data-order-link href="https://order.tjskitchenvc.com">Order Online</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" style="padding-bottom:28px">
+      <div class="wrap">
+        <h1 data-edit="thanks.title" data-edit-label="Thank you: big headline">Thank you</h1>
+        <p class="lead" data-edit="thanks.lead" data-edit-label="Thank you: text under the headline" data-edit-optional>To the people and businesses who help make TJ's Kitchen what it is. We couldn't do it without you.</p>
+      </div>
+    </section>
+    <section class="section" style="padding-top:12px">
+      <div class="wrap">
+        <!-- Filled in from the admin portal -> Website -> Thank you -->
+        <div class="thanks-grid" data-thanks><p class="muted">Loading…</p></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <div>© <span data-year></span> TJ's Kitchen · <span data-address></span> · <a href="/thanks">Thank you</a> · <a href="/privacy">Privacy &amp; texting terms</a></div>
+    </div>
+  </footer>
+</body>
+</html>

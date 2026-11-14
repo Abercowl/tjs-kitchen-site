@@ -15,6 +15,8 @@
  * email, subject -> submit_inquiry -> admin "Inquiries"). The "Stay in
  * the loop" sign-up band now shows on the HOME page only.
  *
+ * UPDATE (Nov 13 2026): Thank You page (/thanks) -- cards from site_thanks
+ *   (admin -> Website -> Thank you). Footer link on every page.
  * UPDATE (Nov 10 2026): FAQs page (/faq). Questions & answers come from
  * site_faqs (admin -> Website -> FAQs). Web addresses, emails, phone
  * numbers and @instagram in answers become links. Adds FAQ structured
@@ -238,6 +240,33 @@ async function initFaqs() {
   ld.textContent = JSON.stringify({ '@context': 'https://schema.org', '@type': 'FAQPage',
     mainEntity: rows.map(r => ({ '@type': 'Question', name: r.question, acceptedAnswer: { '@type': 'Answer', text: r.answer } })) });
   document.head.appendChild(ld);
+}
+
+// ---------- Thank You page (Nov 13 2026) ----------
+// Cards from site_thanks (admin -> Website -> Thank you). Name, note,
+// optional photo, optional link to their site.
+const SAFE_WEB = /^https?:\/\/[^\s<>"]+$/i;
+async function initThanks() {
+  const box = document.querySelector('[data-thanks]');
+  if (!box) return;
+  let rows = [];
+  try { rows = await sb('site_thanks?select=name,note,link_url,image_url&is_published=eq.true&order=sort_order,created_at'); }
+  catch (e) { box.innerHTML = '<p class="muted">This page is loading slowly — please refresh.</p>'; return; }
+  if (!rows.length) { box.innerHTML = ''; return; }
+  box.innerHTML = rows.map(r => {
+    const link = SAFE_WEB.test(r.link_url || '') ? r.link_url : '';
+    const img = /^https:\/\//i.test(r.image_url || '') ? r.image_url : '';
+    const a = inner => link ? `<a href="${esc(link)}" target="_blank" rel="noopener">${inner}</a>` : inner;
+    const host = link ? link.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/.*$/, '') : '';
+    return `<article class="thanks-card">
+      ${img ? a(`<img class="thanks-img" src="${esc(img)}" alt="${esc(r.name)}" loading="lazy">`) : ''}
+      <div class="thanks-body">
+        <h2 class="thanks-name">${a(esc(r.name))}</h2>
+        ${r.note ? `<p class="thanks-note">${faqLinkify(r.note)}</p>` : ''}
+        ${link ? `<a class="btn btn-sm btn-outline thanks-visit" href="${esc(link)}" target="_blank" rel="noopener">${esc(host)} ${icon('external')}</a>` : ''}
+      </div>
+    </article>`;
+  }).join('');
 }
 
 // "Have a question? Just ask." (FAQs page)
@@ -1172,4 +1201,4 @@ function initMenuPushWatch() {
 }
 
 // initSiteContent runs after initSignup so the sign-up band's text is editable too.
-document.addEventListener('DOMContentLoaded', () => { initFaqs(); initAskForm(); if (!editMode) initMenuPushWatch(); initHeaderLines(); initSignup(); initDeliveryInterest(); initTextSignup(); initSiteContent(); initUnsubscribe(); initChrome(); initHours(); initMenu(); initAppleMap(); initEvents(); });
+document.addEventListener('DOMContentLoaded', () => { initFaqs(); initThanks(); initAskForm(); if (!editMode) initMenuPushWatch(); initHeaderLines(); initSignup(); initDeliveryInterest(); initTextSignup(); initSiteContent(); initUnsubscribe(); initChrome(); initHours(); initMenu(); initAppleMap(); initEvents(); });

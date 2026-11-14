@@ -430,3 +430,16 @@ a.hl-line:hover .hl-btn { background: #e2b866; }
 .caption-link { color: inherit; text-decoration: none; }
 .caption-link.is-link { color: var(--gold); text-decoration: underline; text-underline-offset: 3px; }
 .caption-link.is-link:hover { opacity: .8; }
+
+/* Thank You page (Nov 13 2026) */
+.thanks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px; }
+.thanks-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; }
+.thanks-img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: var(--surface-2); }
+.thanks-body { padding: 20px 22px 22px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.thanks-name { font-size: 1.3rem; }
+.thanks-name a { color: inherit; text-decoration: none; }
+.thanks-name a:hover { color: var(--gold); }
+.thanks-note { color: var(--text); line-height: 1.6; }
+.thanks-note a { color: var(--gold); }
+.thanks-visit { align-self: flex-start; margin-top: auto; }
+.thanks-visit .ic { width: 15px; height: 15px; }
