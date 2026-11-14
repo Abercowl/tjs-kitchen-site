@@ -41,7 +41,10 @@
     </div>
   </header>
 
-  <main>
+  <!-- data-page-switch: admin -> Website -> Thank you -> "Show this page on the
+       website". While it's off, visitors see "coming soon" instead (the admin
+       preview always shows the real page). -->
+  <main data-page-switch="thanks">
     <section class="hero" style="padding-bottom:28px">
       <div class="wrap">
         <h1 data-edit="thanks.title" data-edit-label="Thank you: big headline">Thank you</h1>
@@ -55,10 +58,19 @@
       </div>
     </section>
   </main>
+  <main class="page-soon" hidden>
+    <section class="hero">
+      <div class="wrap">
+        <h1>Coming soon</h1>
+        <p class="lead">This page isn't ready yet. Check back soon.</p>
+        <p style="margin-top:22px"><a class="btn" href="/">Back to home</a></p>
+      </div>
+    </section>
+  </main>
 
   <footer class="site-footer">
     <div class="wrap">
-      <div>© <span data-year></span> TJ's Kitchen · <span data-address></span> · <a href="/thanks">Thank you</a> · <a href="/privacy">Privacy &amp; texting terms</a></div>
+      <div>© <span data-year></span> TJ's Kitchen · <span data-address></span><span data-thanks-link hidden> · <a href="/thanks">Thank you</a></span> · <a href="/privacy">Privacy &amp; texting terms</a></div>
     </div>
   </footer>
 </body>

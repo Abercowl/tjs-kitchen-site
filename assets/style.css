@@ -443,3 +443,6 @@ a.hl-line:hover .hl-btn { background: #e2b866; }
 .thanks-note a { color: var(--gold); }
 .thanks-visit { align-self: flex-start; margin-top: auto; }
 .thanks-visit .ic { width: 15px; height: 15px; }
+/* Switchable page: stays blank until we know whether it's on (no flash). */
+main[data-page-switch] { visibility: hidden; }
+main[data-page-switch][hidden], main.page-soon[hidden] { display: none; }

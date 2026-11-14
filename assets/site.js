@@ -1094,12 +1094,29 @@ function refreshSlots() {
 
 function applyAll(map) { Object.entries(map || {}).forEach(([k, v]) => applyContent(k, v)); }
 
+// Pages the admin can switch on/off while they're being built (Nov 13 2026).
+// site_content key "page.<name>.visible" = 'on' shows the page and its
+// footer link; anything else hides them. The admin preview always shows it.
+// final = false: from this browser's saved copy -- only act if it knows.
+function applyPageSwitches(map, final) {
+  const on = name => map['page.' + name + '.visible'] === 'on';
+  if (!final && !('page.thanks.visible' in map)) return;
+  document.querySelectorAll('[data-thanks-link]').forEach(el => { el.hidden = !on('thanks'); });
+  document.querySelectorAll('main[data-page-switch]').forEach(main => {
+    const show = editMode || on(main.getAttribute('data-page-switch'));
+    main.style.visibility = 'visible';
+    main.hidden = !show;
+    const soon = document.querySelector('main.page-soon');
+    if (soon) soon.hidden = show;
+  });
+}
+
 function readCache() { try { return JSON.parse(localStorage.getItem(CONTENT_CACHE) || '{}'); } catch (e) { return {}; } }
 function writeCache(map) { try { localStorage.setItem(CONTENT_CACHE, JSON.stringify(map)); } catch (e) { /* private window */ } }
 
 async function initSiteContent() {
   rememberOriginals();
-  if (!editMode) applyAll(readCache());
+  if (!editMode) { applyAll(readCache()); applyPageSwitches(readCache(), false); }
   refreshSlots();
   await loadSiteContent();
   if (editMode) return;
@@ -1120,12 +1137,13 @@ async function initSiteContent() {
 async function loadSiteContent() {
   let rows = [], loaded = false;
   try { rows = await sb('site_content?select=key,kind,value'); loaded = true; } catch (e) { console.warn('Site text unavailable:', e); }
-  if (!loaded && !editMode) return; // couldn't load -- keep what's showing
+  if (!loaded && !editMode) { applyPageSwitches(readCache(), true); return; } // couldn't load -- keep what's showing
   const map = {};
   rows.forEach(r => { map[r.key] = r.value; });
   // Anything that was reset since the last visit goes back to the original.
   Object.keys(readCache()).forEach(k => { if (!(k in map)) applyContent(k, null); });
   applyAll(map);
+  applyPageSwitches(map, true);
   if (!editMode) writeCache(map);
   if (editMode) startEditMode(map);
 }
