@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<!-- FILE:  tjs-kitchen-site/gallery.html
+     tjs-kitchen-site/
+     ├── gallery.html  <-- THIS FILE (new Nov 13 2026). Gallery page (/gallery).
+     │                 Photos + captions come from Supabase site_gallery -- edited
+     │                 in admin -> Website pages -> Gallery. Headline/text edit like any page.
+     └── assets/
+         ├── site.js
+         └── style.css -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gallery | TJ's Kitchen</title>
+  <meta name="description" content="Photos from TJ's Kitchen at Camarillo Springs Golf Course -- the food, the trailer and the course.">
+  <meta property="og:title" content="Gallery | TJ's Kitchen">
+  <meta property="og:description" content="Photos from TJ's Kitchen at Camarillo Springs Golf Course -- the food, the trailer and the course.">
+  <meta property="og:image" content="/assets/logo.png">
+  <meta name="theme-color" content="#1c3a2e">
+  <link rel="icon" href="/assets/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&family=Lobster&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/style.css">
+  <script src="/assets/site.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="/"><img src="/assets/logo-light.png" alt="TJ's Kitchen logo"><span>TJ's Kitchen</span></a>
+      <button class="menu-toggle" aria-label="Open menu"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg></button>
+      <nav class="nav">
+        <a href="/">Home</a>
+        <a href="/about">About</a>
+        <a href="/events">Specials &amp; Events</a>
+        <a href="/gallery" class="active" aria-current="page" data-gallery-link>Gallery</a>
+        <a href="/faq">FAQs</a>
+        <a href="/contact">Contact</a>
+        <a class="btn btn-sm" data-order-link href="https://order.tjskitchenvc.com">Order Online</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- data-page-switch: admin -> Website pages -> Gallery -> "Show this page on
+       the website". While it's off, visitors see "coming soon" instead (the
+       admin preview always shows the real page). -->
+  <main data-page-switch="gallery">
+    <section class="hero" style="padding-bottom:28px">
+      <div class="wrap">
+        <h1 data-edit="gallery.title" data-edit-label="Gallery: big headline">Gallery</h1>
+        <p class="lead" data-edit="gallery.lead" data-edit-label="Gallery: text under the headline" data-edit-optional>The food, the trailer and the course.</p>
+      </div>
+    </section>
+    <section class="section" style="padding-top:12px">
+      <div class="wrap">
+        <!-- Filled in from the admin portal -> Website pages -> Gallery -->
+        <div class="gallery-grid" data-gallery><p class="muted">Loading…</p></div>
+      </div>
+    </section>
+    <!-- Tap a photo to see it big, with its caption -->
+    <dialog class="gallery-view" aria-label="Photo">
+      <button class="gv-close" type="button" aria-label="Close">×</button>
+      <button class="gv-prev" type="button" aria-label="Previous photo">‹</button>
+      <figure><img alt=""><figcaption></figcaption></figure>
+      <button class="gv-next" type="button" aria-label="Next photo">›</button>
+    </dialog>
+  </main>
+  <main class="page-soon" hidden>
+    <section class="hero">
+      <div class="wrap">
+        <h1>Coming soon</h1>
+        <p class="lead">This page isn't ready yet. Check back soon.</p>
+        <p style="margin-top:22px"><a class="btn" href="/">Back to home</a></p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <div>© <span data-year></span> TJ's Kitchen · <span data-address></span><span data-thanks-link hidden> · <a href="/thanks">Thank you</a></span> · <a href="/privacy">Privacy &amp; texting terms</a></div>
+    </div>
+  </footer>
+</body>
+</html>

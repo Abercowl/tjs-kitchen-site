@@ -3,6 +3,7 @@
  * FILE:  tjs-kitchen-site/assets/site.js
  *   tjs-kitchen-site/
  *   ├── index.html, menu.html, events.html, about.html, contact.html, 404.html
+ *   ├── gallery.html (Nov 13 2026)
  *   ├── unsubscribe.html
  *   └── assets/
  *       ├── site.js     <-- THIS FILE
@@ -19,6 +20,10 @@
  *   preview -- click text and type, click a photo to replace it; a small
  *   bar has Save / Cancel / Reset (+ Link). Saves go through the admin
  *   portal (admins only); this page never writes to the database.
+ * UPDATE (Nov 13 2026, night): Gallery page (/gallery) -- photos + captions
+ *   from site_gallery (admin -> Website pages -> Gallery). Tap a photo to see
+ *   it big. Hidden until switched on (page.gallery.visible); the "Gallery"
+ *   link in the top menu only shows once it's on.
  * UPDATE (Nov 13 2026): Thank You page (/thanks) -- cards from site_thanks
  *   (admin -> Website -> Thank you). Footer link on every page.
  * UPDATE (Nov 10 2026): FAQs page (/faq). Questions & answers come from
@@ -271,6 +276,56 @@ async function initThanks() {
       </div>
     </article>`;
   }).join('');
+}
+
+// ---------- Gallery page (Nov 13 2026) ----------
+// Photos + captions from site_gallery (admin -> Website pages -> Gallery).
+// Tap a photo to open it big; arrows / swipe / keyboard move between them.
+async function initGallery() {
+  const box = document.querySelector('[data-gallery]');
+  if (!box) return;
+  let rows = [];
+  try { rows = await sb('site_gallery?select=image_url,caption&is_published=eq.true&order=sort_order,created_at'); }
+  catch (e) { box.innerHTML = '<p class="muted">The photos are loading slowly — please refresh.</p>'; return; }
+  rows = rows.filter(r => /^https:\/\//i.test(r.image_url || ''));
+  if (!rows.length) { box.innerHTML = '<p class="muted">Photos coming soon.</p>'; return; }
+  box.innerHTML = rows.map((r, i) => `<figure class="gallery-item">
+      <button type="button" class="gallery-open" data-i="${i}" aria-label="${r.caption ? 'Open photo: ' + esc(r.caption) : 'Open photo ' + (i + 1)}">
+        <img src="${esc(r.image_url)}" alt="${esc(r.caption || '')}" loading="lazy">
+      </button>
+      ${r.caption ? `<figcaption>${esc(r.caption)}</figcaption>` : ''}
+    </figure>`).join('');
+
+  const dlg = document.querySelector('dialog.gallery-view');
+  if (!dlg || typeof dlg.showModal !== 'function') return;   // very old browser: grid only
+  const img = dlg.querySelector('img'), cap = dlg.querySelector('figcaption');
+  let at = 0;
+  const show = i => {
+    at = (i + rows.length) % rows.length;
+    img.src = rows[at].image_url; img.alt = rows[at].caption || '';
+    cap.textContent = rows[at].caption || '';
+    cap.hidden = !rows[at].caption;
+    dlg.classList.toggle('single', rows.length < 2);
+  };
+  box.addEventListener('click', ev => {
+    const b = ev.target.closest('.gallery-open'); if (!b) return;
+    show(+b.dataset.i); dlg.showModal();
+  });
+  dlg.querySelector('.gv-close').addEventListener('click', () => dlg.close());
+  dlg.querySelector('.gv-prev').addEventListener('click', () => show(at - 1));
+  dlg.querySelector('.gv-next').addEventListener('click', () => show(at + 1));
+  dlg.addEventListener('click', ev => { if (ev.target === dlg) dlg.close(); });   // tap the dark area
+  dlg.addEventListener('keydown', ev => {
+    if (ev.key === 'ArrowLeft') show(at - 1);
+    else if (ev.key === 'ArrowRight') show(at + 1);
+  });
+  let x0 = null;
+  dlg.addEventListener('touchstart', ev => { x0 = ev.touches[0].clientX; }, { passive: true });
+  dlg.addEventListener('touchend', ev => {
+    if (x0 === null) return;
+    const dx = ev.changedTouches[0].clientX - x0; x0 = null;
+    if (Math.abs(dx) > 50) show(at + (dx < 0 ? 1 : -1));
+  });
 }
 
 // "Have a question? Just ask." (FAQs page)
@@ -1104,8 +1159,9 @@ function applyAll(map) { Object.entries(map || {}).forEach(([k, v]) => applyCont
 // final = false: from this browser's saved copy -- only act if it knows.
 function applyPageSwitches(map, final) {
   const on = name => map['page.' + name + '.visible'] === 'on';
-  if (!final && !('page.thanks.visible' in map)) return;
+  if (!final && !('page.thanks.visible' in map) && !('page.gallery.visible' in map)) return;
   document.querySelectorAll('[data-thanks-link]').forEach(el => { el.hidden = !on('thanks'); });
+  document.querySelectorAll('[data-gallery-link]').forEach(el => { el.hidden = !on('gallery'); });
   document.querySelectorAll('main[data-page-switch]').forEach(main => {
     const show = editMode || on(main.getAttribute('data-page-switch'));
     main.style.visibility = 'visible';
@@ -1420,4 +1476,4 @@ function initMenuPushWatch() {
 }
 
 // initSiteContent runs after initSignup so the sign-up band's text is editable too.
-document.addEventListener('DOMContentLoaded', () => { initFaqs(); initThanks(); initAskForm(); if (!editMode) initMenuPushWatch(); initHeaderLines(); initSignup(); initDeliveryInterest(); initTextSignup(); initSiteContent(); initUnsubscribe(); initChrome(); initHours(); initMenu(); initAppleMap(); initEvents(); });
+document.addEventListener('DOMContentLoaded', () => { initFaqs(); initThanks(); initGallery(); initAskForm(); if (!editMode) initMenuPushWatch(); initHeaderLines(); initSignup(); initDeliveryInterest(); initTextSignup(); initSiteContent(); initUnsubscribe(); initChrome(); initHours(); initMenu(); initAppleMap(); initEvents(); });
