@@ -15,6 +15,10 @@
  * email, subject -> submit_inquiry -> admin "Inquiries"). The "Stay in
  * the loop" sign-up band now shows on the HOME page only.
  *
+ * UPDATE (Nov 13 2026): edit RIGHT ON THE PAGE inside the admin's Website
+ *   preview -- click text and type, click a photo to replace it; a small
+ *   bar has Save / Cancel / Reset (+ Link). Saves go through the admin
+ *   portal (admins only); this page never writes to the database.
  * UPDATE (Nov 13 2026): Thank You page (/thanks) -- cards from site_thanks
  *   (admin -> Website -> Thank you). Footer link on every page.
  * UPDATE (Nov 10 2026): FAQs page (/faq). Questions & answers come from
@@ -1148,6 +1152,25 @@ async function loadSiteContent() {
   if (editMode) startEditMode(map);
 }
 
+// Longest side 1600 px, JPEG -- a phone photo goes from ~4 MB to ~250 KB.
+function shrinkPhoto(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 1600, scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+      const ctx = c.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      c.toBlob(b => b ? resolve({ blob: b, url: c.toDataURL('image/jpeg', 0.82) }) : reject(new Error('could not shrink it')), 'image/jpeg', 0.82);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('not a picture this browser can open')); };
+    img.src = url;
+  });
+}
+
 function startEditMode(saved) {
   document.documentElement.classList.add('tjs-editing');
   const page = (location.pathname.replace(/^\/|\.html$/g, '') || 'index');
@@ -1160,23 +1183,201 @@ function startEditMode(saved) {
     value: editKey(el) in saved ? saved[editKey(el)] : null,
   })).filter((f, i, a) => a.findIndex(x => x.key === f.key) === i);
   const send = msg => { ADMIN_ORIGINS.forEach(o => { try { window.parent.postMessage(msg, o); } catch (e) {} }); };
+  let readOnly = false;
+
+  // ---- Edit right on the page (Nov 13 2026) ----
+  // Click text -> type over it in place. Click a picture -> replace it.
+  // A small bar under the spot has Save / Cancel / Reset (and Link when the
+  // text is clickable). Saving goes to the admin portal, which does the
+  // actual save with the signed-in admin's account -- this page never
+  // writes to the database itself.
+  const cur = {};   // key -> saved value (null = original)
+  Object.keys(saved).forEach(k => { cur[k] = saved[k]; });
+  let active = null;    // { el, key, kind, before, linkEl, linkKey, linkBefore }
+  const bar = document.createElement('div');
+  bar.className = 'tjs-bar'; bar.hidden = true;
+  document.body.appendChild(bar);
+  const pick = document.createElement('input');
+  pick.type = 'file'; pick.accept = 'image/*'; pick.hidden = true;
+  document.body.appendChild(pick);
+
+  const btn = (label, cls, fn) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'tjs-b ' + (cls || ''); b.textContent = label;
+    b.addEventListener('click', ev => { ev.preventDefault(); ev.stopPropagation(); fn(); });
+    return b;
+  };
+  const place = () => {
+    if (!active || bar.hidden) return;
+    const r = active.el.getBoundingClientRect();
+    const top = r.bottom + window.scrollY + 10;
+    const left = Math.max(8, Math.min(r.left + window.scrollX, window.scrollX + document.documentElement.clientWidth - bar.offsetWidth - 8));
+    bar.style.top = top + 'px'; bar.style.left = left + 'px';
+  };
+  window.addEventListener('resize', place);
+  const status = (text, bad) => {
+    let st = bar.querySelector('.tjs-st');
+    if (!st) { st = document.createElement('div'); st.className = 'tjs-st'; bar.appendChild(st); }
+    st.textContent = text; st.classList.toggle('bad', !!bad); place();
+  };
+  const busy = on => bar.querySelectorAll('button, input').forEach(b => { b.disabled = on; });
+
+  function close(revert) {
+    if (!active) return;
+    const a = active; active = null;
+    if (a.kind === 'text') {
+      a.el.removeAttribute('contenteditable');
+      if (revert) applyContent(a.key, cur[a.key] == null ? null : cur[a.key]);
+    }
+    if (revert && a.linkKey) applyContent(a.linkKey, cur[a.linkKey] == null ? null : cur[a.linkKey]);
+    if (revert && a.kind === 'image') applyContent(a.key, cur[a.key] == null ? null : cur[a.key]);
+    a.el.classList.remove('edit-selected');
+    bar.hidden = true; bar.innerHTML = '';
+  }
+
+  // Ask the admin portal to save; it answers with tjs-edit-saved / -failed.
+  let waiting = null;
+  function request(msg) {
+    return new Promise(resolve => {
+      const id = Math.random().toString(36).slice(2);
+      waiting = { id, resolve };
+      send({ ...msg, id });
+      setTimeout(() => { if (waiting && waiting.id === id) { waiting = null; resolve({ ok: false, error: 'the admin portal didn\'t answer -- check your connection' }); } }, 30000);
+    });
+  }
+  const valueOf = el => (el.innerText || '').replace(/\u00a0/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+
+  async function saveActive() {
+    const a = active; if (!a) return;
+    busy(true); status('Saving…');
+    const jobs = [];
+    if (a.kind === 'text') {
+      const v = valueOf(a.el);
+      if (v !== a.before) jobs.push({ key: a.key, kind: 'text', value: v });
+    }
+    if (a.kind === 'image' && a.blob) jobs.push({ key: a.key, kind: 'image', blob: a.blob });
+    if (a.linkKey) {
+      const inp = bar.querySelector('.tjs-link');
+      if (inp && inp.value.trim() !== a.linkBefore) jobs.push({ key: a.linkKey, kind: 'link', value: inp.value.trim() });
+    }
+    for (const j of jobs) {
+      const res = await request({ type: 'tjs-edit-save', key: j.key, kind: j.kind, value: j.value, blob: j.blob });
+      if (!res.ok) { busy(false); status("Couldn't save: " + res.error, true); return; }
+      cur[j.key] = res.value;
+      applyContent(j.key, res.value);
+    }
+    close(false);
+    flash(jobs.length ? 'Saved — it\'s live on the website' : 'No changes');
+  }
+  async function resetActive() {
+    const a = active; if (!a) return;
+    if (!confirm(a.kind === 'image' && a.optional ? 'Remove this photo from the website?' : 'Put the original back on the website?')) return;
+    busy(true); status('Resetting…');
+    const res = await request({ type: 'tjs-edit-reset', key: a.key });
+    if (!res.ok) { busy(false); status("Couldn't reset: " + res.error, true); return; }
+    cur[a.key] = null; applyContent(a.key, null);
+    close(false); flash(a.kind === 'image' && a.optional ? 'Photo removed' : 'Back to the original');
+  }
+  function flash(text) {
+    const t = document.createElement('div'); t.className = 'tjs-toast'; t.textContent = text;
+    document.body.appendChild(t); setTimeout(() => t.remove(), 2600);
+  }
+
+  function open(el) {
+    if (active && active.el === el) return;
+    if (active) {
+      const dirty = active.kind === 'text' ? valueOf(active.el) !== active.before : !!active.blob;
+      if (dirty && !confirm("You haven't saved your change. Leave it?")) return;
+      close(true);
+    }
+    const key = editKey(el), kind = editKind(el) === 'image' ? 'image' : 'text';
+    const linkEl = el.closest('[data-edit-link]');
+    active = { el, key, kind, optional: el.hasAttribute('data-edit-optional'), before: kind === 'text' ? valueOf(el) : '' };
+    if (linkEl) { active.linkEl = linkEl; active.linkKey = editKey(linkEl); active.linkBefore = linkEl.getAttribute('href') || ''; }
+    el.classList.add('edit-selected');
+    bar.innerHTML = '';
+    const lab = document.createElement('div'); lab.className = 'tjs-lab'; lab.textContent = el.getAttribute('data-edit-label') || key;
+    bar.appendChild(lab);
+    if (kind === 'text') {
+      el.classList.remove('edit-empty');
+      try { el.contentEditable = 'plaintext-only'; } catch (e) { el.contentEditable = 'true'; }
+      if (el.contentEditable !== 'plaintext-only') el.contentEditable = 'true';
+      el.focus();
+      const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
+      const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      const hint = document.createElement('div'); hint.className = 'tjs-hint';
+      hint.textContent = (el.hasAttribute('data-edit-long') ? 'Type right on the page. Ctrl/⌘ + Enter saves.' : 'Type right on the page. Enter saves.') + (active.optional ? ' Clear it to hide this line.' : '');
+      bar.appendChild(hint);
+    } else {
+      const hint = document.createElement('div'); hint.className = 'tjs-hint';
+      hint.textContent = 'Choose a photo from this device. Big phone photos are shrunk for you.';
+      bar.appendChild(hint);
+    }
+    if (active.linkKey) {
+      const row = document.createElement('label'); row.className = 'tjs-linkrow';
+      row.innerHTML = '<span>Link — where clicking this goes</span>';
+      const inp = document.createElement('input'); inp.type = 'url'; inp.className = 'tjs-link';
+      inp.placeholder = 'https://…  (leave empty for no link)'; inp.value = active.linkBefore;
+      inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); saveActive(); } if (ev.key === 'Escape') close(true); });
+      row.appendChild(inp); bar.appendChild(row);
+    }
+    const row = document.createElement('div'); row.className = 'tjs-row';
+    if (kind === 'image') row.appendChild(btn(el.getAttribute('src') ? 'Choose a new photo' : 'Choose a photo', '', () => pick.click()));
+    row.appendChild(btn('Save', 'go', saveActive));
+    row.appendChild(btn('Cancel', '', () => close(true)));
+    if (cur[key] != null) row.appendChild(btn(kind === 'image' && active.optional ? 'Remove photo' : 'Reset to original', 'warn', resetActive));
+    bar.appendChild(row);
+    bar.hidden = false; place();
+    send({ type: 'tjs-edit-select', key });
+  }
+
+  pick.addEventListener('change', async () => {
+    const file = pick.files[0]; pick.value = '';
+    if (!file || !active || active.kind !== 'image') return;
+    status('Preparing photo…');
+    try {
+      const { blob, url } = await shrinkPhoto(file);
+      active.blob = blob;
+      active.el.src = url; active.el.hidden = false; refreshSlots();
+      status('Looks good? Tap Save.');
+    } catch (e) { status("Couldn't read that photo: " + e.message, true); }
+  });
+
+  document.addEventListener('keydown', ev => {
+    if (!active || active.kind !== 'text' || ev.target !== active.el) return;
+    const long = active.el.hasAttribute('data-edit-long');
+    if (ev.key === 'Enter' && (!long || ev.metaKey || ev.ctrlKey)) { ev.preventDefault(); saveActive(); }
+    if (ev.key === 'Escape') { ev.preventDefault(); close(true); }
+  });
+  // Pasting keeps just the words (no fonts or colors from elsewhere).
+  document.addEventListener('paste', ev => {
+    if (!active || active.kind !== 'text' || !active.el.contains(ev.target)) return;
+    ev.preventDefault();
+    document.execCommand('insertText', false, (ev.clipboardData.getData('text/plain') || '').replace(/\s*\n\s*/g, active.el.hasAttribute('data-edit-long') ? '\n' : ' '));
+  });
+  document.addEventListener('input', () => place());
 
   // Clicks pick a spot; nothing on the page navigates or submits.
   document.addEventListener('click', ev => {
+    if (bar.contains(ev.target)) return;               // the edit bar's own buttons
     ev.preventDefault(); ev.stopPropagation();
+    if (active && active.el.contains(ev.target)) return; // clicking inside the text being typed
     const el = ev.target.closest('[data-edit],[data-edit-img],[data-edit-elsewhere]');
-    if (!el) return;
+    if (!el || readOnly) return;
     if (el.hasAttribute('data-edit-elsewhere')) { send({ type: 'tjs-edit-elsewhere', where: el.getAttribute('data-edit-elsewhere') }); return; }
-    document.querySelectorAll('.edit-selected').forEach(x => x.classList.remove('edit-selected'));
-    el.classList.add('edit-selected');
-    send({ type: 'tjs-edit-select', key: editKey(el) });
+    open(el);
   }, true);
   document.addEventListener('submit', ev => ev.preventDefault(), true);
 
   window.addEventListener('message', ev => {
     if (!ADMIN_ORIGINS.includes(ev.origin)) return;   // only the admin portal
     const m = ev.data || {};
-    if (m.type === 'tjs-edit-apply' && typeof m.key === 'string') {
+    if ((m.type === 'tjs-edit-saved' || m.type === 'tjs-edit-failed') && waiting && m.id === waiting.id) {
+      const w = waiting; waiting = null;
+      w.resolve(m.type === 'tjs-edit-saved' ? { ok: true, value: typeof m.value === 'string' ? m.value : null } : { ok: false, error: String(m.error || 'unknown problem') });
+    } else if (m.type === 'tjs-edit-readonly') {
+      document.documentElement.classList.remove('tjs-editing');   // not an admin: look only
+      readOnly = true; close(true);
+    } else if (m.type === 'tjs-edit-apply' && typeof m.key === 'string') {
       applyContent(m.key, typeof m.value === 'string' ? m.value : null);
     } else if (m.type === 'tjs-edit-highlight' && typeof m.key === 'string') {
       document.querySelectorAll('.edit-selected').forEach(x => x.classList.remove('edit-selected'));

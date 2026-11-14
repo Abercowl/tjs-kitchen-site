@@ -398,6 +398,21 @@ a.hl-line:hover .hl-btn { background: #e2b866; }
   color: var(--muted); font-weight: 600; pointer-events: none;
 }
 .tjs-editing .photo-band:has(img[src]) .wrap::after { display: none; }
+/* Typing right on the page (Nov 13 2026) */
+.tjs-editing [contenteditable] { cursor: text; outline: 3px solid #2f6b45 !important; background-color: #fff !important; color: inherit; caret-color: #2f6b45; }
+.tjs-bar { position: absolute; z-index: 9999; width: min(420px, calc(100vw - 16px)); background: #fff; color: #1c1917; border: 1px solid #d6d3d1; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.18); padding: 10px 12px; font: 14px/1.4 Inter, system-ui, sans-serif; text-align: left; }
+.tjs-bar .tjs-lab { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #8a6e3a; }
+.tjs-bar .tjs-hint { font-size: 12.5px; color: #78716c; margin-top: 2px; }
+.tjs-bar .tjs-linkrow { display: block; margin-top: 8px; font-size: 12.5px; font-weight: 600; color: #44403c; }
+.tjs-bar .tjs-link { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; padding: 8px 10px; border: 1px solid #d6d3d1; border-radius: 8px; font: inherit; }
+.tjs-bar .tjs-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.tjs-bar .tjs-b { border: 0; border-radius: 6px; padding: 7px 12px; font: 600 13px Inter, system-ui, sans-serif; cursor: pointer; background: #6b7280; color: #fff; }
+.tjs-bar .tjs-b.go { background: #15803d; }
+.tjs-bar .tjs-b.warn { background: #fff; color: #b91c1c; border: 1px solid #fca5a5; }
+.tjs-bar .tjs-b:disabled { opacity: .5; cursor: default; }
+.tjs-bar .tjs-st { margin-top: 8px; font-size: 13px; color: #15803d; }
+.tjs-bar .tjs-st.bad { color: #b91c1c; }
+.tjs-toast { position: fixed; z-index: 10000; left: 50%; bottom: 20px; transform: translateX(-50%); background: #1c3a2e; color: #fff; padding: 10px 18px; border-radius: 999px; font: 600 14px Inter, system-ui, sans-serif; box-shadow: 0 6px 20px rgba(0,0,0,.2); }
 
 /* ---- Privacy & texting terms page (Nov 9 2026) ---- */
 .legal h2 { font-size: 22px; margin: 32px 0 10px; }
