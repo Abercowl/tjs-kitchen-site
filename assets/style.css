@@ -427,3 +427,6 @@ a.hl-line:hover .hl-btn { background: #e2b866; }
 /* About page photo caption (Nov 13 2026) */
 .about-photo { margin: 0; }
 .photo-caption { margin-top: 12px; text-align: center; font-size: 0.95rem; font-style: italic; color: var(--muted); line-height: 1.5; }
+.caption-link { color: inherit; text-decoration: none; }
+.caption-link.is-link { color: var(--gold); text-decoration: underline; text-underline-offset: 3px; }
+.caption-link.is-link:hover { opacity: .8; }

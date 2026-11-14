@@ -982,6 +982,8 @@ function initUnsubscribe() {
  * Every editable spot on the site carries a key:
  *   data-edit="home.hero.title"       text (headline, paragraph, button label)
  *   data-edit-img="home.hero.image"   picture
+ *   data-edit-link="about.image.caption_link"  a link's web address, on an
+ *                                     <a> (Nov 13 2026). Empty = no link.
  *   data-edit-label="Home: ..."       the name the admin shows
  *   data-edit-long                    edited in a big box (paragraphs)
  *   data-edit-optional                picture slot that stays hidden until
@@ -1011,23 +1013,36 @@ const editMode = (() => {
 })();
 let editParentOrigin = null;
 
-function editEls() { return [...document.querySelectorAll('[data-edit],[data-edit-img]')]; }
-function editKey(el) { return el.getAttribute('data-edit') || el.getAttribute('data-edit-img'); }
-function editKind(el) { return el.hasAttribute('data-edit-img') ? 'image' : 'text'; }
+function editEls() { return [...document.querySelectorAll('[data-edit],[data-edit-img],[data-edit-link]')]; }
+function editKey(el) { return el.getAttribute('data-edit') || el.getAttribute('data-edit-img') || el.getAttribute('data-edit-link'); }
+function editKind(el) { return el.hasAttribute('data-edit-img') ? 'image' : el.hasAttribute('data-edit-link') ? 'link' : 'text'; }
+// Only real web / page / email / phone addresses become links (never javascript: etc.).
+const SAFE_LINK = /^(https?:\/\/[^\s<>"]+|\/[^\s<>"]*|mailto:[^\s<>"]+|tel:\+?[0-9 ()-]+)$/i;
 
 // Remember what the HTML says before anything replaces it.
 function rememberOriginals() {
   editEls().forEach(el => {
     if (el.hasAttribute('data-edit-original')) return;
-    el.setAttribute('data-edit-original', editKind(el) === 'image' ? (el.getAttribute('src') || '') : el.textContent);
+    const k = editKind(el);
+    el.setAttribute('data-edit-original', k === 'image' ? (el.getAttribute('src') || '') : k === 'link' ? (el.getAttribute('href') || '') : el.textContent);
   });
 }
 
 // value === null -> back to the original.
 function applyContent(key, value) {
-  document.querySelectorAll(`[data-edit="${CSS.escape(key)}"],[data-edit-img="${CSS.escape(key)}"]`).forEach(el => {
+  document.querySelectorAll(`[data-edit="${CSS.escape(key)}"],[data-edit-img="${CSS.escape(key)}"],[data-edit-link="${CSS.escape(key)}"]`).forEach(el => {
     const v = value == null ? el.getAttribute('data-edit-original') : value;
-    if (editKind(el) === 'image') {
+    if (editKind(el) === 'link') {
+      const url = (v || '').trim();
+      if (url && SAFE_LINK.test(url)) {
+        el.setAttribute('href', url);
+        if (/^https?:/i.test(url)) { el.target = '_blank'; el.rel = 'noopener'; } else { el.removeAttribute('target'); el.removeAttribute('rel'); }
+        el.classList.add('is-link');
+      } else {
+        el.removeAttribute('href'); el.removeAttribute('target'); el.removeAttribute('rel');
+        el.classList.remove('is-link');
+      }
+    } else if (editKind(el) === 'image') {
       if (v) { el.src = v; el.hidden = false; } else { el.removeAttribute('src'); el.hidden = !editMode; }
     } else {
       el.textContent = v;
@@ -1118,7 +1133,7 @@ function startEditMode(saved) {
       applyContent(m.key, typeof m.value === 'string' ? m.value : null);
     } else if (m.type === 'tjs-edit-highlight' && typeof m.key === 'string') {
       document.querySelectorAll('.edit-selected').forEach(x => x.classList.remove('edit-selected'));
-      const el = document.querySelector(`[data-edit="${CSS.escape(m.key)}"],[data-edit-img="${CSS.escape(m.key)}"]`);
+      const el = document.querySelector(`[data-edit="${CSS.escape(m.key)}"],[data-edit-img="${CSS.escape(m.key)}"],[data-edit-link="${CSS.escape(m.key)}"]`);
       if (el) { el.classList.add('edit-selected'); if (m.scroll) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
     } else if (m.type === 'tjs-edit-hello') {
       send({ type: 'tjs-edit-ready', page, fields: fieldList() });
