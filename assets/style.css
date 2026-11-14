@@ -423,3 +423,7 @@ a.hl-line:hover .hl-btn { background: #e2b866; }
 .golf-link .btn { width: 100%; justify-content: center; }
 .golf-link.tee { grid-column: 1 / -1; }
 .golf-link .btn .ic { width: 16px; height: 16px; }
+
+/* About page photo caption (Nov 13 2026) */
+.about-photo { margin: 0; }
+.photo-caption { margin-top: 12px; text-align: center; font-size: 0.95rem; font-style: italic; color: var(--muted); line-height: 1.5; }
