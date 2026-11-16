@@ -111,7 +111,10 @@ $('go').addEventListener('click', async () => {
   });
   const { renderer, scene, camera } = mindar;
 
-  const tex = new THREE.VideoTexture(video);
+  // Calibration mode (open /ar#calibrate): frozen first frame at half opacity,
+  // sliders to line it up by hand, and camera numbers shown for debugging.
+  const CAL = location.hash === '#calibrate';
+  const tex = CAL ? new THREE.TextureLoader().load('/ar/frame0.jpg') : new THREE.VideoTexture(video);
   tex.colorSpace = THREE.SRGBColorSpace;
   // Feathered edges so the animation blends into the real scene instead of looking like a box.
   const mat = new THREE.ShaderMaterial({
@@ -130,6 +133,24 @@ $('go').addEventListener('click', async () => {
   });
   const plane = new THREE.Mesh(new THREE.PlaneGeometry(PLANE, PLANE), mat);
   plane.position.set(OFFSET_X, OFFSET_Y, 0);
+  if (CAL) {
+    const box = document.createElement('div');
+    box.style.cssText = 'position:fixed;left:10px;right:10px;bottom:10px;z-index:30;background:rgba(0,0,0,.72);border-radius:14px;padding:10px 12px;font:13px/1.35 -apple-system,sans-serif;color:#fff';
+    box.innerHTML = ['scale:0.6:1.6:1','x:-0.6:0.6:0','y:-0.6:0.6:0'].map(r => { const [k,lo,hi,v]=r.split(':');
+      return `<label style="display:flex;gap:8px;align-items:center">${k}<input type="range" id="c_${k}" min="${lo}" max="${hi}" step="0.005" value="${v}" style="flex:1"></label>`; }).join('') + '<div id="c_out" style="margin-top:6px;font-family:ui-monospace,monospace;font-size:12px"></div>';
+    document.body.appendChild(box);
+    const apply = () => {
+      const k = +$('c_scale').value, x = +$('c_x').value, y = +$('c_y').value;
+      plane.scale.set(k, k, 1); plane.position.set(OFFSET_X * k + x, OFFSET_Y * k + y, 0);
+      const v = mindar.video || {}, c = $('ar');
+      $('c_out').textContent = `scale ${k.toFixed(3)}  x ${x.toFixed(3)}  y ${y.toFixed(3)}\n` +
+        `cam ${v.videoWidth}x${v.videoHeight}  input ${mindar.controller ? mindar.controller.inputWidth + 'x' + mindar.controller.inputHeight : '-'}\n` +
+        `box ${c.clientWidth}x${c.clientHeight}  win ${innerWidth}x${innerHeight}  dpr ${devicePixelRatio}  fov ${camera.fov.toFixed(1)}`;
+    };
+    $('c_out').style.whiteSpace = 'pre';
+    ['scale','x','y'].forEach(k => $('c_' + k).addEventListener('input', apply));
+    setInterval(apply, 500);
+  }
 
   const anchor = mindar.addAnchor(0);
   anchor.group.add(plane);
@@ -139,7 +160,7 @@ $('go').addEventListener('click', async () => {
     clearTimeout(lostTimer);
     show($('guide'), false);
     target = 1;
-    if (!ended && video.paused) video.play().catch(() => {});
+    if (!CAL && !ended && video.paused) video.play().catch(() => {});
   };
   anchor.onTargetLost = () => {
     // Don't vanish instantly if a hand shakes — give it a moment to re-find the label.
@@ -164,7 +185,7 @@ $('go').addEventListener('click', async () => {
 
   renderer.setAnimationLoop(() => {
     const u = mat.uniforms.opacity;
-    u.value += (target - u.value) * 0.15;   // smooth fade in/out
+    u.value += ((CAL ? target * 0.55 : target) - u.value) * 0.15;   // smooth fade in/out
     renderer.render(scene, camera);
   });
 });
