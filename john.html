@@ -11,6 +11,7 @@
      │                      so edits flow into the saved contact too.
      └── assets/
          ├── logo-gold.png  gold-foil version of the logo
+         ├── contact-photo.jpg  photo saved with the contact (Nov 15 2026)
          └── qr-john.png    QR code -> https://tjskitchenvc.com/john
      Not linked from the site menu; noindex so it stays out of search results. -->
 <html lang="en">
@@ -140,6 +141,18 @@
         e.currentTarget.href = 'mailto:' + txt('[data-edit="card.john.email"]');
       });
 
+      // Contact photo (the gold logo on green), loaded ahead of time so the
+      // Save button can build the file instantly (iPhone needs that).
+      let photo = '';
+      fetch('/assets/contact-photo.jpg').then(r => r.ok ? r.blob() : null).then(b => {
+        if (!b) return;
+        const fr = new FileReader();
+        fr.onload = () => { photo = String(fr.result).split(',')[1] || ''; };
+        fr.readAsDataURL(b);
+      }).catch(() => {});
+      // vCard lines must be folded at 75 characters (long photo data).
+      const fold = line => line.length <= 75 ? line : line.match(/.{1,74}/g).join('\r\n ');
+
       // Save to contacts: a vCard 3.0 file, which iPhone and Android both open.
       const esc = s => s.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/([,;])/g, '\\$1');
       document.querySelector('[data-vc-save]').addEventListener('click', () => {
@@ -157,13 +170,15 @@
           txt('[data-edit="card.john.title"]') ? 'TITLE:' + esc(txt('[data-edit="card.john.title"]')) : '',
           d ? 'TEL;TYPE=WORK,VOICE:' + (d.length === 10 ? '+1' + d : d) : '',
           txt('[data-edit="card.john.email"]') ? 'EMAIL;TYPE=INTERNET,WORK:' + txt('[data-edit="card.john.email"]') : '',
-          'URL:https://tjskitchenvc.com',
-          'URL:https://order.tjskitchenvc.com',
+          // item1/item2 = labelled links ("Website", "Order online") on iPhone.
+          'item1.URL:https://tjskitchenvc.com', 'item1.X-ABLabel:Website',
+          'item2.URL:https://order.tjskitchenvc.com', 'item2.X-ABLabel:Order online',
           'X-SOCIALPROFILE;TYPE=instagram:https://instagram.com/tjskitchenvc',
           'ADR;TYPE=WORK:;;791 Camarillo Springs Rd;Camarillo;CA;93012;USA',
           'NOTE:' + esc(txt('[data-edit="card.john.tagline"]') || 'TJ\'s Kitchen'),
+          photo ? 'PHOTO;ENCODING=b;TYPE=JPEG:' + photo : '',
           'END:VCARD'
-        ].filter(Boolean).join('\r\n');
+        ].filter(Boolean).map(fold).join('\r\n');
         const blob = new Blob([lines + '\r\n'], { type: 'text/vcard;charset=utf-8' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
