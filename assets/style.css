@@ -70,6 +70,9 @@ h3 { font-size: 1.15rem; }
 .nav a.btn { background: var(--on-dark); color: var(--evergreen); }
 .nav a.btn:hover { background: #fff; }
 .nav .btn { margin-left: 6px; }
+/* Nov 16 2026: "Beta" AR link -- mobile menu only (hidden on desktop). */
+.nav .nav-beta { display: none; }
+.beta-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: var(--gold-bright); color: var(--evergreen); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; vertical-align: 1px; }
 .menu-toggle { display: none; background: none; border: 1px solid rgba(243, 238, 228, 0.35); color: var(--on-dark); border-radius: 8px; padding: 7px 9px; font-size: 1.3rem; line-height: 0; cursor: pointer; }
 
 /* ---------- buttons ---------- */
@@ -182,6 +185,7 @@ h3 { font-size: 1.15rem; }
   .menu-toggle { display: inline-flex; }
   .nav { display: none; position: absolute; top: 68px; left: 0; right: 0; flex-direction: column; align-items: stretch; background: var(--evergreen); border-bottom: 1px solid var(--evergreen-deep); padding: 8px 16px 16px; }
   .nav.open { display: flex; }
+  .nav .nav-beta { display: block; }
   .nav a { padding: 12px; border-radius: 10px; }
   .nav .btn { margin: 8px 0 0; justify-content: center; }
   .split { grid-template-columns: 1fr; }

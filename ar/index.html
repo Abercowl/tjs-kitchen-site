@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<!-- FILE:  tjs-kitchen-site/ar/index.html   (BETA: augmented reality labels)
+     tjs-kitchen-site/
+     ├── ar/
+     │   ├── index.html   <-- THIS FILE (opened from "Beta" in the mobile menu)
+     │   ├── target.mind  (compiled tracking data for the label)
+     │   ├── boil.mp4     (animation played on the label)
+     │   └── vendor/      (three.js + MindAR, self-hosted)
+     └── assets/ -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>TJ's Kitchen | Beta: AR</title>
+<meta name="theme-color" content="#1c3a2e">
+<link rel="icon" href="/assets/favicon.png" type="image/png">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Lobster&display=swap" rel="stylesheet">
+<script type="importmap">
+{
+  "imports": {
+    "three": "/ar/vendor/three.module.js",
+    "three/addons/": "/ar/vendor/addons/",
+    "mindar-image-three": "/ar/vendor/mindar/mindar-image-three.prod.js"
+  }
+}
+</script>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #000;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #f3eee4; }
+  #ar { position: fixed; inset: 0; }
+  .screen { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; text-align: center; padding: 32px; box-sizing: border-box; z-index: 10;
+    transition: opacity .4s; }
+  .hidden { opacity: 0 !important; pointer-events: none !important; }
+  #start { background: radial-gradient(circle at 50% 35%, #24493a, #15302a 70%); }
+  #start h1 { font-family: Lobster, cursive; font-weight: 400; color: #d4a854; font-size: 40px; margin: 0 0 8px; }
+  .beta { display:inline-block; margin-bottom:14px; padding:3px 10px; border-radius:999px; border:1px solid rgba(212,168,84,.6); color:#d4a854; font-size:12px; font-weight:700; letter-spacing:.12em; }
+  #close { position: fixed; top: 14px; left: 14px; z-index: 20; width: 40px; height: 40px; border-radius: 999px; background: rgba(0,0,0,.45); color: #fff; display:flex; align-items:center; justify-content:center; text-decoration:none; }
+  #close svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+  #start p { opacity: .8; margin: 0 0 28px; max-width: 300px; line-height: 1.4; }
+  .btn { background: #d4a854; color: #15302a; text-decoration: none; border: 0; border-radius: 999px; font-size: 18px;
+    font-weight: 700; padding: 16px 30px; box-shadow: 0 6px 24px rgba(212,168,84,.35); cursor: pointer; }
+  .small { font-size: 13px; opacity: .6; margin-top: 18px; }
+  #guide { position: fixed; inset: 0; z-index: 5; pointer-events: none; display: flex;
+    flex-direction: column; align-items: center; justify-content: center; transition: opacity .4s; }
+  #guide .frame { width: 52vw; max-width: 260px; aspect-ratio: 580 / 700; border: 3px dashed rgba(255,255,255,.85);
+    border-radius: 18px; box-shadow: 0 0 0 9999px rgba(0,0,0,.25); animation: pulse 1.6s ease-in-out infinite; }
+  #guide .hint { margin-top: 18px; background: rgba(0,0,0,.55); padding: 8px 14px; border-radius: 999px; font-size: 15px; }
+  @keyframes pulse { 50% { transform: scale(1.04); opacity: .7; } }
+  #loading { position: fixed; bottom: 40px; left: 0; right: 0; text-align: center; z-index: 6; font-size: 14px; opacity: .8; }
+  #cta { position: fixed; left: 0; right: 0; bottom: 34px; z-index: 7; display: flex; justify-content: center; gap: 12px; }
+  #cta .ghost { background: rgba(0,0,0,.5); color: #fff; box-shadow: none; border: 1px solid rgba(255,255,255,.5); }
+  #inapp { background: #15302a; }
+</style>
+</head>
+<body>
+<div id="ar"></div>
+
+<a id="close" href="/" aria-label="Back to TJ's Kitchen"><svg viewBox="0 0 24 24"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></a>
+
+<div id="start" class="screen">
+  <div class="beta">BETA</div>
+  <h1>TJ's Kitchen</h1>
+  <p>Point your camera at the label and watch it come to life.</p>
+  <button id="go" class="btn">Tap to bring it to life</button>
+  <div class="small">We'll ask to use your camera — nothing is recorded.</div>
+</div>
+
+<div id="inapp" class="screen hidden">
+  <h1>Open in Safari</h1>
+  <p>This app's built-in browser can't use the camera. Tap the ••• or share menu and choose <b>Open in Safari</b> (or Chrome).</p>
+</div>
+
+<div id="guide" class="hidden"><div class="frame"></div><div class="hint">Line up the label inside the box</div></div>
+<div id="loading" class="hidden">Starting camera…</div>
+<div id="cta" class="hidden">
+  <a class="btn" href="https://order.tjskitchenvc.com" id="order">Order now</a>
+  <button class="btn ghost" id="replay">Replay</button>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { MindARThree } from 'mindar-image-three';
+
+const $ = id => document.getElementById(id);
+const show = (el, on) => el.classList.toggle('hidden', !on);
+
+// In-app browsers (Instagram, Facebook, Snapchat, etc.) often block the camera.
+if (/Instagram|FBAN|FBAV|Snapchat|Line\/|TikTok|musical_ly/i.test(navigator.userAgent)) {
+  show($('start'), false); show($('inapp'), true);
+}
+
+// Video is created up front so it downloads while the user reads the start screen.
+const video = document.createElement('video');
+Object.assign(video, { src: '/ar/boil.mp4', muted: true, loop: false, playsInline: true, preload: 'auto', crossOrigin: 'anonymous' });
+video.setAttribute('playsinline', ''); video.setAttribute('webkit-playsinline', '');
+
+// Placement of the video relative to the tracked label (label width = 1 unit, centred at origin).
+// Measured by matching the label in the photo to the first frame of the animation.
+const PLANE = 2.750, OFFSET_X = -0.022, OFFSET_Y = 0.355;
+
+$('go').addEventListener('click', async () => {
+  // Unlock video playback inside the user's tap (required on iPhone).
+  try { await video.play(); video.pause(); video.currentTime = 0; } catch (e) {}
+  show($('start'), false); show($('loading'), true);
+
+  const mindar = new MindARThree({
+    container: $('ar'), imageTargetSrc: '/ar/target.mind',
+    uiLoading: 'no', uiScanning: 'no', uiError: 'yes',
+    filterMinCF: 0.0001, filterBeta: 0.001
+  });
+  const { renderer, scene, camera } = mindar;
+
+  const tex = new THREE.VideoTexture(video);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  // Feathered edges so the animation blends into the real scene instead of looking like a box.
+  const mat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false,
+    uniforms: { map: { value: tex }, opacity: { value: 0 } },
+    vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+    fragmentShader: `
+      uniform sampler2D map; uniform float opacity; varying vec2 vUv;
+      float edge(float v, float lo, float hi, float f){ return smoothstep(lo, lo+f, v) * (1.0 - smoothstep(hi-f, hi, v)); }
+      void main(){
+        vec4 c = texture2D(map, vUv);
+        float a = edge(vUv.x, 0.02, 0.98, 0.16) * edge(vUv.y, 0.02, 0.98, 0.10);
+        gl_FragColor = vec4(c.rgb, a * opacity);
+        #include <colorspace_fragment>
+      }`
+  });
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(PLANE, PLANE), mat);
+  plane.position.set(OFFSET_X, OFFSET_Y, 0);
+
+  const anchor = mindar.addAnchor(0);
+  anchor.group.add(plane);
+
+  let target = 0, lostTimer = null, ended = false;
+  anchor.onTargetFound = () => {
+    clearTimeout(lostTimer);
+    show($('guide'), false);
+    target = 1;
+    if (!ended && video.paused) video.play().catch(() => {});
+  };
+  anchor.onTargetLost = () => {
+    // Don't vanish instantly if a hand shakes — give it a moment to re-find the label.
+    lostTimer = setTimeout(() => { target = 0; if (!ended) show($('guide'), true); }, 1200);
+  };
+  video.addEventListener('ended', () => { ended = true; show($('cta'), true); });
+  $('replay').addEventListener('click', () => {
+    ended = false; show($('cta'), false); video.currentTime = 0; video.play().catch(() => {});
+  });
+
+  try {
+    await mindar.start();
+  } catch (e) {
+    show($('loading'), false);
+    $('start').querySelector('h1').textContent = 'Camera needed';
+    $('start').querySelector('p').textContent = 'Please allow camera access in your browser settings, then reload this page.';
+    $('go').textContent = 'Reload'; $('go').onclick = () => location.reload();
+    show($('start'), true);
+    return;
+  }
+  show($('loading'), false); show($('guide'), true);
+
+  renderer.setAnimationLoop(() => {
+    const u = mat.uniforms.opacity;
+    u.value += (target - u.value) * 0.15;   // smooth fade in/out
+    renderer.render(scene, camera);
+  });
+});
+</script>
+</body>
+</html>
