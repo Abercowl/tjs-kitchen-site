@@ -126,27 +126,35 @@ $('go').addEventListener('click', async () => {
   const CAL = location.hash === '#calibrate';
   const anchor = mindar.addAnchor(0);
 
-  // ---- Effect: 3D "everything bagel" seeds erupting from the jar ----------
+  // ---- Effect: the jar boils over with 3D "everything bagel" seeds ---------
   // Units: the tracked label is 1 unit wide, centred at the origin, y up,
   // z toward the camera. The real jar (measured from the photo) spans
   // x -0.53..0.53, y -0.91 (counter) .. 1.45 (lid top), z 0 .. -1.05.
-  const JAR = { x: 0.53, top: 1.45, floor: -0.91, zFront: 0, zBack: -1.05 };
+  // The label covers y -0.39..0.39 on the front; the seeds inside reach y 0.52;
+  // the lid runs from y 0.97 to 1.45.
+  const JAR = { x: 0.53, top: 1.45, lidBottom: 0.97, fill: 0.52, floor: -0.91, zFront: 0, zBack: -1.05, label: 0.39 };
   // People hold the phone a little above the counter, looking down, but the tracker
   // only sees the upright label and can read the counter as edge-on. Sloping the
   // landing surface toward the camera spreads the spill into a natural pile.
   const floorAt = (z) => JAR.floor - 0.42 * z;
+  const T_BOIL = 1.7;     // seconds of bubbling before it erupts through the lid
+  const T_END = 5.6;      // when Order now / Replay appear
   let effect = null;
   if (!CAL) {
     scene.add(new THREE.HemisphereLight(0xffffff, 0x8a7a66, 1.7));
     const sun = new THREE.DirectionalLight(0xffffff, 1.4); sun.position.set(1, 3, 2); scene.add(sun);
 
-    // Invisible stand-in for the real jar: hides seeds that fall behind it.
-    const occluder = new THREE.Mesh(
-      new THREE.BoxGeometry(JAR.x * 2, JAR.top - JAR.floor, JAR.zFront - JAR.zBack),
-      new THREE.MeshBasicMaterial({ colorWrite: false }));
-    occluder.position.set(0, (JAR.top + JAR.floor) / 2, (JAR.zFront + JAR.zBack) / 2);
-    occluder.renderOrder = -1;
-    anchor.group.add(occluder);
+    // Invisible stand-ins for the opaque parts of the real jar. They hide seeds
+    // behind them but leave the glass see-through, so the bubbling inside shows.
+    const hideMat = new THREE.MeshBasicMaterial({ colorWrite: false });
+    const occ = (w, h, d, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), hideMat);
+      o.position.set(x, y, z); o.renderOrder = -1; anchor.group.add(o); };
+    const W = JAR.x * 2, D = JAR.zFront - JAR.zBack, midZ = (JAR.zFront + JAR.zBack) / 2;
+    occ(W, JAR.label * 2, 0.02, 0, 0, JAR.zFront + 0.01);                                  // printed label (front)
+    occ(W, JAR.top - JAR.lidBottom, D, 0, (JAR.top + JAR.lidBottom) / 2, midZ);              // white lid
+    occ(W, JAR.top - JAR.floor, 0.02, 0, (JAR.top + JAR.floor) / 2, JAR.zBack);             // back of the jar
+    occ(0.02, JAR.top - JAR.floor, D, -JAR.x, (JAR.top + JAR.floor) / 2, midZ);             // left side
+    occ(0.02, JAR.top - JAR.floor, D,  JAR.x, (JAR.top + JAR.floor) / 2, midZ);             // right side
 
     const TYPES = [   // weight, colours, half-size (x, y, z)
       { w: 0.42, c: ['#efe2c2', '#e6d4aa', '#f6edd6'], s: [0.034, 0.011, 0.021] },  // sesame
@@ -155,48 +163,78 @@ $('go').addEventListener('click', async () => {
       { w: 0.12, c: ['#f2e7c8', '#e9d9b0'],            s: [0.036, 0.009, 0.026] },  // dried garlic
       { w: 0.06, c: ['#ffffff', '#f4f4f4'],            s: [0.013, 0.012, 0.013] },  // coarse salt
     ];
-    const N = 900;
-    const mesh = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 7, 5), new THREE.MeshLambertMaterial(), N);
-    mesh.frustumCulled = false;
-    const P = [], col = new THREE.Color(), rnd = (a, b) => a + Math.random() * (b - a);
-    for (let i = 0; i < N; i++) {
-      let r = Math.random(), t = TYPES[0];
-      for (const ty of TYPES) { if (r < ty.w) { t = ty; break; } r -= ty.w; }
-      mesh.setColorAt(i, col.set(t.c[(Math.random() * t.c.length) | 0]));
-      const k = rnd(0.8, 1.25);
-      P.push({ size: new THREE.Vector3(t.s[0] * k, t.s[1] * k, t.s[2] * k),
-               pos: new THREE.Vector3(), vel: new THREE.Vector3(), rot: new THREE.Euler(), spin: new THREE.Vector3() });
-    }
-    anchor.group.add(mesh);
-
-    const tmp = new THREE.Object3D(), hidden = new THREE.Matrix4().makeScale(0, 0, 0);
-    const reset = () => {
-      for (const p of P) {
-        p.t0 = 0.15 + 2.3 * Math.pow(Math.random(), 1.4);   // eruption builds, then tails off
-        p.pos.set(rnd(-0.36, 0.36), JAR.top + 0.02, rnd(-0.88, -0.17));
-        const dx = p.pos.x, dz = p.pos.z - (JAR.zFront + JAR.zBack) / 2, len = Math.hypot(dx, dz) || 1, out = rnd(0.35, 1.6);
-        p.vel.set(dx / len * out, rnd(2.0, 4.3), dz / len * out + rnd(0.05, 0.55));
-        p.rot.set(rnd(0, 6.3), rnd(0, 6.3), rnd(0, 6.3));
-        p.spin.set(rnd(-9, 9), rnd(-9, 9), rnd(-9, 9));
-        p.state = 0;   // 0 waiting, 1 flying, 2 resting
-        p.bounced = false;
+    const rnd = (a, b) => a + Math.random() * (b - a);
+    const makeSeeds = (n) => {
+      const mesh = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 7, 5), new THREE.MeshLambertMaterial(), n);
+      mesh.frustumCulled = false;
+      const col = new THREE.Color(), list = [];
+      for (let i = 0; i < n; i++) {
+        let r = Math.random(), t = TYPES[0];
+        for (const ty of TYPES) { if (r < ty.w) { t = ty; break; } r -= ty.w; }
+        mesh.setColorAt(i, col.set(t.c[(Math.random() * t.c.length) | 0]));
+        const k = rnd(0.8, 1.25);
+        list.push({ size: new THREE.Vector3(t.s[0] * k, t.s[1] * k, t.s[2] * k), pos: new THREE.Vector3(),
+                    vel: new THREE.Vector3(), rot: new THREE.Euler(), spin: new THREE.Vector3() });
       }
-      effect.t = 0;
+      anchor.group.add(mesh);
+      return { mesh, list };
     };
+    const inner = makeSeeds(420);    // churning inside the jar
+    const burst = makeSeeds(850);    // thrown out through the lid
+    const tmp = new THREE.Object3D(), hidden = new THREE.Matrix4().makeScale(0, 0, 0);
+    const put = (mesh, i, p) => { tmp.position.copy(p.pos); tmp.rotation.copy(p.rot); tmp.scale.copy(p.size); tmp.updateMatrix(); mesh.setMatrixAt(i, tmp.matrix); };
+    const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+
+    const reset = () => {
+      for (const p of inner.list) {
+        p.home = new THREE.Vector3(rnd(-JAR.x + 0.06, JAR.x - 0.06), 0, rnd(JAR.zBack + 0.06, JAR.zFront - 0.05));
+        p.depth = rnd(0, 0.3);          // how far below the surface it sits
+        p.phase = rnd(0, 6.3); p.freq = rnd(7, 13);
+        p.rot.set(rnd(0, 6.3), rnd(0, 6.3), rnd(0, 6.3)); p.spin.set(rnd(-6, 6), rnd(-6, 6), rnd(-6, 6));
+      }
+      for (const p of burst.list) {
+        p.t0 = T_BOIL - 0.15 + 2.4 * Math.pow(Math.random(), 1.5);   // rush out, then tail off
+        // start just inside the lid's top surface so seeds come up *through* the lid
+        p.pos.set(rnd(-0.34, 0.34), JAR.top - 0.03, rnd(-0.86, -0.19));
+        const dx = p.pos.x, dz = p.pos.z - midZ, len = Math.hypot(dx, dz) || 1, out = rnd(0.3, 1.5);
+        p.vel.set(dx / len * out, rnd(1.6, 3.9), dz / len * out + rnd(0.05, 0.55));
+        p.rot.set(rnd(0, 6.3), rnd(0, 6.3), rnd(0, 6.3)); p.spin.set(rnd(-9, 9), rnd(-9, 9), rnd(-9, 9));
+        p.state = 0; p.bounced = false;
+      }
+      effect.t = 0; effect.done = false;
+    };
+
     const step = (dt) => {
-      effect.t += dt;
+      const t = (effect.t += dt);
+
+      // Inside: the surface rises from the real fill line up into the lid while
+      // the seeds churn harder and harder, then calms once it has boiled over.
+      const level = JAR.fill + (JAR.lidBottom + 0.02 - JAR.fill) * smooth(0.1, T_BOIL, t);
+      const heat = smooth(0, T_BOIL * 0.8, t) * (1 - 0.75 * smooth(T_BOIL + 1.6, T_END, t));
+      inner.list.forEach((p, i) => {
+        const jump = Math.abs(Math.sin(t * p.freq + p.phase)) * (0.03 + 0.16 * heat) * (p.depth < 0.12 ? 1 : 0.4);
+        const swirl = 0.05 * heat;
+        p.pos.set(p.home.x + Math.sin(t * 3 + p.phase) * swirl,
+                  Math.max(JAR.label - 0.1, level - p.depth + jump),
+                  p.home.z + Math.cos(t * 2.6 + p.phase) * swirl);
+        p.pos.x = Math.max(-JAR.x + 0.03, Math.min(JAR.x - 0.03, p.pos.x));
+        p.rot.x += p.spin.x * dt * heat; p.rot.y += p.spin.y * dt * heat; p.rot.z += p.spin.z * dt * heat;
+        put(inner.mesh, i, p);
+      });
+      inner.mesh.instanceMatrix.needsUpdate = true;
+
+      // Outside: seeds forced up through the lid, arcing out and landing.
       const g = 6.5;
-      for (let i = 0; i < N; i++) {
-        const p = P[i];
-        if (p.state === 0) { if (effect.t >= p.t0) p.state = 1; else { mesh.setMatrixAt(i, hidden); continue; } }
+      burst.list.forEach((p, i) => {
+        if (p.state === 0) { if (t >= p.t0) p.state = 1; else { burst.mesh.setMatrixAt(i, hidden); return; } }
         if (p.state === 1) {
           p.vel.y -= g * dt;
           p.pos.addScaledVector(p.vel, dt);
           p.rot.x += p.spin.x * dt; p.rot.y += p.spin.y * dt; p.rot.z += p.spin.z * dt;
           const overJar = Math.abs(p.pos.x) < JAR.x && p.pos.z < JAR.zFront && p.pos.z > JAR.zBack;
           if (overJar && p.vel.y < 0 && p.pos.y < JAR.top + p.size.y && p.pos.y > JAR.top - 0.15) {
-            p.pos.y = JAR.top + p.size.y; p.state = 2;                       // lands on the lid
-          } else if (overJar && p.pos.y < JAR.top) {
+            p.pos.y = JAR.top + p.size.y; p.state = 2;                        // lands on the lid
+          } else if (overJar && p.vel.y < 0 && p.pos.y < JAR.top) {
             // hit the side of the jar: push it back outside and let it slide down
             const ex = JAR.x - Math.abs(p.pos.x), ef = JAR.zFront - p.pos.z, eb = p.pos.z - JAR.zBack;
             if (ex <= ef && ex <= eb) { p.pos.x = Math.sign(p.pos.x || 1) * (JAR.x + 0.01); p.vel.x *= -0.2; }
@@ -207,17 +245,17 @@ $('go').addEventListener('click', async () => {
           if (p.state === 1 && p.pos.y <= floor) {
             p.pos.y = floor;
             if (!p.bounced && p.vel.y < -1.2) { p.bounced = true; p.vel.y *= -0.28; p.vel.x *= 0.55; p.vel.z *= 0.55; }
-            else p.state = 2;                                                // settles on the counter
+            else p.state = 2;                                                 // settles on the counter
           }
           if (p.state === 2) { p.rot.x = rnd(-0.25, 0.25); p.rot.z = rnd(-0.25, 0.25); }   // lie flat
         }
-        tmp.position.copy(p.pos); tmp.rotation.copy(p.rot); tmp.scale.copy(p.size);
-        tmp.updateMatrix(); mesh.setMatrixAt(i, tmp.matrix);
-      }
-      mesh.instanceMatrix.needsUpdate = true;
-      if (effect.t > 4.6 && !effect.done) { effect.done = true; show($('cta'), true); }
+        put(burst.mesh, i, p);
+      });
+      burst.mesh.instanceMatrix.needsUpdate = true;
+
+      if (t > T_END && !effect.done) { effect.done = true; show($('cta'), true); }
     };
-    effect = { t: 0, running: false, done: false, step, reset: () => { reset(); effect.done = false; } };
+    effect = { t: 0, running: false, done: false, step, reset: () => reset() };
     effect.reset();
   }
 
