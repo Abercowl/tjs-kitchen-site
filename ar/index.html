@@ -2,9 +2,9 @@
 <!-- FILE:  tjs-kitchen-site/ar/index.html   (BETA: augmented reality labels)
      tjs-kitchen-site/
      ├── ar/
-     │   ├── index.html   <-- THIS FILE (opened from "Beta" in the mobile menu)
+     │   ├── index.html   <-- THIS FILE (opened from "Beta" in the mobile menu; 3D seed effect)
      │   ├── target.mind  (compiled tracking data for the label)
-     │   ├── boil.mp4     (animation played on the label)
+     │   ├── frame0.jpg   (still of the jar, used by #calibrate)
      │   └── vendor/      (three.js + MindAR, self-hosted)
      └── assets/ -->
 <html lang="en">
@@ -90,11 +90,7 @@ if (/Instagram|FBAN|FBAV|Snapchat|Line\/|TikTok|musical_ly/i.test(navigator.user
   show($('start'), false); show($('inapp'), true);
 }
 
-// Video is created up front so it downloads while the user reads the start screen.
-const video = document.createElement('video');
-Object.assign(video, { muted: true, loop: false, playsInline: true, preload: 'auto', crossOrigin: 'anonymous' });
-
-// Media (video, tracking data, calibration still) is served from Cloudflare R2
+// Media (tracking data, calibration still) is served from Cloudflare R2
 // (bucket tjs-ar). If R2 can't be reached, or its CORS rule is missing, fall back
 // to the copies in this folder so the page never breaks.
 const R2 = 'https://pub-f13c7714004f4b7c84c91c91a3ece0b9.r2.dev';
@@ -110,19 +106,11 @@ const media = (async () => {
     return { base: LOCAL, target: LOCAL + '/target.mind' };
   }
 })();
-media.then(m => { video.src = m.base + '/boil.mp4'; video.load(); });
-video.addEventListener('error', () => {   // R2 video failed after all: use local copy
-  if (!video.src.includes(location.host)) { video.src = LOCAL + '/boil.mp4'; video.load(); }
-});
-video.setAttribute('playsinline', ''); video.setAttribute('webkit-playsinline', '');
-
-// Placement of the video relative to the tracked label (label width = 1 unit, centred at origin).
+// Placement of the calibration still relative to the tracked label (label width = 1 unit, centred at origin).
 // Measured by matching the label in the photo to the first frame of the animation.
 const PLANE = 2.907, OFFSET_X = -0.022, OFFSET_Y = 0.124;
 
 $('go').addEventListener('click', async () => {
-  // Unlock video playback inside the user's tap (required on iPhone).
-  try { await video.play(); video.pause(); video.currentTime = 0; } catch (e) {}
   show($('start'), false); show($('loading'), true);
   const m = await media;
 
@@ -136,30 +124,116 @@ $('go').addEventListener('click', async () => {
   // Calibration mode (open /ar#calibrate): frozen first frame at half opacity,
   // sliders to line it up by hand, and camera numbers shown for debugging.
   const CAL = location.hash === '#calibrate';
-  const tex = CAL ? new THREE.TextureLoader().load(m.base + '/frame0.jpg') : new THREE.VideoTexture(video);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  // Feathered edges so the animation blends into the real scene instead of looking like a box.
-  const mat = new THREE.ShaderMaterial({
-    transparent: true, depthWrite: false,
-    uniforms: { map: { value: tex }, opacity: { value: 0 } },
-    vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-    fragmentShader: `
-      uniform sampler2D map; uniform float opacity; varying vec2 vUv;
-      float edge(float v, float lo, float hi, float f){ return smoothstep(lo, lo+f, v) * (1.0 - smoothstep(hi-f, hi, v)); }
-      void main(){
-        vec4 c = texture2D(map, vUv);
-        float a = edge(vUv.x, 0.02, 0.98, 0.16) * edge(vUv.y, 0.02, 0.98, 0.10);
-        gl_FragColor = vec4(c.rgb, a * opacity);
-        #include <colorspace_fragment>
-      }`
-  });
-  const plane = new THREE.Mesh(new THREE.PlaneGeometry(PLANE, PLANE), mat);
-  plane.position.set(OFFSET_X, OFFSET_Y, 0);
+  const anchor = mindar.addAnchor(0);
+
+  // ---- Effect: 3D "everything bagel" seeds erupting from the jar ----------
+  // Units: the tracked label is 1 unit wide, centred at the origin, y up,
+  // z toward the camera. The real jar (measured from the photo) spans
+  // x -0.53..0.53, y -0.91 (counter) .. 1.45 (lid top), z 0 .. -1.05.
+  const JAR = { x: 0.53, top: 1.45, floor: -0.91, zFront: 0, zBack: -1.05 };
+  // People hold the phone a little above the counter, looking down, but the tracker
+  // only sees the upright label and can read the counter as edge-on. Sloping the
+  // landing surface toward the camera spreads the spill into a natural pile.
+  const floorAt = (z) => JAR.floor - 0.42 * z;
+  let effect = null;
+  if (!CAL) {
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x8a7a66, 1.7));
+    const sun = new THREE.DirectionalLight(0xffffff, 1.4); sun.position.set(1, 3, 2); scene.add(sun);
+
+    // Invisible stand-in for the real jar: hides seeds that fall behind it.
+    const occluder = new THREE.Mesh(
+      new THREE.BoxGeometry(JAR.x * 2, JAR.top - JAR.floor, JAR.zFront - JAR.zBack),
+      new THREE.MeshBasicMaterial({ colorWrite: false }));
+    occluder.position.set(0, (JAR.top + JAR.floor) / 2, (JAR.zFront + JAR.zBack) / 2);
+    occluder.renderOrder = -1;
+    anchor.group.add(occluder);
+
+    const TYPES = [   // weight, colours, half-size (x, y, z)
+      { w: 0.42, c: ['#efe2c2', '#e6d4aa', '#f6edd6'], s: [0.034, 0.011, 0.021] },  // sesame
+      { w: 0.26, c: ['#1c1c22', '#2a2a33'],            s: [0.012, 0.011, 0.012] },  // poppy
+      { w: 0.14, c: ['#d39a4e', '#c4823a', '#e0b06a'], s: [0.042, 0.008, 0.030] },  // dried onion
+      { w: 0.12, c: ['#f2e7c8', '#e9d9b0'],            s: [0.036, 0.009, 0.026] },  // dried garlic
+      { w: 0.06, c: ['#ffffff', '#f4f4f4'],            s: [0.013, 0.012, 0.013] },  // coarse salt
+    ];
+    const N = 900;
+    const mesh = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 7, 5), new THREE.MeshLambertMaterial(), N);
+    mesh.frustumCulled = false;
+    const P = [], col = new THREE.Color(), rnd = (a, b) => a + Math.random() * (b - a);
+    for (let i = 0; i < N; i++) {
+      let r = Math.random(), t = TYPES[0];
+      for (const ty of TYPES) { if (r < ty.w) { t = ty; break; } r -= ty.w; }
+      mesh.setColorAt(i, col.set(t.c[(Math.random() * t.c.length) | 0]));
+      const k = rnd(0.8, 1.25);
+      P.push({ size: new THREE.Vector3(t.s[0] * k, t.s[1] * k, t.s[2] * k),
+               pos: new THREE.Vector3(), vel: new THREE.Vector3(), rot: new THREE.Euler(), spin: new THREE.Vector3() });
+    }
+    anchor.group.add(mesh);
+
+    const tmp = new THREE.Object3D(), hidden = new THREE.Matrix4().makeScale(0, 0, 0);
+    const reset = () => {
+      for (const p of P) {
+        p.t0 = 0.15 + 2.3 * Math.pow(Math.random(), 1.4);   // eruption builds, then tails off
+        p.pos.set(rnd(-0.36, 0.36), JAR.top + 0.02, rnd(-0.88, -0.17));
+        const dx = p.pos.x, dz = p.pos.z - (JAR.zFront + JAR.zBack) / 2, len = Math.hypot(dx, dz) || 1, out = rnd(0.35, 1.6);
+        p.vel.set(dx / len * out, rnd(2.0, 4.3), dz / len * out + rnd(0.05, 0.55));
+        p.rot.set(rnd(0, 6.3), rnd(0, 6.3), rnd(0, 6.3));
+        p.spin.set(rnd(-9, 9), rnd(-9, 9), rnd(-9, 9));
+        p.state = 0;   // 0 waiting, 1 flying, 2 resting
+        p.bounced = false;
+      }
+      effect.t = 0;
+    };
+    const step = (dt) => {
+      effect.t += dt;
+      const g = 6.5;
+      for (let i = 0; i < N; i++) {
+        const p = P[i];
+        if (p.state === 0) { if (effect.t >= p.t0) p.state = 1; else { mesh.setMatrixAt(i, hidden); continue; } }
+        if (p.state === 1) {
+          p.vel.y -= g * dt;
+          p.pos.addScaledVector(p.vel, dt);
+          p.rot.x += p.spin.x * dt; p.rot.y += p.spin.y * dt; p.rot.z += p.spin.z * dt;
+          const overJar = Math.abs(p.pos.x) < JAR.x && p.pos.z < JAR.zFront && p.pos.z > JAR.zBack;
+          if (overJar && p.vel.y < 0 && p.pos.y < JAR.top + p.size.y && p.pos.y > JAR.top - 0.15) {
+            p.pos.y = JAR.top + p.size.y; p.state = 2;                       // lands on the lid
+          } else if (overJar && p.pos.y < JAR.top) {
+            // hit the side of the jar: push it back outside and let it slide down
+            const ex = JAR.x - Math.abs(p.pos.x), ef = JAR.zFront - p.pos.z, eb = p.pos.z - JAR.zBack;
+            if (ex <= ef && ex <= eb) { p.pos.x = Math.sign(p.pos.x || 1) * (JAR.x + 0.01); p.vel.x *= -0.2; }
+            else if (ef <= eb) { p.pos.z = JAR.zFront + 0.01; p.vel.z = Math.abs(p.vel.z) * 0.2; }
+            else { p.pos.z = JAR.zBack - 0.01; p.vel.z = -Math.abs(p.vel.z) * 0.2; }
+          }
+          const floor = floorAt(p.pos.z) + p.size.y;
+          if (p.state === 1 && p.pos.y <= floor) {
+            p.pos.y = floor;
+            if (!p.bounced && p.vel.y < -1.2) { p.bounced = true; p.vel.y *= -0.28; p.vel.x *= 0.55; p.vel.z *= 0.55; }
+            else p.state = 2;                                                // settles on the counter
+          }
+          if (p.state === 2) { p.rot.x = rnd(-0.25, 0.25); p.rot.z = rnd(-0.25, 0.25); }   // lie flat
+        }
+        tmp.position.copy(p.pos); tmp.rotation.copy(p.rot); tmp.scale.copy(p.size);
+        tmp.updateMatrix(); mesh.setMatrixAt(i, tmp.matrix);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (effect.t > 4.6 && !effect.done) { effect.done = true; show($('cta'), true); }
+    };
+    effect = { t: 0, running: false, done: false, step, reset: () => { reset(); effect.done = false; } };
+    effect.reset();
+  }
+
+  // ---- Calibration overlay (still image of the jar, half transparent) ------
+  let plane = null, mat = null;
   if (CAL) {
+    const tex = new THREE.TextureLoader().load(m.base + '/frame0.jpg');
+    tex.colorSpace = THREE.SRGBColorSpace;
+    mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.55, depthWrite: false });
+    plane = new THREE.Mesh(new THREE.PlaneGeometry(PLANE, PLANE), mat);
+    plane.position.set(OFFSET_X, OFFSET_Y, 0);
+    anchor.group.add(plane);
     const box = document.createElement('div');
     box.style.cssText = 'position:fixed;left:10px;right:10px;bottom:10px;z-index:30;background:rgba(0,0,0,.72);border-radius:14px;padding:10px 12px;font:13px/1.35 -apple-system,sans-serif;color:#fff';
     box.innerHTML = ['scale:0.6:1.6:1','x:-0.6:0.6:0','y:-0.6:0.6:0'].map(r => { const [k,lo,hi,v]=r.split(':');
-      return `<label style="display:flex;gap:8px;align-items:center">${k}<input type="range" id="c_${k}" min="${lo}" max="${hi}" step="0.005" value="${v}" style="flex:1"></label>`; }).join('') + '<div id="c_out" style="margin-top:6px;font-family:ui-monospace,monospace;font-size:12px"></div>';
+      return `<label style="display:flex;gap:8px;align-items:center">${k}<input type="range" id="c_${k}" min="${lo}" max="${hi}" step="0.005" value="${v}" style="flex:1"></label>`; }).join('') + '<div id="c_out" style="margin-top:6px;font-family:ui-monospace,monospace;font-size:12px;white-space:pre"></div>';
     document.body.appendChild(box);
     const apply = () => {
       const k = +$('c_scale').value, x = +$('c_x').value, y = +$('c_y').value;
@@ -169,29 +243,21 @@ $('go').addEventListener('click', async () => {
         `cam ${v.videoWidth}x${v.videoHeight}  input ${mindar.controller ? mindar.controller.inputWidth + 'x' + mindar.controller.inputHeight : '-'}\n` +
         `box ${c.clientWidth}x${c.clientHeight}  win ${innerWidth}x${innerHeight}  dpr ${devicePixelRatio}  fov ${camera.fov.toFixed(1)}`;
     };
-    $('c_out').style.whiteSpace = 'pre';
     ['scale','x','y'].forEach(k => $('c_' + k).addEventListener('input', apply));
     setInterval(apply, 500);
   }
 
-  const anchor = mindar.addAnchor(0);
-  anchor.group.add(plane);
-
-  let target = 0, lostTimer = null, ended = false;
+  let lostTimer = null;
   anchor.onTargetFound = () => {
     clearTimeout(lostTimer);
     show($('guide'), false);
-    target = 1;
-    if (!CAL && !ended && video.paused) video.play().catch(() => {});
+    if (effect) effect.running = true;
   };
   anchor.onTargetLost = () => {
-    // Don't vanish instantly if a hand shakes — give it a moment to re-find the label.
-    lostTimer = setTimeout(() => { target = 0; if (!ended) show($('guide'), true); }, 1200);
+    // Don't flash the guide instantly if a hand shakes; give it a moment to re-find the label.
+    lostTimer = setTimeout(() => { if (!effect || !effect.done) show($('guide'), true); }, 1200);
   };
-  video.addEventListener('ended', () => { ended = true; show($('cta'), true); });
-  $('replay').addEventListener('click', () => {
-    ended = false; show($('cta'), false); video.currentTime = 0; video.play().catch(() => {});
-  });
+  $('replay').addEventListener('click', () => { show($('cta'), false); if (effect) effect.reset(); });
 
   try {
     await mindar.start();
@@ -205,13 +271,10 @@ $('go').addEventListener('click', async () => {
   }
   show($('loading'), false); show($('guide'), true);
 
+  const clock = new THREE.Clock();
   renderer.setAnimationLoop(() => {
-    const u = mat.uniforms.opacity;
-    // Only show the overlay once the video is actually playing (or finished),
-    // so a frozen first frame never sits on the jar while it buffers.
-    const ready = CAL || ended || (!video.paused && video.currentTime > 0.05);
-    const want = ready ? (CAL ? target * 0.55 : target) : 0;
-    u.value += (want - u.value) * 0.2;   // smooth fade in/out
+    const dt = Math.min(clock.getDelta(), 0.05);
+    if (effect && effect.running && anchor.visible) effect.step(dt);
     renderer.render(scene, camera);
   });
 });
