@@ -6,7 +6,8 @@
      │                      (vercel.json rewrites /card/* here; /john forwards to
      │                      /card/john). The card's details come from Supabase
      │                      staff_cards -- add and edit cards in admin -> Website ->
-     │                      Business cards. "Evergreen salon" look.
+     │                      Business cards. Nov 16 2026: restyled to match the
+     │                      ordering site's "Evergreen & Champagne" theme.
      │                      Save to contacts builds a vCard (.vcf) with the photo;
      │                      the QR code is drawn here, so every card has its own.
      │                      Nov 15 2026 (later): EVERY part is per-card -- logo,
@@ -25,57 +26,69 @@
   <meta property="og:title" content="TJ's Kitchen · Digital business card">
   <meta property="og:description" content="Private events, celebrations, corporate gatherings and special occasions.">
   <meta property="og:image" content="https://tjskitchenvc.com/assets/contact-photo.jpg">
-  <meta name="theme-color" content="#13291f">
+  <meta name="theme-color" content="#1c3a2e">
   <link rel="icon" href="/assets/favicon.png" type="image/png">
   <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,400;1,500&family=Jost:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Lobster&family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/assets/style.css">
   <style>
-    /* Evergreen salon: deep green, gold-foil logo, ivory type, fine gold rules. */
-    html, body { background: #13291f; }
-    body.vcard-page { margin: 0; min-height: 100vh; color: #f6f1e7; font-family: 'Jost', system-ui, sans-serif; }
-    .vc { max-width: 440px; margin: 0 auto; padding: 44px 24px calc(40px + env(safe-area-inset-bottom)); box-sizing: border-box; text-align: center; }
-    .vc-logo { width: 240px; max-width: 78%; height: auto; display: block; margin: 0 auto 20px; } /* larger, Nov 15 2026 */
-    .vc-brand { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 2.3rem; font-weight: 500; line-height: 1; margin: 0; color: #f6f1e7; }
-    .vc-caps { font-size: .72rem; font-weight: 500; letter-spacing: .3em; text-transform: uppercase; color: #c9a45c; margin: 10px 0 0; }
-    .vc-rule { width: 44px; height: 1px; background: #c9a45c; margin: 26px auto; border: 0; }
-    .vc .vc-name { color: #f6f1e7; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 2rem; font-weight: 500; margin: 0; line-height: 1.1; }
-    .vc-title { font-size: .72rem; font-weight: 500; letter-spacing: .26em; text-transform: uppercase; color: #c9a45c; margin: 8px 0 0; }
-    .vc-tag { font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; font-size: 1.15rem; color: #d9d1bf; margin: 18px 0 0; line-height: 1.4; }
-    .vc-save { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 54px; margin: 28px 0 14px; border: 0; border-radius: 999px; background: #c9a45c; color: #13291f; font: 500 1rem 'Jost', system-ui, sans-serif; letter-spacing: .04em; cursor: pointer; text-decoration: none; }
-    .vc-save:hover { background: #d8b878; }
-    .vc-list { list-style: none; margin: 0; padding: 0; text-align: left; border-top: 1px solid rgba(201,164,92,.35); }
-    .vc-list li { border-bottom: 1px solid rgba(201,164,92,.35); }
-    .vc-list a { display: flex; align-items: center; gap: 14px; min-height: 56px; padding: 6px 4px; color: #f6f1e7; text-decoration: none; }
-    .vc-list a:hover .vc-v { color: #dcc189; }
-    .vc-ic { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border: 1px solid rgba(201,164,92,.55); border-radius: 50%; color: #c9a45c; }
-    .vc-ic svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-    .vc-l { display: block; font-size: .66rem; letter-spacing: .22em; text-transform: uppercase; color: #a9a291; }
+    /* Nov 16 2026: matches the ordering site's "Evergreen & Champagne" theme
+       (order.tjskitchenvc.com, app/globals.css): cream page, evergreen header
+       with the gold Lobster name, Libre Caslon serif, evergreen buttons,
+       champagne lines and icons. */
+    :root { --brand: #1c3a2e; --brand-2: #24493a; --gold-name: #d4a854; --champagne: #b3955e; --champagne-text: #8a6e3a;
+            --bg: #f6f2ea; --card: #ffffff; --card-2: #efe9dd; --text: #1e2420; --text-dim: #686b64; --border: #e4ddd0;
+            --on-dark: #f3eee4; --on-dark-dim: rgba(243, 238, 228, 0.72); --serif: "Libre Caslon Text", Georgia, "Times New Roman", serif; }
+    html, body { background: var(--bg); }
+    body.vcard-page { margin: 0; min-height: 100vh; color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .vc { max-width: 440px; margin: 0 auto; padding: 0 20px calc(40px + env(safe-area-inset-bottom)); box-sizing: border-box; text-align: center; }
+    .vc-hero { margin: 0 -20px; padding: calc(34px + env(safe-area-inset-top)) 24px 30px; background: var(--brand); border-radius: 0 0 28px 28px; }
+    .vc-logo { width: 200px; max-width: 64%; height: auto; display: block; margin: 0 auto 14px; }
+    .vc-brand { font-family: "Lobster", cursive; font-size: 2.6rem; font-weight: 400; line-height: 1.05; margin: 0; color: var(--gold-name); }
+    .vc-caps { font-size: .72rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--on-dark-dim); margin: 10px 0 0; }
+    .vc-body { padding-top: 26px; }
+    .vc-hero:has(+ .vc-body > .vc-photo:not([hidden])) { padding-bottom: 76px; }   /* room for the headshot to overlap */
+    .vc-photo { position: relative; width: 116px; height: 116px; border-radius: 50%; object-fit: cover; display: block; margin: -84px auto 16px; border: 4px solid var(--bg); box-shadow: 0 0 0 1px var(--champagne); background: var(--card-2); }
+    .vc .vc-name { color: var(--brand); font-family: var(--serif); font-size: 1.9rem; font-weight: 700; margin: 0; line-height: 1.15; }
+    .vc-title { font-size: .72rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--champagne-text); margin: 8px 0 0; }
+    .vc-tag { font-family: var(--serif); font-style: italic; font-size: 1.05rem; color: var(--text-dim); margin: 14px 0 0; line-height: 1.45; }
+    .vc-save { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 54px; margin: 24px 0 16px; border: 0; border-radius: 999px; background: var(--brand); color: var(--on-dark); font: 700 1rem -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; letter-spacing: .01em; cursor: pointer; text-decoration: none; }
+    .vc-save:hover { background: var(--brand-2); }
+    .vc-save:active { transform: scale(0.99); }
+    .vc-list { list-style: none; margin: 0; padding: 4px 14px; text-align: left; background: var(--card); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 1px 2px rgba(30, 36, 32, 0.05); }
+    .vc-list li + li { border-top: 1px solid var(--border); }
+    .vc-list a { display: flex; align-items: center; gap: 14px; min-height: 58px; padding: 6px 0; color: var(--text); text-decoration: none; }
+    .vc-list a:hover .vc-v { color: var(--brand); }
+    .vc-ic { width: 36px; height: 36px; flex: none; display: grid; place-items: center; background: var(--card-2); border: 1px solid var(--border); border-radius: 50%; color: var(--champagne-text); }
+    .vc-ic svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+    .vc-l { display: block; font-size: .66rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--text-dim); }
     .vc-v { display: block; font-size: 1rem; line-height: 1.3; word-break: break-word; }
-    .vc-row { display: flex; gap: 10px; margin-top: 18px; }
-    .vc-ghost { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; border: 1px solid rgba(201,164,92,.6); border-radius: 999px; background: transparent; color: #f6f1e7; font: 500 .92rem 'Jost', system-ui, sans-serif; cursor: pointer; }
-    .vc-ghost svg, .vc-save svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-    .vc-qr { margin: 22px auto 0; padding: 14px; background: #f6f1e7; border-radius: 14px; width: 220px; }
-    .vc-qr img { width: 100%; height: auto; display: block; }
-    .vc-qr p { margin: 8px 0 0; color: #13291f; font-size: .8rem; }
-    .vc-foot { margin-top: 30px; font-size: .7rem; letter-spacing: .2em; text-transform: uppercase; color: #8f8a7c; }
-    .vc-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #f6f1e7; color: #13291f; padding: 10px 18px; border-radius: 999px; font-size: .9rem; box-shadow: 0 6px 20px rgba(0,0,0,.3); }
-    .vc-photo { width: 116px; height: 116px; border-radius: 50%; object-fit: cover; display: block; margin: 0 auto 16px; border: 2px solid #c9a45c; }
+    .vc-row { display: flex; gap: 10px; margin-top: 16px; }
+    .vc-ghost { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; border: 1px solid #d9d1c2; border-radius: 999px; background: var(--card); color: var(--brand); font: 700 .92rem -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; cursor: pointer; }
+    .vc-ghost:hover { background: var(--card-2); }
+    .vc-ghost svg, .vc-save svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .vc-qr { margin: 18px auto 0; padding: 14px; background: var(--card); border: 1px solid var(--border); border-radius: 16px; width: 220px; }
+    .vc-qr img, .vc-qr svg { width: 100%; height: auto; display: block; }
+    .vc-qr p { margin: 8px 0 0; color: var(--text-dim); font-size: .8rem; }
+    .vc-foot { margin-top: 28px; font-size: .68rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: #8a8679; }
+    .vc-foot::before { content: ""; display: block; width: 44px; height: 1px; background: var(--champagne); margin: 0 auto 16px; }
+    .vc-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--brand); color: var(--on-dark); padding: 10px 18px; border-radius: 999px; font-size: .9rem; box-shadow: 0 6px 20px rgba(0,0,0,.2); }
     .vc-missing { padding-top: 30vh; }
-    .vc-missing p { color: #d9d1bf; }
-    .vc-missing a { color: #c9a45c; }
-    .vc-qr svg { width: 100%; height: auto; display: block; }
+    .vc-missing .vc-brand { color: var(--brand); }
+    .vc-missing p { color: var(--text-dim); }
+    .vc-missing a { color: var(--brand); font-weight: 700; }
   </style>
 </head>
 <body class="vcard-page">
   <main class="vc" id="vc" hidden>
-    <img class="vc-logo" data-f="logo" src="/assets/logo-gold.png" alt="Logo" width="240" height="203">
-    <p class="vc-brand" data-f="brand"></p>
-    <p class="vc-caps" data-f="caps"></p>
-
-    <hr class="vc-rule">
+    <header class="vc-hero">
+      <img class="vc-logo" data-f="logo" src="/assets/logo-gold.png" alt="Logo" width="240" height="203">
+      <p class="vc-brand" data-f="brand"></p>
+      <p class="vc-caps" data-f="caps"></p>
+    </header>
+    <div class="vc-body">
 
     <img class="vc-photo" data-f="photo" alt="" hidden>
     <h1 class="vc-name" data-f="name"></h1>
@@ -124,6 +137,7 @@
     </div>
 
     <p class="vc-foot" data-f="footer"></p>
+    </div>
   </main>
 
   <main class="vc vc-missing" id="vcMissing" hidden>
@@ -188,7 +202,7 @@
         // QR code for this card's own address.
         try {
           const q = qrcode(0, 'M'); q.addData(CARD_URL); q.make();
-          $('[data-qr]').innerHTML = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true }).replace(/fill="black"/g, 'fill="#13291f"').replace(/fill="white"/g, 'fill="#f6f1e7"');
+          $('[data-qr]').innerHTML = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true }).replace(/fill="black"/g, 'fill="#1c3a2e"').replace(/fill="white"/g, 'fill="#ffffff"');
         } catch (e) { $('[data-vc-qr]').hidden = true; }
         $('#vc').hidden = false;
         // Contact photo: their headshot, else this card's logo on the card's
@@ -203,7 +217,7 @@
               const k = Math.max(S / im.width, S / im.height), w = im.width * k, h = im.height * k;
               x.drawImage(im, (S - w) / 2, (S - h) / 2, w, h);
             } else {
-              x.fillStyle = '#13291f'; x.fillRect(0, 0, S, S);
+              x.fillStyle = '#1c3a2e'; x.fillRect(0, 0, S, S);
               const k = Math.min(S * 0.86 / im.width, S * 0.86 / im.height), w = im.width * k, h = im.height * k;
               x.drawImage(im, (S - w) / 2, (S - h) / 2, w, h);
             }
