@@ -92,7 +92,28 @@ if (/Instagram|FBAN|FBAV|Snapchat|Line\/|TikTok|musical_ly/i.test(navigator.user
 
 // Video is created up front so it downloads while the user reads the start screen.
 const video = document.createElement('video');
-Object.assign(video, { src: '/ar/boil.mp4', muted: true, loop: false, playsInline: true, preload: 'auto', crossOrigin: 'anonymous' });
+Object.assign(video, { muted: true, loop: false, playsInline: true, preload: 'auto', crossOrigin: 'anonymous' });
+
+// Media (video, tracking data, calibration still) is served from Cloudflare R2
+// (bucket tjs-ar). If R2 can't be reached, or its CORS rule is missing, fall back
+// to the copies in this folder so the page never breaks.
+const R2 = 'https://pub-f13c7714004f4b7c84c91c91a3ece0b9.r2.dev';
+const LOCAL = '/ar';
+const media = (async () => {
+  try {
+    const r = await fetch(R2 + '/target.mind', { mode: 'cors', cache: 'force-cache' });
+    if (!r.ok) throw new Error('R2 ' + r.status);
+    const target = URL.createObjectURL(await r.blob());
+    return { base: R2, target };
+  } catch (e) {
+    console.warn('AR media: using local copies', e);
+    return { base: LOCAL, target: LOCAL + '/target.mind' };
+  }
+})();
+media.then(m => { video.src = m.base + '/boil.mp4'; video.load(); });
+video.addEventListener('error', () => {   // R2 video failed after all: use local copy
+  if (!video.src.includes(location.host)) { video.src = LOCAL + '/boil.mp4'; video.load(); }
+});
 video.setAttribute('playsinline', ''); video.setAttribute('webkit-playsinline', '');
 
 // Placement of the video relative to the tracked label (label width = 1 unit, centred at origin).
@@ -103,9 +124,10 @@ $('go').addEventListener('click', async () => {
   // Unlock video playback inside the user's tap (required on iPhone).
   try { await video.play(); video.pause(); video.currentTime = 0; } catch (e) {}
   show($('start'), false); show($('loading'), true);
+  const m = await media;
 
   const mindar = new MindARThree({
-    container: $('ar'), imageTargetSrc: '/ar/target.mind',
+    container: $('ar'), imageTargetSrc: m.target,
     uiLoading: 'no', uiScanning: 'no', uiError: 'yes',
     filterMinCF: 0.0001, filterBeta: 0.001
   });
@@ -114,7 +136,7 @@ $('go').addEventListener('click', async () => {
   // Calibration mode (open /ar#calibrate): frozen first frame at half opacity,
   // sliders to line it up by hand, and camera numbers shown for debugging.
   const CAL = location.hash === '#calibrate';
-  const tex = CAL ? new THREE.TextureLoader().load('/ar/frame0.jpg') : new THREE.VideoTexture(video);
+  const tex = CAL ? new THREE.TextureLoader().load(m.base + '/frame0.jpg') : new THREE.VideoTexture(video);
   tex.colorSpace = THREE.SRGBColorSpace;
   // Feathered edges so the animation blends into the real scene instead of looking like a box.
   const mat = new THREE.ShaderMaterial({
