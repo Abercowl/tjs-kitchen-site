@@ -9,6 +9,9 @@
      │                      Business cards. "Evergreen salon" look.
      │                      Save to contacts builds a vCard (.vcf) with the photo;
      │                      the QR code is drawn here, so every card has its own.
+     │                      Nov 15 2026 (later): EVERY part is per-card -- logo,
+     │                      name at the top, links (blank = hidden), address,
+     │                      bottom line. Contact photo = headshot, else the logo.
      ├── assets/vendor/qrcode.js   QR code library (MIT, Kazuhiko Arase)
      └── john.html          removed -- /john now forwards to /card/john
      noindex: shared by link, QR or NFC tap, not found through search. -->
@@ -68,8 +71,8 @@
 </head>
 <body class="vcard-page">
   <main class="vc" id="vc" hidden>
-    <img class="vc-logo" src="/assets/logo-gold.png" alt="TJ's Kitchen logo" width="150" height="127">
-    <p class="vc-brand">TJ's Kitchen</p>
+    <img class="vc-logo" data-f="logo" src="/assets/logo-gold.png" alt="Logo" width="150" height="127">
+    <p class="vc-brand" data-f="brand"></p>
     <p class="vc-caps" data-f="caps"></p>
 
     <hr class="vc-rule">
@@ -91,18 +94,18 @@
       <li data-row="email"><a data-vc-mail href="#">
         <span class="vc-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-10 6L2 7"></path></svg></span>
         <span><span class="vc-l">Email</span><span class="vc-v" data-f="email"></span></span></a></li>
-      <li><a href="https://tjskitchenvc.com">
+      <li data-row="website"><a data-link="website" href="#">
         <span class="vc-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20"></path></svg></span>
-        <span><span class="vc-l">Website</span><span class="vc-v">tjskitchenvc.com</span></span></a></li>
-      <li><a href="https://order.tjskitchenvc.com">
+        <span><span class="vc-l">Website</span><span class="vc-v" data-f="website"></span></span></a></li>
+      <li data-row="order"><a data-link="order" href="#">
         <span class="vc-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><path d="M3 6h18M16 10a4 4 0 0 1-8 0"></path></svg></span>
-        <span><span class="vc-l">Order online</span><span class="vc-v">order.tjskitchenvc.com</span></span></a></li>
-      <li><a href="https://instagram.com/tjskitchenvc" target="_blank" rel="noopener">
+        <span><span class="vc-l">Order online</span><span class="vc-v" data-f="order"></span></span></a></li>
+      <li data-row="instagram"><a data-link="instagram" href="#" target="_blank" rel="noopener">
         <span class="vc-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"></rect><circle cx="12" cy="12" r="4"></circle><circle cx="17.2" cy="6.8" r=".6"></circle></svg></span>
-        <span><span class="vc-l">Instagram</span><span class="vc-v">@tjskitchenvc</span></span></a></li>
-      <li><a href="https://www.facebook.com/profile.php?id=61591105646076" target="_blank" rel="noopener">
+        <span><span class="vc-l">Instagram</span><span class="vc-v" data-f="instagram"></span></span></a></li>
+      <li data-row="facebook"><a data-link="facebook" href="#" target="_blank" rel="noopener">
         <span class="vc-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 8h2.5V4.5H14A3.5 3.5 0 0 0 10.5 8v2.5H8V14h2.5v6.5H14V14h2.5l.5-3.5h-3V8z"></path></svg></span>
-        <span><span class="vc-l">Facebook</span><span class="vc-v">TJ's Kitchen</span></span></a></li>
+        <span><span class="vc-l">Facebook</span><span class="vc-v" data-f="facebook"></span></span></a></li>
     </ul>
 
     <div class="vc-row">
@@ -120,7 +123,7 @@
       <p>Scan to open this card</p>
     </div>
 
-    <p class="vc-foot">Camarillo, California</p>
+    <p class="vc-foot" data-f="footer"></p>
   </main>
 
   <main class="vc vc-missing" id="vcMissing" hidden>
@@ -149,14 +152,33 @@
       async function load() {
         if (!/^[a-z0-9][a-z0-9-]{1,39}$/.test(slug)) return missing();
         let rows = [];
-        try { rows = await sb('staff_cards?select=slug,name,title,phone,email,caps,tagline,photo_url&slug=eq.' + encodeURIComponent(slug)); }
+        try { rows = await sb('staff_cards?select=slug,name,title,phone,email,caps,tagline,photo_url,logo_url,brand,website_url,order_url,instagram,facebook_url,address,footer&slug=eq.' + encodeURIComponent(slug)); }
         catch (e) { return missing(); }
         if (!rows || !rows.length) return missing();
         card = rows[0];
-        document.title = card.name + ' · TJ\'s Kitchen';
+        const brand = card.brand || 'TJ\'s Kitchen';
+        document.title = card.name + ' · ' + brand;
         const set = (f, v) => { const el = $('[data-f="' + f + '"]'); el.textContent = v || ''; el.hidden = !v; };
         set('caps', card.caps); set('name', card.name); set('title', card.title); set('tagline', card.tagline);
         set('phone', card.phone); set('email', card.email);
+        set('brand', card.brand); set('footer', card.footer);
+        const logo = $('[data-f="logo"]');
+        logo.src = /^https:\/\//i.test(card.logo_url || '') ? card.logo_url : '/assets/logo-gold.png';
+        logo.alt = brand + ' logo';
+        // Links: blank = that row is hidden.
+        const web = u => /^https?:\/\//i.test(u || '') ? u : '';
+        const short = u => u.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, '');
+        const links = {
+          website: web(card.website_url), order: web(card.order_url), facebook: web(card.facebook_url),
+          instagram: /^[A-Za-z0-9._]{1,30}$/.test(card.instagram || '') ? 'https://instagram.com/' + card.instagram : ''
+        };
+        Object.keys(links).forEach(k => {
+          $('[data-row="' + k + '"]').hidden = !links[k];
+          if (!links[k]) return;
+          $('[data-link="' + k + '"]').href = links[k];
+          set(k, k === 'instagram' ? '@' + card.instagram : k === 'facebook' ? brand : short(links[k]));
+        });
+        card._links = links;
         $('[data-row="phone"]').hidden = !card.phone;
         $('[data-row="email"]').hidden = !card.email;
         $('[data-vc-tel]').href = 'tel:' + telOf(card.phone);
@@ -169,12 +191,26 @@
           $('[data-qr]').innerHTML = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true }).replace(/fill="black"/g, 'fill="#13291f"').replace(/fill="white"/g, 'fill="#f6f1e7"');
         } catch (e) { $('[data-vc-qr]').hidden = true; }
         $('#vc').hidden = false;
-        // Contact photo: their headshot, else the gold logo. Loaded ahead so Save is instant.
-        const src = /^https:\/\//i.test(card.photo_url || '') ? card.photo_url : '/assets/contact-photo.jpg';
-        fetch(src).then(r => r.ok ? r.blob() : null).then(b => {
-          if (!b || !/jpe?g/i.test(b.type)) return;
-          const fr = new FileReader(); fr.onload = () => { photo = String(fr.result).split(',')[1] || ''; }; fr.readAsDataURL(b);
-        }).catch(() => {});
+        // Contact photo: their headshot, else this card's logo on the card's
+        // green, as a JPEG. Made ahead of time so Save is instant.
+        const usePhoto = /^https:\/\//i.test(card.photo_url || '');
+        const im = new Image(); im.crossOrigin = 'anonymous';
+        im.onload = () => {
+          try {
+            const S = 600, c = document.createElement('canvas'); c.width = c.height = S;
+            const x = c.getContext('2d');
+            if (usePhoto) {
+              const k = Math.max(S / im.width, S / im.height), w = im.width * k, h = im.height * k;
+              x.drawImage(im, (S - w) / 2, (S - h) / 2, w, h);
+            } else {
+              x.fillStyle = '#13291f'; x.fillRect(0, 0, S, S);
+              const k = Math.min(S * 0.86 / im.width, S * 0.86 / im.height), w = im.width * k, h = im.height * k;
+              x.drawImage(im, (S - w) / 2, (S - h) / 2, w, h);
+            }
+            photo = c.toDataURL('image/jpeg', 0.82).split(',')[1] || '';
+          } catch (e) { photo = ''; }
+        };
+        im.src = usePhoto ? card.photo_url : logo.src;
       }
 
       // vCard 3.0 (iPhone + Android). Lines folded at 75 characters.
@@ -189,14 +225,15 @@
           'BEGIN:VCARD', 'VERSION:3.0',
           'N:' + esc(last) + ';' + esc(first) + ';;;',
           'FN:' + esc(card.name),
-          'ORG:TJ\'s Kitchen',
+          'ORG:' + esc(card.brand || 'TJ\'s Kitchen'),
           card.title ? 'TITLE:' + esc(card.title) : '',
           card.phone ? 'TEL;TYPE=WORK,VOICE:' + telOf(card.phone) : '',
           card.email ? 'EMAIL;TYPE=INTERNET,WORK:' + card.email : '',
-          'item1.URL:https://tjskitchenvc.com', 'item1.X-ABLabel:Website',
-          'item2.URL:https://order.tjskitchenvc.com', 'item2.X-ABLabel:Order online',
-          'X-SOCIALPROFILE;TYPE=instagram:https://instagram.com/tjskitchenvc',
-          'ADR;TYPE=WORK:;;791 Camarillo Springs Rd;Camarillo;CA;93012;USA',
+          card._links.website ? 'item1.URL:' + card._links.website : '', card._links.website ? 'item1.X-ABLabel:Website' : '',
+          card._links.order ? 'item2.URL:' + card._links.order : '', card._links.order ? 'item2.X-ABLabel:Order online' : '',
+          card._links.instagram ? 'X-SOCIALPROFILE;TYPE=instagram:' + card._links.instagram : '',
+          card._links.facebook ? 'X-SOCIALPROFILE;TYPE=facebook:' + card._links.facebook : '',
+          card.address ? 'ADR;TYPE=WORK:;;' + esc(card.address) + ';;;;' : '',
           card.tagline ? 'NOTE:' + esc(card.tagline) : '',
           photo ? 'PHOTO;ENCODING=b;TYPE=JPEG:' + photo : '',
           'END:VCARD'
@@ -204,7 +241,7 @@
         const blob = new Blob([lines + '\r\n'], { type: 'text/vcard;charset=utf-8' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = (first || card.name || 'TJs-Kitchen').replace(/[^\w-]+/g, '-') + '-TJs-Kitchen.vcf';
+        a.download = ((first || card.name) + ' ' + (card.brand || 'TJs Kitchen')).replace(/[^\w-]+/g, '-') + '.vcf';
         document.body.appendChild(a); a.click();
         setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
       });
@@ -212,7 +249,7 @@
       $('[data-vc-share]').addEventListener('click', async () => {
         if (!card) return;
         try {
-          if (navigator.share) { await navigator.share({ title: card.name + ' · TJ\'s Kitchen', url: CARD_URL }); return; }
+          if (navigator.share) { await navigator.share({ title: card.name + ' · ' + (card.brand || 'TJ\'s Kitchen'), url: CARD_URL }); return; }
           await navigator.clipboard.writeText(CARD_URL); toast('Link copied');
         } catch (e) { /* closed the share sheet */ }
       });
