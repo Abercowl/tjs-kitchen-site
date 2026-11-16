@@ -15,6 +15,11 @@
       "source": "/menu",
       "destination": "https://order.tjskitchenvc.com/menu",
       "permanent": false
+    },
+    {
+      "source": "/john",
+      "destination": "/card/john",
+      "permanent": false
     }
   ],
   "headers": [
@@ -35,6 +40,12 @@
           "value": "no-cache"
         }
       ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/card/:slug",
+      "destination": "/card.html"
     }
   ]
 }
