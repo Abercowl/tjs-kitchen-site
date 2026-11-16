@@ -185,7 +185,11 @@ $('go').addEventListener('click', async () => {
 
   renderer.setAnimationLoop(() => {
     const u = mat.uniforms.opacity;
-    u.value += ((CAL ? target * 0.55 : target) - u.value) * 0.15;   // smooth fade in/out
+    // Only show the overlay once the video is actually playing (or finished),
+    // so a frozen first frame never sits on the jar while it buffers.
+    const ready = CAL || ended || (!video.paused && video.currentTime > 0.05);
+    const want = ready ? (CAL ? target * 0.55 : target) : 0;
+    u.value += (want - u.value) * 0.2;   // smooth fade in/out
     renderer.render(scene, camera);
   });
 });
