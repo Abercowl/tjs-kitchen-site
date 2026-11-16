@@ -45,7 +45,7 @@
   "rewrites": [
     {
       "source": "/card/:slug",
-      "destination": "/card.html"
+      "destination": "/card"
     }
   ]
 }
