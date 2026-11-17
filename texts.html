@@ -1,10 +1,13 @@
 <!DOCTYPE html>
 <!-- FILE:  tjs-kitchen-site/texts.html
      tjs-kitchen-site/
-     ├── texts.html     <-- THIS FILE (new Nov 9 2026: sign up for texted specials;
-     │                   the QR sign at the trailer points here. Nov 11 2026: a mailing
-     │                   list (events, menu & service news) -- not weekly specials;
-     │                   Nov 9 2026 night: label, button and note editable in the admin)
+     ├── texts.html     <-- THIS FILE (Nov 17 2026: ORDER-UPDATE TEXTS ONLY.
+     │                   We no longer send marketing texts -- Twilio's toll-free
+     │                   review requires one use per number. This page explains the
+     │                   only texts we send ("your order is ready") and shows the exact
+     │                   opt-in box from checkout, for customers and for carrier review.
+     │                   The QR sign at the trailer still points here; it now offers
+     │                   the EMAIL list. Was: texted mailing-list sign-up, Nov 9-11.)
      └── assets/
          ├── site.js
          └── style.css -->
@@ -12,9 +15,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mailing List by Text | TJ's Kitchen</title>
+  <title>Order Update Texts | TJ's Kitchen</title>
   <meta name="description" content="TJ's Kitchen at Camarillo Springs Golf Course — order ahead for pick-up or delivery to your hole.">
-  <meta property="og:title" content="Mailing List by Text | TJ's Kitchen">
+  <meta property="og:title" content="Order Update Texts | TJ's Kitchen">
   <meta property="og:description" content="TJ's Kitchen at Camarillo Springs Golf Course — order ahead for pick-up or delivery to your hole.">
   <meta property="og:image" content="/assets/logo.png">
   <meta name="theme-color" content="#1c3a2e">
@@ -25,6 +28,14 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&family=Lobster&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/assets/style.css">
   <script src="/assets/site.js" defer></script>
+  <style>
+    .optin-example { background: var(--card, #fff); border: 1px solid var(--line, #e6e1d6); border-radius: 14px; padding: 16px 18px; margin: 10px 0 0; }
+    .optin-row { display: flex; gap: 12px; align-items: flex-start; cursor: default; }
+    .optin-row input { width: 20px; height: 20px; margin-top: 2px; flex: none; }
+    .optin-phone { margin: 12px 0 0; border: 1px solid var(--line, #e6e1d6); border-radius: 999px; padding: 10px 16px; color: var(--muted, #888); font-size: .95rem; }
+    .optin-legal { font-size: 13px; line-height: 1.5; color: var(--muted, #666); margin: 10px 0 0; }
+    .optin-legal a { color: inherit; text-decoration: underline; }
+  </style>
 </head>
 <body data-no-signup>
   <header class="site-header">
@@ -46,25 +57,41 @@
 
   <main>
     <section class="section" style="padding-bottom:24px">
-      <div class="wrap" style="max-width:640px">
-        <div class="eyebrow" data-edit="texts.eyebrow" data-edit-label="Texts sign-up: small label">Stay in the loop</div>
-        <h1 data-edit="texts.title" data-edit-label="Texts sign-up: headline">Join our mailing list by text</h1>
-        <p class="lead" style="margin-top:10px" data-edit="texts.lead" data-edit-label="Texts sign-up: intro" data-edit-long>Be the first to hear about special events, new menu items and new services from TJ's Kitchen. Only occasional texts, never spam.</p>
+      <div class="wrap" style="max-width:680px">
+        <div class="eyebrow">Text messages</div>
+        <h1>We'll text you when your order is ready</h1>
+        <p class="lead" style="margin-top:10px">That's the only kind of text TJ's Kitchen sends. No ads, no specials, no mailing list by text &mdash; just a heads-up about the order you placed.</p>
       </div>
     </section>
+
     <section class="section" style="border-top:0;padding-top:8px">
-      <div class="wrap" style="max-width:640px">
-        <form class="card text-signup" data-text-signup novalidate>
-          <input type="text" name="first_name" placeholder="First name (optional)" autocomplete="given-name" maxlength="40" aria-label="First name">
-          <input type="tel" name="phone" placeholder="Mobile number" autocomplete="tel-national" inputmode="tel" required maxlength="20" aria-label="Mobile number">
-          <label class="consent">
-            <input type="checkbox" name="consent">
-            <span>Yes, text me TJ's Kitchen news (special events, new menu items and services) at this number (up to 4 msgs/month). Consent isn't required to buy anything. Msg &amp; data rates may apply. Reply HELP for help, STOP to cancel. See our <a href="/privacy#texting">privacy &amp; texting terms</a>.</span>
+      <div class="wrap" style="max-width:680px">
+        <h2>How it works</h2>
+        <ul>
+          <li>When you order online from one of our events, checkout shows an <strong>optional</strong> box: &ldquo;Text me when it's ready.&rdquo; It is <strong>never ticked for you</strong> &mdash; you tick it yourself and type your mobile number.</li>
+          <li>We text you about <strong>that order only</strong>: when it's ready (or on its way). Usually 1&ndash;2 messages per order.</li>
+          <li>Ordering never requires texts. Leave the box empty and we'll call your name at the trailer as usual.</li>
+          <li>Message &amp; data rates may apply. Reply <strong>STOP</strong> to stop texts, <strong>HELP</strong> for help.</li>
+          <li>We never sell or share your number. <a href="/privacy#texting">Privacy &amp; texting terms</a></li>
+        </ul>
+
+        <h2 style="margin-top:28px">What the box looks like at checkout</h2>
+        <p class="muted" style="margin-top:-4px">Shown exactly as customers see it &mdash; unticked until they choose to tick it.</p>
+        <div class="optin-example" aria-label="Example of the opt-in box at checkout">
+          <label class="optin-row">
+            <input type="checkbox" disabled>
+            <span><strong>Text me when it's ready</strong><br><span class="muted">Stay in your seat &mdash; we'll text you.</span></span>
           </label>
-          <button class="btn" type="submit"><span data-edit="texts.button" data-edit-label="Texts sign-up: button">Join by text</span></button>
-          <p class="muted" style="font-size:13px;margin:0" data-edit="texts.confirm" data-edit-label="Texts sign-up: note under the button">We'll text you once to confirm — just reply JOIN.</p>
-          <p class="signup-note" aria-live="polite"></p>
-        </form>
+          <div class="optin-phone">Mobile number</div>
+          <p class="optin-legal">By checking this box, you agree to receive order status text messages from TJ's Kitchen about this order only (when it's ready or on its way) at the number above. 1&ndash;2 messages per order. No marketing. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. We never sell or share your number. <a href="/privacy#texting">Privacy &amp; texting terms</a></p>
+        </div>
+
+        <h2 style="margin-top:28px">Example message</h2>
+        <div class="optin-example"><p style="margin:0">TJ's Kitchen: Your order #A1B2C3 is ready! Come grab it at the trailer. Reply STOP to opt out.</p></div>
+
+        <h2 style="margin-top:28px">Want news about events and new menu items?</h2>
+        <p>Join our <a href="/#signup">email list</a> instead &mdash; we don't send those by text.</p>
+        <p class="muted" style="margin-top:24px">Questions? Call <a href="tel:+18056705686">(805) 670-5686</a> or email <a href="mailto:tjskitchen0001@gmail.com">tjskitchen0001@gmail.com</a>.</p>
       </div>
     </section>
   </main>

@@ -35,6 +35,11 @@
  * phones that already had the site open -- the text is re-checked when the
  * page comes back on screen (see initSiteContent).
  *
+ * UPDATE (Nov 17 2026): EMAIL ONLY. We no longer send marketing texts
+ * (Twilio toll-free review: one use per number -- ours is order-ready
+ * texts). The sign-up band asks for name + email; the texted sign-up on
+ * texts.html is retired (that page now explains order-update texts).
+ *
  * UPDATE (Nov 9 2026, later): the sign-up band at the bottom of every
  * page asks for name, mobile number and email. Email -> email list
  * (email_subscribe). Mobile -> texted specials (sms_specials_signup,
@@ -908,7 +913,8 @@ function initDeliveryInterest() {
   });
 }
 
-// Texted specials sign-up (texts.html, Nov 9 2026). Calls the
+// RETIRED Nov 17 2026 (no marketing texts) -- texts.html no longer has this
+// form, so this does nothing. Was: texted specials sign-up (Nov 9 2026). Calls the
 // sms_specials_signup database function; the welcome text then comes from
 // Twilio within a minute. The consent box must be ticked by the customer.
 function initTextSignup() {
@@ -956,15 +962,10 @@ function initSignup() {
       <h2 data-edit="signup.title" data-edit-label="Email sign-up: heading">Join our mailing list</h2>
       <p class="muted" data-edit="signup.text" data-edit-label="Email sign-up: text" data-edit-long>Be the first to hear about special events, new menu items and new services, on the course or out in the community. No spam, and you can opt out anytime.</p>
     </div>
-    <form class="signup-form signup-form-3" novalidate>
+    <form class="signup-form" novalidate>
       <input type="text" name="first_name" placeholder="Name" autocomplete="given-name" required maxlength="40" aria-label="Name">
       <input type="email" name="email" placeholder="Email" autocomplete="email" maxlength="254" aria-label="Email">
-      <input type="tel" name="phone" placeholder="Mobile number" autocomplete="tel-national" inputmode="tel" maxlength="20" aria-label="Mobile number">
       <button class="btn" type="submit"><span data-edit="signup.button" data-edit-label="Email sign-up: button">Sign me up</span></button>
-      <label class="consent" hidden>
-        <input type="checkbox" name="sms_consent">
-        <span>Yes, text me TJ's Kitchen news (special events, new menu items and services) at this number (up to 4 msgs/month). Consent isn't required to buy anything. Msg &amp; data rates may apply. Reply HELP for help, STOP to cancel. See our <a href="/privacy#texting">privacy &amp; texting terms</a>.</span>
-      </label>
       <p class="signup-note" aria-live="polite"></p>
     </form>
   </div>`;
@@ -989,22 +990,14 @@ function initSignup() {
   }
   const form = band.querySelector('form');
   const note = band.querySelector('.signup-note');
-  // Texting box (separate, unticked) shows once they start a number.
-  const consentRow = form.querySelector('.consent');
-  const pretty = v => { const d = v.replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '').slice(0, 10);
-    return d.length < 4 ? d : d.length < 7 ? `(${d.slice(0,3)}) ${d.slice(3)}` : `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`; };
-  form.phone.addEventListener('input', () => { form.phone.value = pretty(form.phone.value); consentRow.hidden = !form.phone.value; });
   const say = (msg, ok) => { note.textContent = msg; note.className = 'signup-note ' + (ok ? 'ok' : 'err'); };
   form.addEventListener('submit', async ev => {
     ev.preventDefault();
     const name = form.first_name.value.trim();
     const email = form.email.value.trim();
-    const digits = form.phone.value.replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
     if (!name) return say('Please enter your name.');
-    if (!email && !digits) return say('Please enter your email, your mobile number, or both.');
-    if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return say('Please enter a valid email address.');
-    if (digits && !/^[2-9]\d{9}$/.test(digits)) return say('Please enter a 10-digit US mobile number.');
-    if (digits && !form.sms_consent.checked) return say('Tick the box to join by text — or clear the number to sign up by email only.');
+    if (!email) return say('Please enter your email.');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return say('Please enter a valid email address.');
     const btn = form.querySelector('button'); btn.disabled = true;
     const done = [], problems = [];
     if (email) {
@@ -1013,25 +1006,10 @@ function initSignup() {
         if (r && r.ok) done.push('email'); else problems.push((r && r.error) || "Email sign-up didn't go through.");
       } catch (e) { problems.push("Email sign-up didn't go through."); }
     }
-    let textState = null;
-    if (digits) {
-      try {
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/sms_specials_signup`, {
-          method: 'POST',
-          headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ p_phone: digits, p_first_name: name, p_source: 'website' }),
-        });
-        const out = await res.json().catch(() => null);
-        if (!res.ok) throw new Error((out && out.message) || "Text sign-up didn't go through.");
-        textState = out; done.push('text');
-      } catch (e) { problems.push(e.message); }
-    }
     btn.disabled = false;
-    if (problems.length) return say((done.includes('email') ? "You're on the email list. " : '') + problems.join(' ') + ' Please try again.');
-    form.reset(); consentRow.hidden = true;
-    say(textState && textState !== 'already'
-      ? (done.includes('email') ? "You're on the email list! " : '') + 'We just texted you — reply JOIN to confirm texts.'
-      : "You're on the list — thanks!", true);
+    if (problems.length) return say(problems.join(' ') + ' Please try again.');
+    form.reset();
+    say("You're on the list — thanks!", true);
   });
 }
 
