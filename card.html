@@ -13,6 +13,7 @@
      │                      Nov 15 2026 (later): EVERY part is per-card -- logo,
      │                      name at the top, links (blank = hidden), address,
      │                      bottom line. Contact photo = headshot, else the logo.
+     ├── assets/logo-card.png      default card logo (wood-barrel TJ's Kitchen, Nov 16 2026)
      ├── assets/vendor/qrcode.js   QR code library (MIT, Kazuhiko Arase)
      └── john.html          removed -- /john now forwards to /card/john
      noindex: shared by link, QR or NFC tap, not found through search. -->
@@ -84,7 +85,7 @@
 <body class="vcard-page">
   <main class="vc" id="vc" hidden>
     <header class="vc-hero">
-      <img class="vc-logo" data-f="logo" src="/assets/logo-gold.png" alt="Logo" width="240" height="203">
+      <img class="vc-logo" data-f="logo" src="/assets/logo-card.png" alt="Logo" width="240" height="203">
       <p class="vc-brand" data-f="brand"></p>
       <p class="vc-caps" data-f="caps"></p>
     </header>
@@ -177,7 +178,7 @@
         set('phone', card.phone); set('email', card.email);
         set('brand', card.brand); set('footer', card.footer);
         const logo = $('[data-f="logo"]');
-        logo.src = /^https:\/\//i.test(card.logo_url || '') ? card.logo_url : '/assets/logo-gold.png';
+        logo.src = /^https:\/\//i.test(card.logo_url || '') ? card.logo_url : '/assets/logo-card.png';
         logo.alt = brand + ' logo';
         // Links: blank = that row is hidden.
         const web = u => /^https?:\/\//i.test(u || '') ? u : '';
