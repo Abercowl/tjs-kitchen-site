@@ -47,7 +47,7 @@
   .ghost { background: rgba(0,0,0,.5); color: #fff; box-shadow: none; border: 1px solid rgba(255,255,255,.5); }
   .small { font-size: 13px; opacity: .65; margin-top: 18px; }
   .small a { color: #d4a854; }
-  #close { position: fixed; top: 14px; left: 14px; z-index: 20; width: 40px; height: 40px; border-radius: 999px; background: rgba(0,0,0,.45); color: #fff; display:flex; align-items:center; justify-content:center; text-decoration:none; }
+  #close { position: fixed; top: 14px; left: 14px; z-index: 30; width: 44px; height: 44px; border-radius: 999px; background: rgba(0,0,0,.45); color: #fff; display:flex; align-items:center; justify-content:center; text-decoration:none; }
   #close svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
   #guide { position: fixed; inset: 0; z-index: 5; pointer-events: none; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity .4s; }
   #guide .frame { width: 64vw; max-width: 300px; aspect-ratio: 1; border: 3px dashed rgba(255,255,255,.85); border-radius: 50%;
@@ -57,7 +57,7 @@
   #loading { position: fixed; bottom: 40px; left: 0; right: 0; text-align: center; z-index: 6; font-size: 14px; opacity: .8; }
   /* Scorecard (top right) and tip line (bottom) */
   #hud { position: fixed; top: 14px; right: 14px; z-index: 8; background: rgba(0,0,0,.5); border-radius: 14px; padding: 8px 14px; text-align: right; font-size: 12px; letter-spacing: .06em; transition: opacity .4s; }
-  #sizes { position: fixed; left: max(14px, env(safe-area-inset-left)); top: calc(max(14px, env(safe-area-inset-top)) + 52px); z-index: 8; display: flex; gap: 6px; align-items: center;
+  #sizes { position: fixed; left: max(14px, env(safe-area-inset-left)); top: calc(max(14px, env(safe-area-inset-top)) + 58px); z-index: 8; display: flex; gap: 6px; align-items: center;
     background: rgba(0,0,0,.5); border-radius: 14px; padding: 6px 8px; font-size: 11px; letter-spacing: .08em; transition: opacity .4s; }
   #sizes button { font: 700 13px Inter, sans-serif; color: #f3eee4; background: transparent; border: 1px solid rgba(255,255,255,.35); border-radius: 999px; padding: 5px 10px; }
   #sizes button.on { background: #d4a854; color: #15302a; border-color: #d4a854; }
@@ -157,6 +157,7 @@ const FRICTION = { green: 0.36, rough: 0.55, sand: 2.7 };   // rough = the fairw
 const MAX_SPEED = 1.9, POWER = 4.5;
 const SINK_SPEED = 0.46;
 const PAR = 3;
+const BETA_UNLOCK_ALL = true;      // beta testing: no par requirement to move on
 const FIXED_STEP = 1 / 120;
 const SLOPE_GRAVITY = 1.25;
 const MAX_SLOPE_ACCEL = 0.24;
@@ -936,7 +937,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
     burstConfetti();
     if (navigator.vibrate) navigator.vibrate([40, 60, 80]);
     const n = st.strokes, par = L.def.par, last = L.n === LEVELS.length - 1;
-    const made = n <= par;                      // par or better unlocks the next hole
+    const made = BETA_UNLOCK_ALL || n <= par;   // beta: every finish unlocks the next hole (normally par or better)
     const name = made && last ? 'Course champion!' : n === 1 ? 'Hole in one!' : n === par - 1 ? 'Birdie!' : n === par ? 'Par' : n === par + 1 ? 'Bogey' : n === par + 2 ? 'Double bogey' : 'In the cup';
     $('resTitle').textContent = name;
     let line = n === 1 ? 'One stroke. Drinks are on you.' : `${n} strokes${n <= par ? '. Nice putting.' : '. The bar is still open.'}`;
@@ -1178,7 +1179,11 @@ function debugLine(text) {
 }
 const MOTION_HELP = 'Motion access is off, so the course can\'t stay on the bar. Close this tab, open the page again and tap Allow for Motion & Orientation.';
 
+let xrLoading = null;
 function loadEighthWall() {
+  return xrLoading ||= loadEighthWallNow();
+}
+function loadEighthWallNow() {
   return new Promise((resolve, reject) => {
     if (window.XR8) return resolve(window.XR8);
     window.addEventListener('xrloaded', () => resolve(window.XR8), { once: true });
@@ -1209,11 +1214,11 @@ async function startEighth() {
   let unitM = SIZES.M, worldPerMetre = 1;
   let smoothCamera = () => {};
   let trackStatus = 'starting', camStart = null, camMoved = 0, runT = 0;   // has world tracking actually moved the camera?
-  const camMovedEnough = () => camMoved > 0.02 || notrack;
+  const camMovedEnough = () => camMoved > 0.01 || notrack;
   const tP = new THREE.Vector3(), tN = new THREE.Vector3(0, 1, 0), fwd = new THREE.Vector3(), tQ = new THREE.Quaternion();
   const basis = new THREE.Matrix4(), tmpV3 = new THREE.Vector3(), right = new THREE.Vector3();
   const clock = new THREE.Clock();
-  const COASTER_M = 0.0889;                               // the image target is the 3.5 in coaster art
+  const COASTER_M = 0.0889 * 0.75;                        // the image target is the middle 3/4 of the 3.5 in coaster art
   let slamReady = false;                                 // 8th Wall world tracking has initialised (status NORMAL)
   const samples = [];                                     // recent coaster poses, averaged before placing
   const UP = new THREE.Vector3(0, 1, 0);                  // 8th Wall world: y is up (gravity)
@@ -1230,7 +1235,7 @@ async function startEighth() {
     tP.divideScalar(samples.length); tN.normalize(); worldPerMetre = w / samples.length;
     const spread = Math.max(...samples.map(s => s.p.distanceTo(tP))) / worldPerMetre;   // metres
     if (tN.angleTo(UP) < 0.35) tN.copy(UP);               // a bar is level: snap to true up for a rock-steady course
-    return spread < 0.02;                                 // within 2 cm: the phone is steady enough
+    return spread < 0.03;                                 // within 3 cm: steady enough
   };
   const orient = () => {                                  // course: x right, y away from the player, z up off the bar
     tmpV3.copy(fwd).addScaledVector(tN, -fwd.dot(tN));
@@ -1257,7 +1262,7 @@ async function startEighth() {
     visible = true; fromDetail(detail);
     if (!slamReady && !notrack) { hint('Keep moving slowly so the camera can map the bar'); return; }
     if (!camMovedEnough()) { hint(MOTION.events === 0 ? MOTION_HELP : 'Move your phone a little so it can lock onto the bar'); return; }
-    if (samples.length < 12 || !averaged()) { hint('Found the coaster. Hold steady…'); return; }
+    if (samples.length < 6 || !averaged()) { hint('Found the coaster. Hold steady…'); return; }
     placeCourse();
   };
   const onLost = ({ detail }) => { if (detail.name === 'coaster') { visible = false; samples.length = 0; } };   // once placed, SLAM keeps the course on the bar
@@ -1376,6 +1381,15 @@ for (const id of ['demoLink', 'demoLink2']) {
   });
 }
 if (location.hash === '#demo') go(true);
+else if (!IN_APP) loadEighthWall().catch(() => {});   // start the 6 MB engine download while the player reads the start screen
+
+// Close: shut the camera and AR engine down first, then go home (a plain link left the camera running and could hang)
+$('close').addEventListener('click', (e) => {
+  e.preventDefault();
+  try { window.XR8 && window.XR8.stop(); } catch {}
+  document.querySelectorAll('video').forEach(v => v.srcObject?.getTracks?.().forEach(t => t.stop()));
+  location.href = '/';
+});
 </script>
 </body>
 </html>
