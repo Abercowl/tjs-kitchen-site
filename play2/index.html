@@ -304,6 +304,37 @@ function textTexture(w, h, draw) {
   document.fonts?.ready.then(paint).catch(() => {});        // repaint once Lobster / Inter arrive
   return t;
 }
+// Painted props (from the art sheets in /play2/assets) drawn as upright cut-outs that turn
+// to face the player about the vertical axis, so they stay standing on the bar.
+const ART_ASPECT = { 'planter-tree-1': 387 / 512, 'planter-tree-2': 366 / 512, 'planter-tree-3': 346 / 512, tree: 276 / 365,
+  bush: 199 / 364, rocks: 188 / 478, 'beverage-cart': 347 / 412, windmill: 377 / 405 };
+const BILLBOARDS = [];
+const artTextures = {};
+function artTexture(name) {
+  if (!artTextures[name]) {
+    const t = new THREE.TextureLoader().load(`/play2/assets/${name}.webp`);
+    t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; artTextures[name] = t;
+  }
+  return artTextures[name];
+}
+function billboard(name, width, x, y, z) {
+  const h = width * ART_ASPECT[name];
+  const geo = new THREE.PlaneGeometry(width, h).translate(0, h / 2 - h * 0.03, 0).rotateX(Math.PI / 2);   // stands up, base on the ground, front faces -y
+  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: artTexture(name), alphaTest: 0.45, side: THREE.DoubleSide, toneMapped: false }));
+  mesh.position.set(x, y, z);
+  BILLBOARDS.push(mesh);
+  return mesh;
+}
+function faceBillboards(group, camera) {
+  if (!BILLBOARDS.length) return;
+  const c = group.worldToLocal(camera.getWorldPosition(new THREE.Vector3()));
+  for (const b of BILLBOARDS) {
+    if (!b.parent) continue;
+    const p = b.parent === group ? b.position : b.parent.localToWorld(b.position.clone()).applyMatrix4(new THREE.Matrix4().copy(group.matrixWorld).invert());
+    b.rotation.z = Math.atan2(c.y - p.y, c.x - p.x) + Math.PI / 2;   // turn the front (-y) toward the camera
+  }
+}
+
 const LIFT = 0.012;                 // carpet thickness: the course sits this high above the bar
 const RAIL_W = 0.016, RAIL_H = 0.026;
 function buildBar(group) {
@@ -336,8 +367,13 @@ function buildBar(group) {
     edge => [edge - RAIL_W * 0.5, () => top + RAIL_H + 0.003],
     edge => [edge + 0.002, () => top + RAIL_H],
     edge => [edge + 0.002, () => -LIFT],
-  ], new THREE.MeshStandardMaterial({ color: 0x7a4b28, roughness: 0.55, side: THREE.DoubleSide }));
+  ], new THREE.MeshStandardMaterial({ color: 0x1c1c1c, roughness: 0.7, side: THREE.DoubleSide }));
   rail.castShadow = true; group.add(rail);
+  const stripe = radialMesh(carpet, [                   // yellow band along the inside face, like the rubber bumper art
+    edge => [edge - RAIL_W - 0.0006, () => top + RAIL_H * 0.42],
+    edge => [edge - RAIL_W - 0.0006, () => top + RAIL_H * 0.66],
+  ], new THREE.MeshStandardMaterial({ color: 0xf2c418, roughness: 0.5, side: THREE.DoubleSide }));
+  group.add(stripe);
 
   // Tee mat on the coaster, with two white tee markers
   const mat = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.11, 0.004), new THREE.MeshStandardMaterial({ color: 0x2f6b3a, roughness: 0.8 }));
@@ -347,24 +383,22 @@ function buildBar(group) {
     m.position.set(COURSE.tee.x + sx * 0.07, COURSE.tee.y + 0.03, top + 0.009); m.castShadow = true; group.add(m);
   }
 
-  // Planter trees (obstacles in the physics: COURSE.trees)
-  const leaf = [0x1f5c2a, 0x2c7a36, 0x3a8d40, 0x4c9c45].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9, flatShading: true }));
-  const bark = new THREE.MeshStandardMaterial({ color: 0x5a3d24, roughness: 1 });
-  const planterMat = new THREE.MeshStandardMaterial({ color: 0xd9cfbc, roughness: 0.8 });
-  const soil = new THREE.MeshStandardMaterial({ color: 0x3b2a1c, roughness: 1 });
+  // Planter trees (obstacles in the physics: COURSE.trees): painted art as upright billboards
+  const blob = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28, depthWrite: false });
+  const shadowAt = (x, y, r, z) => { const m = new THREE.Mesh(new THREE.CircleGeometry(r, 28), blob); m.position.set(x + r * 0.15, y - r * 0.15, z); group.add(m); };
+  const planters = ['planter-tree-1', 'planter-tree-2', 'planter-tree-3'];
   COURSE.trees.forEach(([x, y, r], n) => {
-    const pot = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.92, 0.028, 28), planterMat);
-    pot.rotation.x = Math.PI / 2; pot.position.set(x, y, top + 0.014); pot.castShadow = true; group.add(pot);
-    const dirt = new THREE.Mesh(new THREE.CircleGeometry(r * 0.88, 24), soil); dirt.position.set(x, y, top + 0.0285); group.add(dirt);
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.12, r * 0.16, r * 1.1, 8), bark);
-    trunk.rotation.x = Math.PI / 2; trunk.position.set(x, y, top + 0.028 + r * 0.55); trunk.castShadow = true; group.add(trunk);
-    const crown = [[0, 0, 1.6, 0.66], [0.42, 0.1, 1.35, 0.46], [-0.38, 0.2, 1.38, 0.46], [0.1, -0.42, 1.32, 0.45], [-0.15, 0.4, 1.42, 0.43], [0.05, 0.05, 1.95, 0.42]];
-    crown.forEach(([dx, dy, dz, rr], k) => {
-      const ball = new THREE.Mesh(new THREE.IcosahedronGeometry(r * rr * 1.25, 1), leaf[(k + n) % leaf.length]);
-      ball.position.set(x + dx * r, y + dy * r, top + 0.028 + dz * r); ball.castShadow = true; group.add(ball);
-    });
+    shadowAt(x, y, r * 1.05, top + 0.0012);
+    group.add(billboard(planters[n % planters.length], (2 * r) / 0.55, x, y, top));  // planter wall is ~55% of the picture's width
   });
+  // Scenery around the course, outside the rails (no physics)
+  for (const [name, w, x, y] of [['bush', 0.28, -0.58, -0.45], ['bush', 0.24, 0.6, -0.62], ['rocks', 0.32, 0.64, 0.22],
+                                 ['tree', 0.45, -0.7, 0.5], ['rocks', 0.3, -0.62, 1.02], ['bush', 0.26, 0.64, 0.98], ['tree', 0.4, 0.78, -0.2]]) {
+    shadowAt(x, y, w * 0.33, -LIFT + 0.0008);
+    group.add(billboard(name, w, x, y, -LIFT));
+  }
 
+  const planterMat = new THREE.MeshStandardMaterial({ color: 0xd9cfbc, roughness: 0.8 });   // sign board edges
   // TJ's sign at the far end of the hole, facing the player
   const signTex = textTexture(1024, 384, (c) => {
     c.fillStyle = '#15302a'; c.fillRect(0, 0, 1024, 384);
@@ -637,19 +671,31 @@ function makeGame({ group, camera, renderer, isTracking }) {
   // ---- Windmill: blades turn across the tunnel entrance --------------------
   const WM = { D: 0.062, W: 0.046, T: 0.027, H: 0.078, L: 0.07, period: 4.2, block: 0.4 };
   const windmill = new THREE.Group(); group.add(windmill);
+  const stoneTex = textTexture(256, 256, (c) => {
+    c.fillStyle = '#8d8478'; c.fillRect(0, 0, 256, 256);
+    for (let r = 0; r < 8; r++) for (let k = 0; k < 5; k++) {
+      const x = k * 56 + (r % 2) * 28 - 20, y = r * 32;
+      c.fillStyle = ['#a39886', '#958b7b', '#b0a592', '#8a8070'][(r * 7 + k * 3) % 4];
+      c.fillRect(x + 2, y + 2, 52, 28);
+    }
+  });
+  stoneTex.wrapS = stoneTex.wrapT = THREE.RepeatWrapping; stoneTex.repeat.set(0.35, 0.35);
+  const stone = new THREE.MeshStandardMaterial({ map: stoneTex, roughness: 0.95 });
+  const tiles = new THREE.MeshStandardMaterial({ color: 0xb03a28, roughness: 0.7 });
+  const lit = new THREE.MeshStandardMaterial({ color: 0xffd27a, emissive: 0xffb347, emissiveIntensity: 0.8 });
   {
     const { D, W, T, H, L } = WM, tunnelH = 0.036;
     for (const sy of [-1, 1]) {
-      const wall = new THREE.Mesh(new THREE.BoxGeometry(D, W, H), M.stucco); wall.position.set(0, sy * (T + W / 2), H / 2); windmill.add(wall);
-      const win = new THREE.Mesh(new THREE.PlaneGeometry(0.014, 0.018), M.roof);          // little windows on the sides
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(D, W, H), stone); wall.position.set(0, sy * (T + W / 2), H / 2); windmill.add(wall);
+      const win = new THREE.Mesh(new THREE.PlaneGeometry(0.014, 0.018), lit);              // little lit windows on the sides
       win.position.set(0, sy * (T + W + 0.0005), H * 0.62); win.rotation.x = sy * Math.PI / 2; windmill.add(win);
     }
-    const lintel = new THREE.Mesh(new THREE.BoxGeometry(D, 2 * T, H - tunnelH), M.stucco);
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(D, 2 * T, H - tunnelH), stone);
     lintel.position.set(0, 0, tunnelH + (H - tunnelH) / 2); windmill.add(lintel);
     const trim = new THREE.Mesh(new THREE.BoxGeometry(D + 0.006, 2 * (T + W) + 0.006, 0.006), M.gold);
     trim.position.z = H; windmill.add(trim);
     const roofGeo = new THREE.ConeGeometry(Math.SQRT1_2, 1, 4, 1); roofGeo.rotateY(Math.PI / 4); roofGeo.rotateX(Math.PI / 2); roofGeo.translate(0, 0, 0.5);
-    const roof = new THREE.Mesh(roofGeo, M.roof); roof.scale.set(D + 0.018, 2 * (T + W) + 0.018, 0.055); roof.position.z = H + 0.003; windmill.add(roof);
+    const roof = new THREE.Mesh(roofGeo, tiles); roof.scale.set(D + 0.018, 2 * (T + W) + 0.018, 0.055); roof.position.z = H + 0.003; windmill.add(roof);
     const signTex = textTexture(256, 96, (c) => { c.fillStyle = '#1c3a2e'; c.fillRect(0, 0, 256, 96); c.fillStyle = '#d4a854';
       c.font = '64px Lobster, cursive'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText("TJ's", 128, 52); });
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.044, 0.016), new THREE.MeshStandardMaterial({ map: signTex, roughness: 0.6 }));
@@ -673,24 +719,11 @@ function makeGame({ group, camera, renderer, isTracking }) {
 
   // ---- TJ's beverage cart: drives back and forth across the line -------------
   const CART = { len: 0.085, wid: 0.048, amp: 0.22, period: 3.8 };
-  const cart = new THREE.Group(); group.add(cart);
-  {
-    const box = (w, d, h, m, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, d, h), m); o.position.set(x, y, z); cart.add(o); };
-    box(CART.len, CART.wid, 0.022, M.gold, 0, 0, 0.022);
-    box(CART.len * 0.42, CART.wid * 0.9, 0.03, M.white, -CART.len * 0.22, 0, 0.048);
-    box(CART.len * 0.95, CART.wid * 1.04, 0.004, M.white, -0.004, 0, 0.082);
-    for (const sx of [-0.035, 0.03]) for (const sy of [-1, 1]) box(0.003, 0.003, 0.05, M.steel, sx, sy * CART.wid * 0.45, 0.058);
-    for (const sx of [-0.026, 0.026]) for (const sy of [-1, 1]) {
-      const w = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.007, 16), M.dark); w.position.set(sx, sy * CART.wid * 0.5, 0.011); cart.add(w);
-    }
-    const t = textTexture(256, 96, (c) => { c.fillStyle = '#15302a'; c.fillRect(0, 0, 256, 96); c.fillStyle = '#d4a854';
-      c.font = '64px Lobster, cursive'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText("TJ's", 128, 52); });
-    for (const sy of [-1, 1]) {
-      const s = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.019), new THREE.MeshStandardMaterial({ map: t, roughness: 0.6 }));
-      s.position.set(0.004, sy * (CART.wid / 2 + 0.0008), 0.022); s.rotation.x = sy * Math.PI / 2; if (sy < 0) s.rotation.y = Math.PI; cart.add(s);
-    }
-    castAll(cart);
-  }
+  const cart = new THREE.Group(); group.add(cart);       // physics frame; the picture is a billboard that follows it
+  const cartArt = billboard('beverage-cart', 0.115, 0, 0, 0); group.add(cartArt);
+  const cartShadow = new THREE.Mesh(new THREE.PlaneGeometry(CART.len * 1.05, CART.wid * 1.1),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28, depthWrite: false }));
+  group.add(cartShadow);
 
   // ---- Spinner: a polished arm sweeping round a striped post ----------------
   const SP = { len: 0.088, r: 0.0055, post: 0.009 };
@@ -712,8 +745,8 @@ function makeGame({ group, camera, renderer, isTracking }) {
   const BUMP_R = 0.016;
   const bumpers = [0, 1].map(() => {
     const b = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(BUMP_R, BUMP_R * 1.08, 0.022, 24), M.rubber); body.rotation.x = Math.PI / 2; body.position.z = 0.011; b.add(body);
-    const band = new THREE.Mesh(new THREE.CylinderGeometry(BUMP_R * 1.02, BUMP_R * 1.02, 0.005, 24), M.white); band.rotation.x = Math.PI / 2; band.position.z = 0.014; b.add(band);
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(BUMP_R, BUMP_R * 1.08, 0.022, 24), new THREE.MeshStandardMaterial({ color: 0x1c1c1c, roughness: 0.7 })); body.rotation.x = Math.PI / 2; body.position.z = 0.011; b.add(body);
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(BUMP_R * 1.02, BUMP_R * 1.02, 0.005, 24), new THREE.MeshStandardMaterial({ color: 0xf2c418, roughness: 0.5 })); band.rotation.x = Math.PI / 2; band.position.z = 0.014; b.add(band);
     const top = new THREE.Mesh(new THREE.SphereGeometry(BUMP_R * 0.55, 16, 8, 0, TAU, 0, Math.PI / 2), M.gold); top.rotation.x = Math.PI / 2; top.position.z = 0.022; b.add(top);
     castAll(b); group.add(b); return b;
   });
@@ -723,7 +756,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
               spPos: new THREE.Vector2(), spAng: 0, bumps: [] };
   function setLevel(n) {
     L.n = Math.max(0, Math.min(LEVELS.length - 1, n)); const d = L.def = LEVELS[L.n];
-    windmill.visible = !!d.windmill; cart.visible = !!d.cart; spinner.visible = !!d.spinner;
+    windmill.visible = !!d.windmill; cart.visible = cartArt.visible = cartShadow.visible = !!d.cart; spinner.visible = !!d.spinner;
     if (d.windmill) { L.wmPos.copy(onLine(d.windmill.at)); windmill.position.set(L.wmPos.x, L.wmPos.y, heightAt(L.wmPos.x, L.wmPos.y) - 0.002); windmill.rotation.z = lineAng; }
     if (d.cart) L.cartMid.copy(onLine(d.cart.at));
     if (d.spinner) { L.spPos.copy(onLine(d.spinner.at, d.spinner.off)); spinner.position.set(L.spPos.x, L.spPos.y, heightAt(L.spPos.x, L.spPos.y)); }
@@ -741,6 +774,8 @@ function makeGame({ group, camera, renderer, isTracking }) {
       L.cartVel.copy(lineN).multiplyScalar(amp * w * Math.cos(w * t));
       cart.position.set(L.cartPos.x, L.cartPos.y, heightAt(L.cartPos.x, L.cartPos.y));
       cart.rotation.z = lineAng + Math.PI / 2 + (Math.cos(w * t) < 0 ? Math.PI : 0);
+      cartArt.position.copy(cart.position);
+      cartShadow.position.set(cart.position.x + 0.004, cart.position.y - 0.004, cart.position.z + 0.0015); cartShadow.rotation.z = lineAng + Math.PI / 2;
     }
     if (d.spinner) { L.spAng = (d.spinner.off > 0 ? -1 : 1) * TAU * t / d.spinner.period; spinner.userData.arm.rotation.z = L.spAng; }
   }
@@ -986,6 +1021,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
 
   const step = dt => {
     fitShadow();
+    faceBillboards(group, camera);
     const t = performance.now() / 1000;
     const arr = clothGeo.attributes.position.array;
     const wind = st.wind / WIND_MAX;
@@ -1060,7 +1096,7 @@ function startDemo() {
     const a = innerWidth / innerHeight;
     camera.aspect = a; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight);
     const k = Math.max(1, 0.75 / a);
-    camera.position.set(0, -1.05 - 1.35 * k, 1.05 + 1.25 * k); camera.lookAt(0, 0.12, 0);
+    camera.position.set(0, -1.35 - 1.45 * k, 0.75 + 0.75 * k); camera.lookAt(0, 0.25, 0);   // a low, standing-at-the-bar view
   };
   fit(); addEventListener('resize', fit);
   const bar = new THREE.Group(); scene.add(bar);
