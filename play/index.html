@@ -672,7 +672,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
   let toastTimer = 0;
   const toast = (t) => { $('toastText').textContent = t; show($('toast'), true); clearTimeout(toastTimer); toastTimer = setTimeout(() => show($('toast'), false), 1400); };
   // ---------------------------------------------------------------------------
-  // Levels. A hole in one moves you to the next hole, which adds obstacles.
+  // Levels. Making par (3 or better) moves you to the next hole, which adds obstacles.
   // Positions are given along the tee -> cup line ("at", 0 = tee, 1 = cup) and
   // to the side of it ("off", + is left of the line looking at the cup).
   // ---------------------------------------------------------------------------
@@ -680,8 +680,8 @@ function makeGame({ group, camera, renderer, isTracking }) {
     { name: 'The Opener',   par: 3 },
     { name: 'The Windmill', par: 3, windmill: { at: 0.45 } },
     { name: 'Beverage Run', par: 3, cart: { at: 0.52 }, bumpers: [[0.8, 0.075], [0.8, -0.075]] },
-    { name: 'Spin Cycle',   par: 4, windmill: { at: 0.4 }, spinner: { at: 0.84, off: 0.06, period: 2.6 } },
-    { name: 'The Gauntlet', par: 4, cart: { at: 0.22, amp: 0.1 }, windmill: { at: 0.5 }, spinner: { at: 0.86, off: -0.06, period: 2.2 } },
+    { name: 'Spin Cycle',   par: 3, windmill: { at: 0.4 }, spinner: { at: 0.84, off: 0.06, period: 2.6 } },
+    { name: 'The Gauntlet', par: 3, cart: { at: 0.22, amp: 0.1 }, windmill: { at: 0.5 }, spinner: { at: 0.86, off: -0.06, period: 2.2 } },
   ];
   const lineU = new THREE.Vector2(COURSE.cup.x - COURSE.tee.x, COURSE.cup.y - COURSE.tee.y);
   const lineLen = lineU.length(); lineU.normalize();
@@ -994,20 +994,21 @@ function makeGame({ group, camera, renderer, isTracking }) {
     burstConfetti();
     if (navigator.vibrate) navigator.vibrate([40, 60, 80]);
     const n = st.strokes, par = L.def.par, last = L.n === LEVELS.length - 1;
-    const name = n === 1 ? (last ? 'Course champion!' : 'Hole in one!') : n === par - 1 ? 'Birdie!' : n === par ? 'Par' : n === par + 1 ? 'Bogey' : n === par + 2 ? 'Double bogey' : 'In the cup';
+    const made = n <= par;                      // par or better unlocks the next hole
+    const name = made && last ? 'Course champion!' : n === 1 ? 'Hole in one!' : n === par - 1 ? 'Birdie!' : n === par ? 'Par' : n === par + 1 ? 'Bogey' : n === par + 2 ? 'Double bogey' : 'In the cup';
     $('resTitle').textContent = name;
     let line = n === 1 ? 'One stroke. Drinks are on you.' : `${n} strokes${n <= par ? '. Nice putting.' : '. The bar is still open.'}`;
-    if (n === 1 && !last) line += ` Hole ${L.n + 2}, ${LEVELS[L.n + 1].name}, is open.`;
-    else if (n === 1 && last) line += ' You beat every hole on the course.';
-    else line += last ? ' Sink a hole in one to beat the course.' : ` Sink a hole in one to unlock hole ${L.n + 2}.`;
+    if (made && !last) line += ` Hole ${L.n + 2}, ${LEVELS[L.n + 1].name}, is open.`;
+    else if (made && last) line += ' You beat every hole on the course.';
+    else line += last ? ` Make par (${par}) to beat the course.` : ` Make par (${par}) to unlock hole ${L.n + 2}.`;
     if (n !== 1 || L.n === 0) {
       if (best === null || n < best) { if (best !== null && L.n === 0) line += ' New personal best!'; best = n; try { localStorage.setItem('tjsHoleBest', String(n)); } catch (e) {} }
     }
-    if (n === 1 && last) line = 'One stroke on the hardest hole. You beat the whole course!';
+    if (n === 1 && last) line = 'A hole in one on the hardest hole. You beat the whole course!';
     $('resScore').textContent = line;
-    $('next').hidden = n !== 1;
+    $('next').hidden = !made;
     $('next').textContent = last ? 'Start over' : 'Next hole';
-    $('again').textContent = n === 1 ? 'Replay hole' : 'Try again';
+    $('again').textContent = made ? 'Replay hole' : 'Try again';
     resultTimer = setTimeout(() => show($('result'), true), 1100);
   };
 
