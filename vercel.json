@@ -20,6 +20,16 @@
       "source": "/john",
       "destination": "/card/john",
       "permanent": false
+    },
+    {
+      "source": "/play",
+      "destination": "/play2",
+      "permanent": false
+    },
+    {
+      "source": "/play/",
+      "destination": "/play2",
+      "permanent": false
     }
   ],
   "headers": [
