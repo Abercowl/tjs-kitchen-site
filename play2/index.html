@@ -1117,6 +1117,31 @@ function makeCameraSmoother(camera, metresPerUnit = () => 1) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Motion sensors. 8th Wall's world tracking needs them; without them the camera
+// never moves in the 3D world and the course just rides along with the phone.
+// iPhone only allows access after the player taps Allow (asked inside the tap).
+// ---------------------------------------------------------------------------
+const MOTION = { result: 'not asked', events: 0 };
+addEventListener('devicemotion', () => { MOTION.events++; });
+function askMotion() {
+  const asks = [window.DeviceMotionEvent, window.DeviceOrientationEvent]
+    .filter(E => E && typeof E.requestPermission === 'function')
+    .map(E => E.requestPermission().catch(() => 'error'));
+  if (!asks.length) { MOTION.result = 'not needed'; return; }
+  Promise.all(asks).then(r => { MOTION.result = r.every(x => x === 'granted') ? 'granted' : r.join('/'); });
+}
+const DEBUG = new URLSearchParams(location.search).has('debug');
+function debugLine(text) {
+  if (!DEBUG) return;
+  let el = document.getElementById('dbg');
+  if (!el) { el = document.createElement('div'); el.id = 'dbg';
+    el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:50;background:rgba(0,0,0,.7);color:#9f9;font:11px/1.35 monospace;padding:6px 8px;border-radius:8px;pointer-events:none;white-space:pre';
+    document.body.appendChild(el); }
+  el.textContent = text;
+}
+const MOTION_HELP = 'Motion access is off, so the course can\'t stay on the bar. Close this tab, open the page again and tap Allow for Motion & Orientation.';
+
 function loadEighthWall() {
   return new Promise((resolve, reject) => {
     if (window.XR8) return resolve(window.XR8);
@@ -1147,6 +1172,8 @@ async function startEighth() {
   let game = null, place = null, scaler = null, group = null, xrCamera = null, placed = false, visible = false;
   let unitM = SIZES.M, worldPerMetre = 1;
   let smoothCamera = () => {};
+  let trackStatus = 'starting', camStart = null, camMoved = 0, runT = 0;   // has world tracking actually moved the camera?
+  const camMovedEnough = () => camMoved > 0.02 || notrack;
   const tP = new THREE.Vector3(), tN = new THREE.Vector3(0, 1, 0), fwd = new THREE.Vector3(), tQ = new THREE.Quaternion();
   const basis = new THREE.Matrix4(), tmpV3 = new THREE.Vector3(), right = new THREE.Vector3();
   const clock = new THREE.Clock();
@@ -1193,11 +1220,13 @@ async function startEighth() {
     if (detail.name !== 'coaster' || placed || !game) return;
     visible = true; fromDetail(detail);
     if (!slamReady && !notrack) { hint('Keep moving slowly so the camera can map the bar'); return; }
+    if (!camMovedEnough()) { hint(MOTION.events === 0 ? MOTION_HELP : 'Move your phone a little so it can lock onto the bar'); return; }
     if (samples.length < 12 || !averaged()) { hint('Found the coaster. Hold steady…'); return; }
     placeCourse();
   };
   const onLost = ({ detail }) => { if (detail.name === 'coaster') { visible = false; samples.length = 0; } };   // once placed, SLAM keeps the course on the bar
   const onTracking = ({ detail }) => {
+    trackStatus = `${detail.status} ${detail.reason || ''}`;
     slamReady = detail.status === 'NORMAL';
     if (!placed) hint(slamReady ? 'Now point at the coaster' : 'Scan the bar: move your phone slowly side to side');
     else if (!slamReady) game.tip('Tracking weak. Move slowly and keep the bar in view');
@@ -1239,6 +1268,14 @@ async function startEighth() {
       onUpdate: () => {
         if (!game) return;
         const dt = Math.min(clock.getDelta(), 0.05);
+        runT += dt;
+        if (xrCamera) {                                   // raw tracked pose, before smoothing
+          // measure from the first frame world tracking reports NORMAL (the camera is repositioned at start-up)
+          if (!camStart && slamReady) camStart = { p: xrCamera.position.clone(), q: xrCamera.quaternion.clone() };
+          if (camStart) camMoved = Math.max(camMoved, xrCamera.position.distanceTo(camStart.p) / worldPerMetre, xrCamera.quaternion.angleTo(camStart.q) * 0.1);
+        }
+        if (!placed && runT > 6 && MOTION.events === 0 && !notrack) hint(MOTION_HELP);
+        debugLine(`tracking ${trackStatus}\nmotion ${MOTION.result}, events ${MOTION.events}\ncamera moved ${camMoved.toFixed(3)}\nplaced ${placed}, coaster ${visible ? 'in view' : '-'}, samples ${samples.length}`);
         smoothCamera(dt);
         if (placed) game.step(dt);
       },
@@ -1290,8 +1327,7 @@ async function go(demo) {
 $('go').addEventListener('click', () => {
   if ($('go').textContent === 'Reload') location.reload();
   else {                                             // permissions must be asked inside the tap
-    // 8th Wall needs motion sensors on iPhone; the permission must be asked inside the tap
-    for (const E of [window.DeviceOrientationEvent, window.DeviceMotionEvent]) if (E && typeof E.requestPermission === 'function') E.requestPermission().catch(() => {});
+    askMotion();                                     // 8th Wall needs motion sensors; iPhone asks inside the tap
     go(false);
   }
 });

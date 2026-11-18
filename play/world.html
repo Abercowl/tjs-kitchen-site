@@ -1215,6 +1215,31 @@ function makeCameraSmoother(camera, metresPerUnit = () => 1) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Motion sensors. 8th Wall's world tracking needs them; without them the camera
+// never moves in the 3D world and the course just rides along with the phone.
+// iPhone only allows access after the player taps Allow (asked inside the tap).
+// ---------------------------------------------------------------------------
+const MOTION = { result: 'not asked', events: 0 };
+addEventListener('devicemotion', () => { MOTION.events++; });
+function askMotion() {
+  const asks = [window.DeviceMotionEvent, window.DeviceOrientationEvent]
+    .filter(E => E && typeof E.requestPermission === 'function')
+    .map(E => E.requestPermission().catch(() => 'error'));
+  if (!asks.length) { MOTION.result = 'not needed'; return; }
+  Promise.all(asks).then(r => { MOTION.result = r.every(x => x === 'granted') ? 'granted' : r.join('/'); });
+}
+const DEBUG = new URLSearchParams(location.search).has('debug');
+function debugLine(text) {
+  if (!DEBUG) return;
+  let el = document.getElementById('dbg');
+  if (!el) { el = document.createElement('div'); el.id = 'dbg';
+    el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:50;background:rgba(0,0,0,.7);color:#9f9;font:11px/1.35 monospace;padding:6px 8px;border-radius:8px;pointer-events:none;white-space:pre';
+    document.body.appendChild(el); }
+  el.textContent = text;
+}
+const MOTION_HELP = 'Motion access is off, so the course can\'t stay on the bar. Close this tab, open the page again and tap Allow for Motion & Orientation.';
+
 async function startAR() {
   show($('start'), false);
   show($('loading'), true);
@@ -1233,6 +1258,7 @@ async function startAR() {
   let game = null, placed = false, tracking = false, preview = null, root = null;
   let camera, scene, renderer, lastFrame = performance.now(), lastHit = null;
   let smoothCamera = () => {}, lastSmooth = performance.now();
+  let camStart = null, camMoved = 0, runStart = performance.now(), statusText = 'starting';
   const ray = new THREE.Raycaster();
   const hitPosition = new THREE.Vector3();
   const resetButton = $('resetCourse'), placeButton = $('placeCourse');
@@ -1297,10 +1323,18 @@ async function startAR() {
       show($('loading'),false); showPlacement();
     },
     onUpdate: ({processCpuResult}) => {
-      if (camera) { const now = performance.now(); smoothCamera(Math.min((now - lastSmooth) / 1000, 0.05)); lastSmooth = now; }
+      if (camera) {
+        // measure from the first frame world tracking reports NORMAL (the camera is repositioned at start-up)
+        if (!camStart && statusText.startsWith('NORMAL')) camStart = camera.position.clone();
+        if (camStart) camMoved = Math.max(camMoved, camera.position.distanceTo(camStart));   // metres (absolute scale)
+        const now = performance.now(); smoothCamera(Math.min((now - lastSmooth) / 1000, 0.05)); lastSmooth = now;
+        if (!placed && now - runStart > 6000 && MOTION.events === 0) { status.textContent = MOTION_HELP; show(status, true); }
+        debugLine(`tracking ${statusText}\nmotion ${MOTION.result}, events ${MOTION.events}\ncamera moved ${camMoved.toFixed(3)} m\nplaced ${placed}`);
+      }
       const reality = processCpuResult?.reality;
       if (reality) {
-        tracking = reality.trackingStatus === 'NORMAL';
+        tracking = reality.trackingStatus === 'NORMAL' && camMoved > 0.02;   // only once the camera really moves in the world
+        statusText = `${reality.trackingStatus} ${reality.trackingReason || ''}`;
         if (!tracking && placed) {
           game?.cancelDrag();
           status.textContent = 'Tracking limited — move the phone slowly to recover.';
@@ -1364,7 +1398,7 @@ async function go(demo) {
 }
 $('go').addEventListener('click', () => {
   if ($('go').textContent === 'Reload') location.reload();
-  else go(false);
+  else { askMotion(); go(false); }                   // 8th Wall needs motion sensors; iPhone asks inside the tap
 });
 for (const id of ['demoLink', 'demoLink2']) {
   $(id).addEventListener('click', event => {
