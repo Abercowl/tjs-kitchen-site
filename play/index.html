@@ -80,8 +80,8 @@
   <h1>TJ's Hole in One</h1>
   <p>Lay your coaster flat on the bar, point your camera at it and sink the putt.</p>
   <div class="steps">
-    <div><b>Aim</b>Swipe from the ball toward the flag</div>
-    <div><b>Flick</b>Longer swipe, harder putt</div>
+    <div><b>Aim</b>Pull back away from the flag</div>
+    <div><b>Putt</b>Pull further, hit harder. Let go to putt</div>
     <div><b>Sink it</b>Stay out of the sand and the pond</div>
   </div>
   <button id="go" class="btn">Tee it up</button>
@@ -98,7 +98,7 @@
 <div id="loading" class="hidden">Starting camera…</div>
 <div id="hud" class="hidden">STROKES<b id="strokes">0</b></div>
 <div id="power" class="hidden"><i id="powerBar"></i></div>
-<div id="tip" class="hidden"><span id="tipText">Swipe from the ball toward the flag</span></div>
+<div id="tip" class="hidden"><span id="tipText">Pull back away from the flag, then let go</span></div>
 <div id="toast" class="hidden"><span id="toastText"></span></div>
 
 <div id="result" class="screen hidden">
@@ -242,10 +242,10 @@ function makeGame({ group, camera, renderer, isTracking }) {
     st.strokes = 0; st.moving = false; st.holed = false; st.sinkT = 0;
     ball.visible = shadow.visible = true; ball.quaternion.identity();
     hideConfetti(); updateHud(); show($('result'), false);
-    tip('Swipe from the ball toward the flag');
+    tip('Pull back away from the flag, then let go');
   };
 
-  // ---- Touch: swipe on the coaster = putt ----------------------------------
+  // ---- Touch: pull back on the coaster and let go = putt (like a slingshot) ----------------------------------
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
   const toCoaster = (e) => {
     const r = renderer.domElement.getBoundingClientRect();
@@ -255,8 +255,8 @@ function makeGame({ group, camera, renderer, isTracking }) {
     return hit ? group.worldToLocal(hit.point.clone()) : null;
   };
   let drag = null;
-  const shotFrom = (a, b) => {           // swipe vector (coaster units) -> velocity
-    const d = new THREE.Vector2(b.x - a.x, b.y - a.y);
+  const shotFrom = (a, b) => {           // pull-back (slingshot): the ball goes opposite the drag
+    const d = new THREE.Vector2(a.x - b.x, a.y - b.y);
     const len = Math.min(d.length() * POWER, MAX_SPEED);
     return d.lengthSq() < 1e-6 ? null : d.normalize().multiplyScalar(len);
   };
@@ -359,7 +359,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
         bounceCircle(0, 0, COURSE.edge, true);
       }
       if (!st.moving && !st.holed) {
-        tip(inEllipse(st.pos, COURSE.bunker) ? 'In the sand. Swing harder.' : 'Swipe again to putt');
+        tip(inEllipse(st.pos, COURSE.bunker) ? 'In the sand. Swing harder.' : 'Pull back to putt again');
       }
       // Roll the ball: rotate about the axis perpendicular to travel
       const sp = st.vel.length();
