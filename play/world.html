@@ -1190,6 +1190,31 @@ function startDemo() {
 // ---------------------------------------------------------------------------
 // Camera mode: MindAR finds the coaster and the course sits on top of it.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Camera smoothing (one-euro filter). Phone tracking jitters by a few millimetres
+// every frame, which makes the course shimmer on the bar. Each frame, after 8th
+// Wall has moved the camera, we ease it toward the tracked pose: heavily when the
+// phone is nearly still (kills the shake), lightly when it is really moving (no lag).
+// ---------------------------------------------------------------------------
+function makeCameraSmoother(camera, metresPerUnit = () => 1) {
+  const rawP = new THREE.Vector3(), rawQ = new THREE.Quaternion();
+  const outP = new THREE.Vector3(), outQ = new THREE.Quaternion(), lastP = new THREE.Vector3(), lastQ = new THREE.Quaternion();
+  let ready = false, vel = 0, ang = 0;
+  const alpha = (cutoff, dt) => 1 / (1 + 1 / (2 * Math.PI * cutoff * dt));
+  return (dt) => {
+    if (dt <= 0) return;
+    rawP.copy(camera.position); rawQ.copy(camera.quaternion);
+    if (!ready) { outP.copy(rawP); outQ.copy(rawQ); lastP.copy(rawP); lastQ.copy(rawQ); ready = true; return; }
+    // how fast the phone is really moving (smoothed), in metres/s and radians/s
+    const v = rawP.distanceTo(lastP) * metresPerUnit() / dt, w = rawQ.angleTo(lastQ) / dt;
+    vel += (v - vel) * alpha(5, dt); ang += (w - ang) * alpha(5, dt);
+    lastP.copy(rawP); lastQ.copy(rawQ);
+    outP.lerp(rawP, alpha(0.9 + 25 * vel, dt));       // ~1 Hz when still, quickly opens up when moving
+    outQ.slerp(rawQ, alpha(0.9 + 6 * ang, dt));
+    camera.position.copy(outP); camera.quaternion.copy(outQ); camera.updateMatrixWorld(true);
+  };
+}
+
 async function startAR() {
   show($('start'), false);
   show($('loading'), true);
@@ -1207,6 +1232,7 @@ async function startAR() {
   sizeCanvas(); addEventListener('resize', sizeCanvas);
   let game = null, placed = false, tracking = false, preview = null, root = null;
   let camera, scene, renderer, lastFrame = performance.now(), lastHit = null;
+  let smoothCamera = () => {}, lastSmooth = performance.now();
   const ray = new THREE.Raycaster();
   const hitPosition = new THREE.Vector3();
   const resetButton = $('resetCourse'), placeButton = $('placeCourse');
@@ -1237,6 +1263,7 @@ async function startAR() {
     name: 'tjs-tabletop-course',
     onStart: () => {
       ({scene, camera, renderer} = XR8.Threejs.xrScene());
+      smoothCamera = makeCameraSmoother(camera);   // absolute scale: units are metres
       // Game logic is in the original XY plane with Z up. Rotate to an XZ tabletop with Y up.
       root = new THREE.Group();
       root.rotation.x = -Math.PI / 2;
@@ -1270,6 +1297,7 @@ async function startAR() {
       show($('loading'),false); showPlacement();
     },
     onUpdate: ({processCpuResult}) => {
+      if (camera) { const now = performance.now(); smoothCamera(Math.min((now - lastSmooth) / 1000, 0.05)); lastSmooth = now; }
       const reality = processCpuResult?.reality;
       if (reality) {
         tracking = reality.trackingStatus === 'NORMAL';

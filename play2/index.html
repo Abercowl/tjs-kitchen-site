@@ -1092,6 +1092,31 @@ function startDemo() {
 // the course is placed on it. World tracking (SLAM) then keeps the course fixed
 // on the bar top, so it stays put while players walk around or crouch for a putt.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Camera smoothing (one-euro filter). Phone tracking jitters by a few millimetres
+// every frame, which makes the course shimmer on the bar. Each frame, after 8th
+// Wall has moved the camera, we ease it toward the tracked pose: heavily when the
+// phone is nearly still (kills the shake), lightly when it is really moving (no lag).
+// ---------------------------------------------------------------------------
+function makeCameraSmoother(camera, metresPerUnit = () => 1) {
+  const rawP = new THREE.Vector3(), rawQ = new THREE.Quaternion();
+  const outP = new THREE.Vector3(), outQ = new THREE.Quaternion(), lastP = new THREE.Vector3(), lastQ = new THREE.Quaternion();
+  let ready = false, vel = 0, ang = 0;
+  const alpha = (cutoff, dt) => 1 / (1 + 1 / (2 * Math.PI * cutoff * dt));
+  return (dt) => {
+    if (dt <= 0) return;
+    rawP.copy(camera.position); rawQ.copy(camera.quaternion);
+    if (!ready) { outP.copy(rawP); outQ.copy(rawQ); lastP.copy(rawP); lastQ.copy(rawQ); ready = true; return; }
+    // how fast the phone is really moving (smoothed), in metres/s and radians/s
+    const v = rawP.distanceTo(lastP) * metresPerUnit() / dt, w = rawQ.angleTo(lastQ) / dt;
+    vel += (v - vel) * alpha(5, dt); ang += (w - ang) * alpha(5, dt);
+    lastP.copy(rawP); lastQ.copy(rawQ);
+    outP.lerp(rawP, alpha(0.9 + 25 * vel, dt));       // ~1 Hz when still, quickly opens up when moving
+    outQ.slerp(rawQ, alpha(0.9 + 6 * ang, dt));
+    camera.position.copy(outP); camera.quaternion.copy(outQ); camera.updateMatrixWorld(true);
+  };
+}
+
 function loadEighthWall() {
   return new Promise((resolve, reject) => {
     if (window.XR8) return resolve(window.XR8);
@@ -1121,6 +1146,7 @@ async function startEighth() {
   // place (on the bar: position + orientation) -> scaler (world units per course unit) -> group (course, tee on the coaster)
   let game = null, place = null, scaler = null, group = null, xrCamera = null, placed = false, visible = false;
   let unitM = SIZES.M, worldPerMetre = 1;
+  let smoothCamera = () => {};
   const tP = new THREE.Vector3(), tN = new THREE.Vector3(0, 1, 0), fwd = new THREE.Vector3(), tQ = new THREE.Quaternion();
   const basis = new THREE.Matrix4(), tmpV3 = new THREE.Vector3(), right = new THREE.Vector3();
   const clock = new THREE.Clock();
@@ -1198,6 +1224,7 @@ async function startEighth() {
       onStart: () => {
         const { scene, camera, renderer } = XR8.Threejs.xrScene();
         xrCamera = camera;
+        smoothCamera = makeCameraSmoother(camera, () => 1 / worldPerMetre);
         place = new THREE.Group(); place.visible = false; scene.add(place);
         scaler = new THREE.Group(); place.add(scaler);
         group = new THREE.Group(); group.position.set(-COURSE.tee.x, -COURSE.tee.y, LIFT); scaler.add(group);
@@ -1212,6 +1239,7 @@ async function startEighth() {
       onUpdate: () => {
         if (!game) return;
         const dt = Math.min(clock.getDelta(), 0.05);
+        smoothCamera(dt);
         if (placed) game.step(dt);
       },
       listeners: [
