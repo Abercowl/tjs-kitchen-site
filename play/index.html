@@ -106,6 +106,7 @@
 
 <div id="guide" class="hidden"><div class="frame"></div><div class="hint" id="trackingHint">Fit the coaster inside the circle</div></div>
 <div id="loading" class="hidden">Starting camera…</div>
+<button id="replace" class="btn ghost" hidden style="position:fixed;left:50%;transform:translateX(-50%);top:max(14px,env(safe-area-inset-top));z-index:9;font-size:13px;padding:8px 14px">Move course</button>
 <div id="hud" class="hidden"><div class="hole" id="hole">HOLE 1 · PAR 3</div>STROKES<b id="strokes">0</b><div class="wind">WIND <span id="wind">0 mph</span></div></div>
 <div id="power" class="hidden"><i id="powerBar"></i></div>
 <div id="tip" class="hidden"><span id="tipText">Pull back, then let go</span></div>
@@ -1195,7 +1196,18 @@ async function startAR() {
   // The unused CSS overlay sits above the WebGL canvas in MindAR.
   if (cssRenderer) cssRenderer.domElement.style.pointerEvents = 'none';
   const anchor = mindar.addAnchor(0);
-  let tracking = false, lostTimer = null, hintShown = false, pausedTip = false;
+  let tracking = false, lostTimer = null, hintShown = false, pausedTip = false, held = false;
+  // Motion-sensor hold: phone orientation as a quaternion (same maths as three.js DeviceOrientationControls)
+  const DEG = Math.PI / 180, zee = new THREE.Vector3(0, 0, 1), eul = new THREE.Euler();
+  const qTilt = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)), qScreen = new THREE.Quaternion();
+  const deviceQuat = (out) => {
+    if (!ORIENT) return null;
+    eul.set(ORIENT.b * DEG, ORIENT.a * DEG, -ORIENT.g * DEG, 'YXZ');
+    out.setFromEuler(eul).multiply(qTilt);
+    const angle = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
+    return out.multiply(qScreen.setFromAxisAngle(zee, -angle * DEG));
+  };
+  const q0 = new THREE.Quaternion(), qNow = new THREE.Quaternion(), heldM = new THREE.Matrix4(), rotM = new THREE.Matrix4();
   const trackingHint = $('trackingHint');
   const setTrackingHint = message => { trackingHint.textContent = message; };
   // Stabiliser: the course lives in its own group that eases toward the tracked pose instead of
@@ -1207,7 +1219,15 @@ async function startAR() {
   const sP = new THREE.Vector3(), sQ = new THREE.Quaternion(), sS = new THREE.Vector3();
   let hasPose = false;
   const stabilise = (dt) => {
-    if (!tracking) return;
+    if (!tracking) {
+      if (!held || !deviceQuat(qNow)) return;
+      // course stays put in the room: undo the phone's rotation since the coaster left view
+      rotM.makeRotationFromQuaternion(qNow.invert().multiply(q0));
+      stable.matrix.multiplyMatrices(rotM, heldM);
+      stable.matrix.decompose(sP, sQ, sS);            // so re-finding the coaster eases from here
+      stable.matrixWorldNeedsUpdate = true;
+      return;
+    }
     anchor.group.updateWorldMatrix(true, false);
     anchor.group.matrixWorld.decompose(tP, tQ, tS);
     if (!hasPose) { sP.copy(tP); sQ.copy(tQ); sS.copy(tS); hasPose = true; }
@@ -1221,11 +1241,11 @@ async function startAR() {
     stable.matrix.compose(sP, sQ, sS);
     stable.matrixWorldNeedsUpdate = true;
   };
-  const game = makeGame({ group: stable, camera, renderer, isTracking: () => tracking });
-  window.__ar = { anchor, stable, isTracking: () => tracking };   // for automated testing
+  const game = makeGame({ group: stable, camera, renderer, isTracking: () => tracking || held });
+  window.__ar = { anchor, stable, isTracking: () => tracking, isHeld: () => held, orient: () => ORIENT };   // for automated testing
 
   anchor.onTargetFound = () => {
-    clearTimeout(lostTimer); tracking = true; stable.visible = true;
+    clearTimeout(lostTimer); tracking = true; held = false; stable.visible = true;
     setTrackingHint('Fit the coaster inside the circle');
     show($('guide'), false); show($('hud'), true); game.start();
     // tip() lives inside makeGame, so call it through the game object
@@ -1235,8 +1255,12 @@ async function startAR() {
   };
   anchor.onTargetLost = () => {
     tracking = false;
-    game.cancelDrag();
     clearTimeout(lostTimer);
+    if (hasPose && deviceQuat(q0)) {                  // motion sensors available: hold the course in the room
+      held = true; heldM.copy(stable.matrix);
+      return;
+    }
+    game.cancelDrag();
     // A brief obstruction retains the last visual pose, but pauses play.
     // MindAR cannot maintain a reliable world pose after the image leaves view.
     setTrackingHint('Point back at the coaster to resume');
@@ -1283,6 +1307,108 @@ async function startAR() {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Phone motion sensors. While the camera can't see the coaster, the course is
+// held in place in the room by turning it against the phone's own rotation.
+// iPhone asks permission for this; it must be requested from the tap itself.
+// ---------------------------------------------------------------------------
+let ORIENT = null;
+let orientListening = false;
+function listenOrientation() {
+  if (orientListening) return; orientListening = true;
+  addEventListener('deviceorientation', e => { if (e.alpha != null) ORIENT = { a: e.alpha, b: e.beta, g: e.gamma }; });
+}
+function requestOrientation() {
+  const D = window.DeviceOrientationEvent;
+  if (!D) return Promise.resolve();
+  listenOrientation();              // events simply won't arrive if the browser says no
+  return typeof D.requestPermission === 'function' ? D.requestPermission().catch(() => {}) : Promise.resolve();
+}
+
+// ---------------------------------------------------------------------------
+// Android (Chrome): WebXR uses the phone's AR system to lock the course to the
+// real bar top. Tap the coaster to place the course; it stays put in the room.
+// ---------------------------------------------------------------------------
+const COASTER_METRES = 0.0889;          // the tracked image is 3.5 in wide, so 1 course unit = 8.89 cm
+async function xrSupported() {
+  try { return !!(navigator.xr && await navigator.xr.isSessionSupported('immersive-ar')); } catch { return false; }
+}
+async function startXR() {
+  show($('start'), false);
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.xr.enabled = true;
+  $('ar').appendChild(renderer.domElement);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.01, 50);
+  // place (world position + yaw)  ->  group (course units, z up)
+  const place = new THREE.Group(); place.visible = false; scene.add(place);
+  const group = new THREE.Group();
+  group.rotation.x = -Math.PI / 2;                 // course z-up -> WebXR y-up
+  group.scale.setScalar(COASTER_METRES);
+  place.add(group);
+  // Placement ring that follows the detected surface
+  const reticle = new THREE.Mesh(new THREE.RingGeometry(0.035, 0.044, 40).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color: 0xd4a854 }));
+  reticle.matrixAutoUpdate = false; reticle.visible = false; scene.add(reticle);
+
+  const session = await navigator.xr.requestSession('immersive-ar', {
+    requiredFeatures: ['hit-test'], optionalFeatures: ['dom-overlay', 'anchors'], domOverlay: { root: document.body }
+  });
+  await renderer.xr.setSession(session);
+  const xrCam = renderer.xr.getCamera();
+  let placed = false, anchor = null;
+  const game = makeGame({ group, camera: xrCam, renderer, isTracking: () => placed });
+  $('again').onclick = () => game.reset();
+  const viewerSpace = await session.requestReferenceSpace('viewer');
+  const hitSource = await session.requestHitTestSource({ space: viewerSpace });
+  const refSpace = renderer.xr.getReferenceSpace();
+  let lastHit = null;
+  game.tip('Point at the bar top and tap the coaster to place the course');
+  show($('guide'), false);
+
+  const placeCourse = async () => {
+    if (!lastHit) return;
+    const pose = lastHit.getPose(refSpace); if (!pose) return;
+    const m = new THREE.Matrix4().fromArray(pose.transform.matrix);
+    const p = new THREE.Vector3().setFromMatrixPosition(m);
+    place.position.copy(p);
+    const camPos = new THREE.Vector3().setFromMatrixPosition(xrCam.matrixWorld);
+    place.rotation.set(0, Math.atan2(camPos.x - p.x, camPos.z - p.z), 0);   // tee faces the player
+    place.visible = true; placed = true; reticle.visible = false;
+    try { anchor = lastHit.createAnchor ? await lastHit.createAnchor() : null; } catch { anchor = null; }
+    show($('hud'), true); game.start();
+    game.tip('Pull back, then let go. Walk around the course any time');
+    $('replace').hidden = false;
+  };
+  // Taps place the course; once placed, the game's own pointer handling takes over
+  session.addEventListener('select', () => { if (!placed) placeCourse(); });
+  $('replace').onclick = (e) => { e.stopPropagation(); placed = false; place.visible = false; anchor?.delete?.(); anchor = null; $('replace').hidden = true;
+    game.cancelDrag(); game.tip('Tap the coaster to place the course'); };
+  session.addEventListener('end', () => location.reload());
+
+  const clock = new THREE.Clock();
+  renderer.setAnimationLoop((t, frame) => {
+    const dt = Math.min(clock.getDelta(), 0.05);
+    if (frame) {
+      const hits = frame.getHitTestResults(hitSource);
+      lastHit = hits[0] || null;
+      if (!placed && lastHit) {
+        const pose = lastHit.getPose(refSpace);
+        if (pose) { reticle.visible = true; reticle.matrix.fromArray(pose.transform.matrix); }
+      } else if (!placed) reticle.visible = false;
+      if (placed && anchor && frame.trackedAnchors?.has(anchor)) {       // follow ARCore's refinements of the anchor
+        const ap = frame.getPose(anchor.anchorSpace, refSpace);
+        if (ap) place.position.setFromMatrixPosition(new THREE.Matrix4().fromArray(ap.transform.matrix));
+      }
+    }
+    if (placed) game.step(dt);
+    renderer.render(scene, camera);
+  });
+}
+
 let started = false;
 async function go(demo) {
   if (started) return;
@@ -1298,7 +1424,11 @@ async function go(demo) {
     try { const { RoomEnvironment } = await import('three/addons/environments/RoomEnvironment.js'); ENV_SCENE = new RoomEnvironment(); }
     catch (e) { console.warn('No environment lighting', e); }
     if (demo) startDemo();
-    else await startAR();
+    else if (await xrSupported()) {                    // Android Chrome: world-locked AR
+      try { await startXR(); }
+      catch (e) { console.warn('WebXR failed, using coaster tracking', e); $('ar').replaceChildren(); await startAR(); }
+    }
+    else await startAR();                              // iPhone: coaster tracking + motion-sensor hold
   } catch (error) {
     console.error(error);
     $('ar').querySelectorAll('video').forEach(video => {
@@ -1319,7 +1449,7 @@ async function go(demo) {
 }
 $('go').addEventListener('click', () => {
   if ($('go').textContent === 'Reload') location.reload();
-  else go(false);
+  else { requestOrientation(); go(false); }          // permission must be asked inside the tap
 });
 for (const id of ['demoLink', 'demoLink2']) {
   $(id).addEventListener('click', event => {
