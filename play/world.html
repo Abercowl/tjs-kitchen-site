@@ -105,6 +105,7 @@
   </div>
   <button id="go" class="btn">Tee it up</button>
   <div class="small">Uses your camera for world tracking; no app installation.<br>No coaster handy? <a href="#demo" id="demoLink">Practice here</a></div>
+  <div class="small" style="margin-top:6px;font-size:11px">AR powered by 8th Wall. 8th Wall Engine © 2026 Niantic Spatial, Inc., provided as is, without warranties, under the <a href="/play2/xr/LICENSE">XR Engine License</a>.</div>
 </div>
 
 <div id="inapp" class="screen hidden">
@@ -1141,7 +1142,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
     toast(`Hole ${nextN + 1}: ${L.def.name}`);
   };
   reset();
-  return { step, reset, cancelDrag, setLevel, levels: LEVELS, level: () => L.n,
+  return { step, reset, cancelDrag, tip, setLevel, levels: LEVELS, level: () => L.n,
     dispose: () => removeEventListener('resize', cancelDrag),
     start: () => { st.started = true; }, state: st };
 }
@@ -1200,6 +1201,10 @@ async function startAR() {
   });
   const XR8 = sdk;
   const canvas = $('camerafeed');
+  // Fill the screen: without this the canvas stays at the browser default of 300 x 150
+  canvas.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;display:block';
+  const sizeCanvas = () => { const k = Math.min(devicePixelRatio, 2); canvas.width = innerWidth * k; canvas.height = innerHeight * k; };
+  sizeCanvas(); addEventListener('resize', sizeCanvas);
   let game = null, placed = false, tracking = false, preview = null, root = null;
   let camera, scene, renderer, lastFrame = performance.now(), lastHit = null;
   const ray = new THREE.Raycaster();
@@ -1235,6 +1240,7 @@ async function startAR() {
       // Game logic is in the original XY plane with Z up. Rotate to an XZ tabletop with Y up.
       root = new THREE.Group();
       root.rotation.x = -Math.PI / 2;
+      root.scale.setScalar(0.3);           // absolute scale is metres: course about 28 cm across (1 unit = 0.93 m otherwise)
       root.visible = false;
       scene.add(root);
       const marker = new THREE.Mesh(
@@ -1245,6 +1251,7 @@ async function startAR() {
       preview = new THREE.Group(); preview.add(marker); preview.visible = false; scene.add(preview);
       game = makeGame({group:root,camera,renderer,isTracking:()=>tracking && placed});
       $('again').onclick = () => game.reset();
+      game.tip('');                         // keep the putting tip hidden until the course is placed
       resetButton.onclick = () => {
         placed = false; root.visible = false; game.cancelDrag();
         show(resetButton,false); show(placeButton,true); showPlacement();
@@ -1258,7 +1265,7 @@ async function startAR() {
         placed = true; preview.visible = false;
         hidePlacement(); show($('hud'),true);
         show(resetButton,true); show(controls,true); show(placeButton,false);
-        game.start(); tip('Walk around the course, get behind the ball, then putt.');
+        game.start(); game.tip('Walk around the course, get behind the ball, then putt.');
       };
       show($('loading'),false); showPlacement();
     },
@@ -1281,6 +1288,7 @@ async function startAR() {
       if (placed && tracking) game.step(dt);
     }
   });
+  window.THREE = THREE;                 // 8th Wall's three.js pipeline module looks for window.THREE
   XR8.XrController.configure({disableWorldTracking:false,scale:'absolute',enableWorldPoints:true});
   XR8.addCameraPipelineModules([
     XR8.GlTextureRenderer.pipelineModule(),
