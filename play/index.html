@@ -98,7 +98,7 @@
 <div id="loading" class="hidden">Starting camera…</div>
 <div id="hud" class="hidden">STROKES<b id="strokes">0</b></div>
 <div id="power" class="hidden"><i id="powerBar"></i></div>
-<div id="tip" class="hidden"><span id="tipText">Pull back away from the flag, then let go</span></div>
+<div id="tip" class="hidden"><span id="tipText">Read the break and dodge the cart. Pull back, then let go</span></div>
 <div id="toast" class="hidden"><span id="toastText"></span></div>
 
 <div id="result" class="screen hidden">
@@ -126,7 +126,7 @@ const show = (el, on) => el.classList.toggle('hidden', !on);
 const COURSE = {
   edge: 0.455,                                   // printed circle (0.4635) less a lip
   tee:  { x: -0.150, y: -0.043 },                // the printed ball
-  cup:  { x:  0.154, y:  0.068, r: 0.024 },      // the printed hole
+  cup:  { x:  0.154, y:  0.068, r: 0.020 },      // the printed hole (catch radius a bit under the drawn one)
   green:  { x: 0.044, y: 0.035, rx: 0.331, ry: 0.215 },
   bunker: { x: -0.234, y: -0.181, rx: 0.120, ry: 0.082 },
   pond:   { x: 0.312, y: -0.219, rx: 0.092, ry: 0.074 },
@@ -137,8 +137,14 @@ const COURSE = {
 const BALL_R = 0.014;
 const FRICTION = { green: 0.32, rough: 0.85, sand: 3.2 };  // deceleration, units / s^2
 const MAX_SPEED = 1.35, POWER = 2.6;                        // swipe length (units) -> speed
-const SINK_SPEED = 0.85;                                    // faster than this lips out
-const PAR = 2;
+const SINK_SPEED = 0.6;                                     // faster than this lips out
+const PAR = 3;
+// Difficulty
+//  * The green has a slope ("break") that changes every round; arrows on the green show which way it falls.
+//  * TJ's beverage cart drives back and forth across the line to the cup. Time the putt to slip past it.
+const SLOPE_MIN = 0.09, SLOPE_MAX = 0.2;                    // pull of the slope on the green, units / s^2 (less than green friction, so balls still stop)
+const CART = { len: 0.085, wid: 0.048, amp: 0.15, period: 3.6,  // cart size, swing either side of its track centre, seconds per round trip
+               at: 0.52 };                                  // how far along tee -> cup its track crosses
 
 const inEllipse = (p, e, pad = 0) => ((p.x - e.x) / (e.rx + pad)) ** 2 + ((p.y - e.y) / (e.ry + pad)) ** 2 < 1;
 
@@ -208,6 +214,64 @@ function makeGame({ group, camera, renderer, isTracking }) {
   const arrow = new THREE.Mesh(new THREE.ShapeGeometry(arrowShape), new THREE.MeshBasicMaterial({ color: 0xd4a854, transparent: true, opacity: 0.9, depthWrite: false }));
   arrow.position.z = 0.002; arrow.visible = false; group.add(arrow);
 
+  // ---- Slope arrows on the green (they drift downhill so you can read the break)
+  const ARROWS = [];
+  for (let gx = -0.26; gx <= 0.36; gx += 0.075) for (let gy = -0.17; gy <= 0.24; gy += 0.075) {
+    const p = { x: gx + ((gy * 40) % 2) * 0.03, y: gy };
+    if (inEllipse(p, COURSE.green, -0.03) && Math.hypot(p.x - COURSE.cup.x, p.y - COURSE.cup.y) > 0.06 &&
+        Math.hypot(p.x - COURSE.tee.x, p.y - COURSE.tee.y) > 0.05) ARROWS.push(p);
+  }
+  const chevShape = new THREE.Shape();
+  chevShape.moveTo(-0.008, -0.011); chevShape.lineTo(0.004, 0); chevShape.lineTo(-0.008, 0.011);
+  chevShape.lineTo(-0.003, 0.011); chevShape.lineTo(0.009, 0); chevShape.lineTo(-0.003, -0.011);
+  const chevMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false });
+  const chevrons = new THREE.InstancedMesh(new THREE.ShapeGeometry(chevShape), chevMat, ARROWS.length);
+  chevrons.frustumCulled = false; group.add(chevrons);
+
+  // ---- TJ's beverage cart (moving obstacle)
+  const cart = new THREE.Group();
+  const gold = new THREE.MeshStandardMaterial({ color: 0xd4a854, roughness: 0.5 });
+  const cream = new THREE.MeshStandardMaterial({ color: 0xf3eee4, roughness: 0.6 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x1b1b1b, roughness: 0.8 });
+  const box = (w, d, h, m, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, d, h), m); o.position.set(x, y, z); cart.add(o); return o; };
+  box(CART.len, CART.wid, 0.022, gold, 0, 0, 0.022);                         // body
+  box(CART.len * 0.42, CART.wid * 0.9, 0.03, cream, -CART.len * 0.22, 0, 0.048);   // cooler box in the back
+  box(CART.len * 0.95, CART.wid * 1.04, 0.004, cream, -0.004, 0, 0.082);      // roof
+  for (const sx of [-0.035, 0.03]) for (const sy of [-1, 1]) box(0.003, 0.003, 0.05, cream, sx, sy * CART.wid * 0.45, 0.058);  // roof posts
+  for (const sx of [-0.026, 0.026]) for (const sy of [-1, 1]) {               // wheels
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.007, 14), dark);
+    w.position.set(sx, sy * CART.wid * 0.5, 0.011); cart.add(w);
+  }
+  const signTex = (() => {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 96; const g = c.getContext('2d');
+    g.fillStyle = '#15302a'; g.fillRect(0, 0, 256, 96); g.fillStyle = '#d4a854'; g.font = '64px Lobster, cursive';
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText("TJ's", 128, 52);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  })();
+  for (const sy of [-1, 1]) {                                                  // "TJ's" on both sides
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.019), new THREE.MeshBasicMaterial({ map: signTex }));
+    sign.position.set(0.004, sy * (CART.wid / 2 + 0.0008), 0.022); sign.rotation.x = sy * Math.PI / 2; if (sy < 0) sign.rotation.y = Math.PI;
+    cart.add(sign);
+  }
+  const cartShadow = new THREE.Mesh(new THREE.PlaneGeometry(CART.len * 1.05, CART.wid * 1.1),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false }));
+  cartShadow.position.z = 0.0012; group.add(cartShadow);
+  group.add(cart);
+  // Its track: perpendicular to the tee -> cup line, crossing it CART.at of the way along
+  const tc = new THREE.Vector2(COURSE.cup.x - COURSE.tee.x, COURSE.cup.y - COURSE.tee.y);
+  const cartMid = new THREE.Vector2(COURSE.tee.x, COURSE.tee.y).addScaledVector(tc, CART.at);
+  const cartDir = new THREE.Vector2(-tc.y, tc.x).normalize();
+  const cartAngle = Math.atan2(cartDir.y, cartDir.x);
+  const cartPos = new THREE.Vector2(), cartVel = new THREE.Vector2();
+  const placeCart = (t) => {
+    const w = (2 * Math.PI) / CART.period;
+    cartPos.copy(cartMid).addScaledVector(cartDir, CART.amp * Math.sin(w * t));
+    cartVel.copy(cartDir).multiplyScalar(CART.amp * w * Math.cos(w * t));
+    cart.position.set(cartPos.x, cartPos.y, 0);
+    cart.rotation.z = cartAngle + (Math.cos(w * t) < 0 ? Math.PI : 0);     // face the way it's driving
+    cartShadow.position.set(cartPos.x + 0.006, cartPos.y - 0.006, 0.0012); cartShadow.rotation.z = cartAngle;
+  };
+
   // Confetti for a sunk putt
   const CONF = 160;
   const conf = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.012, 0.007), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }), CONF);
@@ -231,7 +295,9 @@ function makeGame({ group, camera, renderer, isTracking }) {
 
   // ---- State --------------------------------------------------------------
   const st = { pos: new THREE.Vector2(), vel: new THREE.Vector2(), last: new THREE.Vector2(), strokes: 0,
-               moving: false, holed: false, sinkT: 0, spin: new THREE.Quaternion(), started: false };
+               moving: false, holed: false, sinkT: 0, spin: new THREE.Quaternion(), started: false,
+               t: 0, slope: new THREE.Vector2(), lipped: false };
+  let best = null; try { best = +localStorage.getItem('tjsHoleBest') || null; } catch (e) {}
   const updateHud = () => { $('strokes').textContent = st.strokes; };
   const tip = (t) => { $('tipText').textContent = t; show($('tip'), !!t); };
   let toastTimer = 0;
@@ -239,10 +305,15 @@ function makeGame({ group, camera, renderer, isTracking }) {
 
   const reset = () => {
     st.pos.set(COURSE.tee.x, COURSE.tee.y); st.last.copy(st.pos); st.vel.set(0, 0);
-    st.strokes = 0; st.moving = false; st.holed = false; st.sinkT = 0;
+    st.strokes = 0; st.moving = false; st.holed = false; st.sinkT = 0; st.lipped = false;
+    // New break every round. Never straight at or away from the cup, so it always needs reading.
+    const toCup = Math.atan2(COURSE.cup.y - COURSE.tee.y, COURSE.cup.x - COURSE.tee.x);
+    const a = toCup + (Math.random() < 0.5 ? 1 : -1) * (Math.PI / 2 + (Math.random() - 0.5) * 1.6);
+    const k = SLOPE_MIN + Math.random() * (SLOPE_MAX - SLOPE_MIN);
+    st.slope.set(Math.cos(a) * k, Math.sin(a) * k);
     ball.visible = shadow.visible = true; ball.quaternion.identity();
     hideConfetti(); updateHud(); show($('result'), false);
-    tip('Pull back away from the flag, then let go');
+    tip('Read the break and dodge the cart. Pull back, then let go');
   };
 
   // ---- Touch: pull back on the coaster and let go = putt (like a slingshot) ----------------------------------
@@ -310,6 +381,23 @@ function makeGame({ group, camera, renderer, isTracking }) {
     if (i === 3) { st.pos.y = y1; st.vel.y =  Math.abs(st.vel.y) * 0.7; }
   };
 
+  // Bounce off the moving cart: work in the cart's own frame, so its speed knocks the ball along too
+  const bounceCart = () => {
+    const c = Math.cos(cartAngle), s = Math.sin(cartAngle);
+    const dx = st.pos.x - cartPos.x, dy = st.pos.y - cartPos.y;
+    const lx = dx * c + dy * s, ly = -dx * s + dy * c;                // ball in cart coords (x along its track)
+    const hx = CART.len / 2 + BALL_R, hy = CART.wid / 2 + BALL_R;      // cart is long along its track
+    if (Math.abs(lx) > hx || Math.abs(ly) > hy) return;
+    let rvx = (st.vel.x - cartVel.x) * c + (st.vel.y - cartVel.y) * s, rvy = -(st.vel.x - cartVel.x) * s + (st.vel.y - cartVel.y) * c;
+    let nx = lx, ny = ly;
+    if (hx - Math.abs(lx) < hy - Math.abs(ly)) { nx = Math.sign(lx) * hx; if (rvx * lx < 0) rvx = -rvx * 0.75; }
+    else { ny = Math.sign(ly) * hy; if (rvy * ly < 0) rvy = -rvy * 0.75; }
+    st.pos.set(cartPos.x + nx * c - ny * s, cartPos.y + nx * s + ny * c);
+    st.vel.set(rvx * c - rvy * s + cartVel.x, rvx * s + rvy * c + cartVel.y);
+    if (st.vel.length() > MAX_SPEED) st.vel.setLength(MAX_SPEED);
+    if (!st.bonked) { toast('Bonk! Watch the cart'); st.bonked = true; setTimeout(() => (st.bonked = false), 1200); }
+  };
+
   const sink = () => {
     st.holed = true; st.moving = false; st.vel.set(0, 0); st.sinkT = 0.001;
     burstConfetti();
@@ -317,7 +405,10 @@ function makeGame({ group, camera, renderer, isTracking }) {
     const n = st.strokes;
     const name = n === 1 ? 'Hole in one!' : n === PAR - 1 ? 'Birdie!' : n === PAR ? 'Par' : n === PAR + 1 ? 'Bogey' : n === PAR + 2 ? 'Double bogey' : 'In the cup';
     $('resTitle').textContent = name;
-    $('resScore').textContent = n === 1 ? 'One stroke. Drinks are on you.' : `${n} strokes${n <= PAR ? '. Nice putting.' : '. The bar is still open.'}`;
+    let line = n === 1 ? 'One stroke. Drinks are on you.' : `${n} strokes${n <= PAR ? '. Nice putting.' : '. The bar is still open.'}`;
+    if (best === null || n < best) { if (best !== null) line += ' New personal best!'; best = n; try { localStorage.setItem('tjsHoleBest', String(n)); } catch (e) {} }
+    else line += ` Your best: ${best}.`;
+    $('resScore').textContent = line;
     setTimeout(() => show($('result'), true), 1500);
   };
 
@@ -329,6 +420,17 @@ function makeGame({ group, camera, renderer, isTracking }) {
     clothGeo.attributes.position.needsUpdate = true;
     glow.material.opacity = 0.25 + 0.2 * Math.sin(t * 3);
 
+    st.t += dt;
+    placeCart(st.t);
+    const sAng = Math.atan2(st.slope.y, st.slope.x), sK = st.slope.length() / SLOPE_MAX;
+    chevMat.opacity = 0.4 + 0.35 * sK;
+    ARROWS.forEach((p, i) => {                  // each arrow slides a little downhill, then starts over
+      const f = ((st.t * 0.6 + i * 0.37) % 1);
+      tmp.position.set(p.x + Math.cos(sAng) * 0.02 * f, p.y + Math.sin(sAng) * 0.02 * f, 0.0018);
+      tmp.rotation.set(0, 0, sAng); tmp.scale.setScalar(1.3 + 0.7 * sK); tmp.updateMatrix(); chevrons.setMatrixAt(i, tmp.matrix);
+    });
+    chevrons.instanceMatrix.needsUpdate = true;
+
     if (st.moving) {
       const sub = 4, h = dt / sub;
       for (let s = 0; s < sub && st.moving; s++) {
@@ -337,6 +439,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
         const dv = FRICTION[surface] * h;
         if (sp <= dv) { st.vel.set(0, 0); st.moving = false; break; }
         st.vel.multiplyScalar((sp - dv) / sp);
+        if (surface === 'green') st.vel.addScaledVector(st.slope, h);       // the break
         st.pos.addScaledVector(st.vel, h);
 
         // Cup: slow enough drops in, too fast lips out (deflects and loses pace)
@@ -356,6 +459,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
         }
         for (const [x, y, r] of COURSE.trees) bounceCircle(x, y, r, false);
         bounceBox(COURSE.qr);
+        bounceCart();
         bounceCircle(0, 0, COURSE.edge, true);
       }
       if (!st.moving && !st.holed) {
