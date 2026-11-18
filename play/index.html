@@ -54,6 +54,7 @@
   #loading { position: fixed; bottom: 40px; left: 0; right: 0; text-align: center; z-index: 6; font-size: 14px; opacity: .8; }
   /* Scorecard (top right) and tip line (bottom) */
   #hud { position: fixed; top: 14px; right: 14px; z-index: 8; background: rgba(0,0,0,.5); border-radius: 14px; padding: 8px 14px; text-align: right; font-size: 12px; letter-spacing: .06em; transition: opacity .4s; }
+  #hud .hole { font-size: 11px; font-weight: 800; color: #d4a854; margin-bottom: 4px; letter-spacing: .08em; }
   #hud .wind { margin-top: 4px; font-size: 11px; opacity: .85; }
   #hud .wind span { color: #f3eee4; font-weight: 700; }
   #hud b { display: block; font-size: 26px; letter-spacing: 0; color: #d4a854; line-height: 1.1; }
@@ -73,6 +74,8 @@
   #result .score { font-size: 15px; opacity: .85; margin-bottom: 20px; }
   #result .row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
   #result .btn { font-size: 16px; padding: 13px 22px; }
+  #result .btn[hidden] { display: none; }
+  #result #next { background: #8fd16a; box-shadow: 0 6px 24px rgba(143,209,106,.35); }
   #toast { position: fixed; top: 34%; left: 0; right: 0; text-align: center; z-index: 9; pointer-events: none; transition: opacity .3s, transform .3s; }
   #toast span { font-family: Lobster, cursive; font-size: 34px; color: #fff; text-shadow: 0 3px 12px rgba(0,0,0,.6); }
 </style>
@@ -103,7 +106,7 @@
 
 <div id="guide" class="hidden"><div class="frame"></div><div class="hint">Fit the coaster inside the circle</div></div>
 <div id="loading" class="hidden">Starting camera…</div>
-<div id="hud" class="hidden">STROKES<b id="strokes">0</b><div class="wind">WIND <span id="wind">0 mph</span></div></div>
+<div id="hud" class="hidden"><div class="hole" id="hole">HOLE 1 · PAR 3</div>STROKES<b id="strokes">0</b><div class="wind">WIND <span id="wind">0 mph</span></div></div>
 <div id="power" class="hidden"><i id="powerBar"></i></div>
 <div id="tip" class="hidden"><span id="tipText">Pull back, then let go</span></div>
 <div id="toast" class="hidden"><span id="toastText"></span></div>
@@ -113,7 +116,8 @@
     <h1 id="resTitle">Hole in one!</h1>
     <div class="score" id="resScore">1 stroke</div>
     <div class="row">
-      <a class="btn" href="https://order.tjskitchenvc.com">Order now</a>
+      <button class="btn" id="next" hidden>Next hole</button>
+      <a class="btn" id="orderBtn" href="https://order.tjskitchenvc.com">Order now</a>
       <button class="btn ghost" id="again">Play again</button>
     </div>
   </div>
@@ -121,6 +125,7 @@
 
 <script type="module">
 let THREE;
+let ENV_SCENE = null;      // RoomEnvironment: soft studio light for reflections (loaded with three.js)
 
 const $ = id => document.getElementById(id);
 const show = (el, on) => el.classList.toggle('hidden', !on);
@@ -419,14 +424,12 @@ function buildCoaster(group) {
   const bark = new THREE.MeshStandardMaterial({ color: 0x5a3d24, roughness: 1 });
   const treeShadow = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.32, depthWrite: false });
   COURSE.trees.forEach(([x, y, r], n) => {
-    const s = new THREE.Mesh(new THREE.CircleGeometry(r * 1.05, 24), treeShadow);
-    s.position.set(x + r * 0.35, y - r * 0.4, 0.0016); group.add(s);
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.12, r * 0.16, r * 0.7, 8), bark);
-    trunk.rotation.x = Math.PI / 2; trunk.position.set(x, y, r * 0.35); group.add(trunk);
+    trunk.rotation.x = Math.PI / 2; trunk.position.set(x, y, r * 0.35); trunk.userData.cast = true; group.add(trunk);
     const crown = [[0, 0, 1.05, 0.62], [0.42, 0.1, 0.8, 0.45], [-0.38, 0.2, 0.82, 0.45], [0.1, -0.42, 0.78, 0.44], [-0.15, 0.4, 0.86, 0.42], [0.05, 0.05, 1.35, 0.4]];
     crown.forEach(([dx, dy, dz, rr], k) => {
       const ball = new THREE.Mesh(new THREE.IcosahedronGeometry(r * rr, 1), leaf[(k + n) % leaf.length]);
-      ball.position.set(x + dx * r, y + dy * r, dz * r); group.add(ball);
+      ball.position.set(x + dx * r, y + dy * r, dz * r); ball.userData.cast = true; group.add(ball);
     });
   });
 
@@ -445,7 +448,7 @@ function buildCoaster(group) {
   for (const [x, y, t] of ART.markers) {
     const w = 92 / 1400, h = 52 / 1400, tall = 0.012;
     const block = new THREE.Mesh(new THREE.BoxGeometry(w, h, tall), wood);
-    block.position.set(x, y, tall / 2); group.add(block);
+    block.position.set(x, y, tall / 2); block.userData.cast = true; group.add(block);
     const tex = textTexture(184, 104, (c) => {
       c.strokeStyle = '#f7eed9'; c.lineWidth = 6; c.strokeRect(6, 6, 172, 92);
       c.fillStyle = '#f7eed9'; c.font = '800 62px Inter, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(t, 92, 56);
@@ -471,9 +474,7 @@ function buildCoaster(group) {
   const white = new THREE.MeshStandardMaterial({ color: 0xfbf8f2, roughness: 0.7 });
   const face = new THREE.MeshStandardMaterial({ map: qrTex, roughness: 0.7 });
   const sign = new THREE.Mesh(new THREE.BoxGeometry(qw, qh, qz), [white, white, white, white, face, white]);
-  sign.position.set((q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2, qz / 2); group.add(sign);
-  const qs = new THREE.Mesh(new THREE.PlaneGeometry(qw, qh), treeShadow);
-  qs.position.set(sign.position.x + 0.006, sign.position.y - 0.007, 0.0016); group.add(qs);
+  sign.position.set((q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2, qz / 2); sign.userData.cast = true; group.add(sign);
   const scanTex = textTexture(600, 90, (c) => {
     c.fillStyle = '#15302a'; c.beginPath(); c.roundRect(40, 4, 520, 82, 20); c.fill();
     c.fillStyle = '#dba854'; c.font = '800 58px Inter, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('SCAN TO PLAY', 300, 48);
@@ -546,13 +547,41 @@ if (IN_APP) { show($('start'), false); show($('inapp'), true); }
 // and a renderer, so it runs the same on the camera (MindAR) and in practice mode.
 // ---------------------------------------------------------------------------
 function makeGame({ group, camera, renderer, isTracking }) {
+  // ---- Rendering: filmic tone mapping, image-based lighting and real soft shadows
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 0.92;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  let scene = group; while (scene.parent) scene = scene.parent;
+  if (ENV_SCENE && scene.isScene) {
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(ENV_SCENE, 0.04).texture;      // soft studio reflections for PBR materials
+    pmrem.dispose();
+  }
   // Both ends of the directional light follow the anchor's pose.
-  const fill = new THREE.AmbientLight(0xfff7e8, 1.25);
-  const sun = new THREE.DirectionalLight(0xfff5da, 1.9);
+  const fill = new THREE.HemisphereLight(0xfff7e8, 0x3a5a30, 0.35);
+  const sun = new THREE.DirectionalLight(0xfff2d6, 2.0);
   sun.position.set(-0.6, 0.8, 2);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(1024, 1024);
+  sun.shadow.radius = 3;
   group.add(fill, sun, sun.target);
+  let shadowScale = 0;
+  const fitShadow = () => {              // the anchor is scaled in AR, so size the shadow camera in world units
+    group.updateWorldMatrix(true, false);
+    const k = group.matrixWorld.getMaxScaleOnAxis();
+    if (Math.abs(k - shadowScale) < shadowScale * 0.02) return;
+    shadowScale = k;
+    const c = sun.shadow.camera;
+    c.left = c.bottom = -0.62 * k; c.right = c.top = 0.62 * k; c.near = 1 * k; c.far = 3.6 * k;
+    c.updateProjectionMatrix();
+    sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.003 * k;
+  };
 
   buildTerrain(group);
+  group.traverse(o => { if (o.isMesh) o.receiveShadow = true; });
+  group.traverse(o => { if (o.isMesh && o.material.roughness < 0.4) o.material.envMapIntensity = 0.3; });   // keep the pond from mirroring the studio light
+  group.traverse(o => { if (o.isMesh && o.userData.cast) o.castShadow = true; });
 
   // Ball (with a soft contact shadow)
   const ballTex = (() => {      // tiny dimple texture so the roll is visible
@@ -573,6 +602,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
   shadowCtx.fillRect(0, 0, 32, 32);
   const shadow = new THREE.Mesh(new THREE.PlaneGeometry(BALL_R * 3.1, BALL_R * 3.1),
     new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(shadowCanvas), transparent: true, depthWrite: false }));
+  ball.castShadow = true;
   group.add(ball, shadow);
 
   // Flagstick standing in the printed cup, with a TJ's flag that waves
@@ -591,6 +621,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
   cloth.rotation.x = Math.PI / 2;                          // stand the flag up (plane XY -> XZ)
   cloth.position.set(0.055, 0, 0.157); flag.add(cloth);
   flag.position.set(COURSE.cup.x, COURSE.cup.y, heightAt(COURSE.cup.x, COURSE.cup.y));
+  flag.traverse(o => { if (o.isMesh) o.castShadow = true; });
   group.add(flag);
   document.fonts?.load('84px Lobster').then(() => {      // redraw once the font arrives
     const g = flagTex.image.getContext('2d'); g.fillStyle = '#d4a854'; g.fillRect(0, 0, 256, 160);
@@ -634,12 +665,219 @@ function makeGame({ group, camera, renderer, isTracking }) {
   // ---- State --------------------------------------------------------------
   const st = { pos: new THREE.Vector2(), vel: new THREE.Vector2(), last: new THREE.Vector2(), strokes: 0,
                moving: false, holed: false, sinkT: 0, started: false,
-               wind: 0, splashT: 0, lipped: false };
+               wind: 0, splashT: 0, lipped: false, t: 0 };
   let best = null; try { best = +localStorage.getItem('tjsHoleBest') || null; } catch (e) {}
   const updateHud = () => { $('strokes').textContent = st.strokes; };
   const tip = (t) => { $('tipText').textContent = t; show($('tip'), !!t); };
   let toastTimer = 0;
   const toast = (t) => { $('toastText').textContent = t; show($('toast'), true); clearTimeout(toastTimer); toastTimer = setTimeout(() => show($('toast'), false), 1400); };
+  // ---------------------------------------------------------------------------
+  // Levels. A hole in one moves you to the next hole, which adds obstacles.
+  // Positions are given along the tee -> cup line ("at", 0 = tee, 1 = cup) and
+  // to the side of it ("off", + is left of the line looking at the cup).
+  // ---------------------------------------------------------------------------
+  const LEVELS = [
+    { name: 'The Opener',   par: 3 },
+    { name: 'The Windmill', par: 3, windmill: { at: 0.45 } },
+    { name: 'Beverage Run', par: 3, cart: { at: 0.52 }, bumpers: [[0.8, 0.075], [0.8, -0.075]] },
+    { name: 'Spin Cycle',   par: 4, windmill: { at: 0.4 }, spinner: { at: 0.84, off: 0.06, period: 2.6 } },
+    { name: 'The Gauntlet', par: 4, cart: { at: 0.22, amp: 0.1 }, windmill: { at: 0.5 }, spinner: { at: 0.86, off: -0.06, period: 2.2 } },
+  ];
+  const lineU = new THREE.Vector2(COURSE.cup.x - COURSE.tee.x, COURSE.cup.y - COURSE.tee.y);
+  const lineLen = lineU.length(); lineU.normalize();
+  const lineN = new THREE.Vector2(-lineU.y, lineU.x);
+  const lineAng = Math.atan2(lineU.y, lineU.x);
+  const onLine = (at, off = 0) => new THREE.Vector2(COURSE.tee.x, COURSE.tee.y).addScaledVector(lineU, at * lineLen).addScaledVector(lineN, off);
+
+  // Shared materials (PBR: they pick up the environment reflections)
+  const M = {
+    stucco: new THREE.MeshStandardMaterial({ color: 0xf3eee4, roughness: 0.85 }),
+    roof:   new THREE.MeshStandardMaterial({ color: 0x1c3a2e, roughness: 0.55 }),
+    gold:   new THREE.MeshStandardMaterial({ color: 0xd4a854, roughness: 0.35, metalness: 0.6 }),
+    wood:   new THREE.MeshStandardMaterial({ color: 0x7a4e2a, roughness: 0.7 }),
+    steel:  new THREE.MeshStandardMaterial({ color: 0xd8dde2, roughness: 0.18, metalness: 0.95 }),
+    rubber: new THREE.MeshStandardMaterial({ color: 0xc0392b, roughness: 0.45 }),
+    white:  new THREE.MeshStandardMaterial({ color: 0xf7f4ee, roughness: 0.5 }),
+    dark:   new THREE.MeshStandardMaterial({ color: 0x1b1b1b, roughness: 0.8 }),
+  };
+  const castAll = (o) => o.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+
+  // ---- Physics helpers for moving parts ----------------------------------
+  // Oriented box (centre c, angle a, half sizes hx/hy) moving with velocity v.
+  const tmpV = new THREE.Vector2();
+  function hitBox(cx, cy, a, hx, hy, vx = 0, vy = 0, bounce = 0.75) {
+    const c = Math.cos(a), s = Math.sin(a);
+    const dx = st.pos.x - cx, dy = st.pos.y - cy;
+    const lx = dx * c + dy * s, ly = -dx * s + dy * c;
+    const ex = hx + BALL_R, ey = hy + BALL_R;
+    if (Math.abs(lx) > ex || Math.abs(ly) > ey) return false;
+    let rvx = (st.vel.x - vx) * c + (st.vel.y - vy) * s, rvy = -(st.vel.x - vx) * s + (st.vel.y - vy) * c;
+    let nx = lx, ny = ly;
+    if (ex - Math.abs(lx) < ey - Math.abs(ly)) { nx = Math.sign(lx) * ex; if (rvx * lx < 0) rvx = -rvx * bounce; }
+    else { ny = Math.sign(ly) * ey; if (rvy * ly < 0) rvy = -rvy * bounce; }
+    st.pos.set(cx + nx * c - ny * s, cy + nx * s + ny * c);
+    st.vel.set(rvx * c - rvy * s + vx, rvx * s + rvy * c + vy);
+    if (st.vel.length() > MAX_SPEED) st.vel.setLength(MAX_SPEED);
+    return true;
+  }
+  // Capsule from A to B with radius r; the surface moves with velocity vel(px, py) at the contact point.
+  function hitCapsule(ax, ay, bx, by, r, vel, bounce = 0.8) {
+    const ex = bx - ax, ey = by - ay, L2 = ex * ex + ey * ey;
+    const t = L2 ? Math.max(0, Math.min(1, ((st.pos.x - ax) * ex + (st.pos.y - ay) * ey) / L2)) : 0;
+    const qx = ax + ex * t, qy = ay + ey * t;
+    const dx = st.pos.x - qx, dy = st.pos.y - qy, d = Math.hypot(dx, dy) || 1e-6;
+    if (d >= r + BALL_R) return false;
+    const nx = dx / d, ny = dy / d;
+    const [vx, vy] = vel ? vel(qx, qy) : [0, 0];
+    const rv = (st.vel.x - vx) * nx + (st.vel.y - vy) * ny;
+    if (rv < 0) { st.vel.x -= (1 + bounce) * rv * nx; st.vel.y -= (1 + bounce) * rv * ny; }
+    st.pos.set(qx + nx * (r + BALL_R), qy + ny * (r + BALL_R));
+    if (st.vel.length() > MAX_SPEED) st.vel.setLength(MAX_SPEED);
+    return true;
+  }
+  let bonkT = 0;
+  const bonk = (msg) => { if (st.t - bonkT > 1) { toast(msg); bonkT = st.t; } };
+
+  // ---- Windmill: blades turn across the tunnel entrance --------------------
+  const WM = { D: 0.062, W: 0.046, T: 0.027, H: 0.078, L: 0.07, period: 4.2, block: 0.4 };
+  const windmill = new THREE.Group(); group.add(windmill);
+  {
+    const { D, W, T, H, L } = WM, tunnelH = 0.036;
+    for (const sy of [-1, 1]) {
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(D, W, H), M.stucco); wall.position.set(0, sy * (T + W / 2), H / 2); windmill.add(wall);
+      const win = new THREE.Mesh(new THREE.PlaneGeometry(0.014, 0.018), M.roof);          // little windows on the sides
+      win.position.set(0, sy * (T + W + 0.0005), H * 0.62); win.rotation.x = sy * Math.PI / 2; windmill.add(win);
+    }
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(D, 2 * T, H - tunnelH), M.stucco);
+    lintel.position.set(0, 0, tunnelH + (H - tunnelH) / 2); windmill.add(lintel);
+    const trim = new THREE.Mesh(new THREE.BoxGeometry(D + 0.006, 2 * (T + W) + 0.006, 0.006), M.gold);
+    trim.position.z = H; windmill.add(trim);
+    const roofGeo = new THREE.ConeGeometry(Math.SQRT1_2, 1, 4, 1); roofGeo.rotateY(Math.PI / 4); roofGeo.rotateX(Math.PI / 2); roofGeo.translate(0, 0, 0.5);
+    const roof = new THREE.Mesh(roofGeo, M.roof); roof.scale.set(D + 0.018, 2 * (T + W) + 0.018, 0.055); roof.position.z = H + 0.003; windmill.add(roof);
+    const signTex = textTexture(256, 96, (c) => { c.fillStyle = '#1c3a2e'; c.fillRect(0, 0, 256, 96); c.fillStyle = '#d4a854';
+      c.font = '64px Lobster, cursive'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText("TJ's", 128, 52); });
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.044, 0.016), new THREE.MeshStandardMaterial({ map: signTex, roughness: 0.6 }));
+    sign.rotation.set(Math.PI / 2, 0, -Math.PI / 2, 'ZYX'); sign.position.set(-D / 2 - 0.0006, 0, tunnelH + 0.012); windmill.add(sign);
+    // Blades: lattice sails on a gold hub, turning about the line of play
+    const latTex = textTexture(64, 256, (c) => { c.fillStyle = '#f3eee4'; c.fillRect(0, 0, 64, 256); c.strokeStyle = '#7a4e2a'; c.lineWidth = 6;
+      for (let y = 0; y <= 256; y += 32) { c.beginPath(); c.moveTo(0, y); c.lineTo(64, y); c.stroke(); }
+      c.beginPath(); c.moveTo(32, 0); c.lineTo(32, 256); c.stroke(); c.strokeRect(3, 3, 58, 250); });
+    const sailMat = new THREE.MeshStandardMaterial({ map: latTex, roughness: 0.8, side: THREE.DoubleSide });
+    const hub = new THREE.Group(); hub.position.set(-D / 2 - 0.009, 0, H - 0.004); windmill.add(hub);
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.01, 16), M.gold); cap.rotation.z = Math.PI / 2; hub.add(cap);
+    for (let i = 0; i < 4; i++) {
+      const arm = new THREE.Group(); arm.rotation.x = i * Math.PI / 2; hub.add(arm);
+      const spar = new THREE.Mesh(new THREE.BoxGeometry(0.003, 0.004, L), M.wood); spar.position.z = L / 2 + 0.004; arm.add(spar);
+      const sail = new THREE.Mesh(new THREE.PlaneGeometry(0.018, L * 0.78), sailMat);
+      sail.rotation.y = Math.PI / 2; sail.position.set(-0.002, 0.009, L * 0.56); arm.add(sail);
+    }
+    windmill.userData.hub = hub;
+    castAll(windmill);
+  }
+
+  // ---- TJ's beverage cart: drives back and forth across the line -------------
+  const CART = { len: 0.085, wid: 0.048, amp: 0.15, period: 3.6 };
+  const cart = new THREE.Group(); group.add(cart);
+  {
+    const box = (w, d, h, m, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, d, h), m); o.position.set(x, y, z); cart.add(o); };
+    box(CART.len, CART.wid, 0.022, M.gold, 0, 0, 0.022);
+    box(CART.len * 0.42, CART.wid * 0.9, 0.03, M.white, -CART.len * 0.22, 0, 0.048);
+    box(CART.len * 0.95, CART.wid * 1.04, 0.004, M.white, -0.004, 0, 0.082);
+    for (const sx of [-0.035, 0.03]) for (const sy of [-1, 1]) box(0.003, 0.003, 0.05, M.steel, sx, sy * CART.wid * 0.45, 0.058);
+    for (const sx of [-0.026, 0.026]) for (const sy of [-1, 1]) {
+      const w = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.007, 16), M.dark); w.position.set(sx, sy * CART.wid * 0.5, 0.011); cart.add(w);
+    }
+    const t = textTexture(256, 96, (c) => { c.fillStyle = '#15302a'; c.fillRect(0, 0, 256, 96); c.fillStyle = '#d4a854';
+      c.font = '64px Lobster, cursive'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText("TJ's", 128, 52); });
+    for (const sy of [-1, 1]) {
+      const s = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.019), new THREE.MeshStandardMaterial({ map: t, roughness: 0.6 }));
+      s.position.set(0.004, sy * (CART.wid / 2 + 0.0008), 0.022); s.rotation.x = sy * Math.PI / 2; if (sy < 0) s.rotation.y = Math.PI; cart.add(s);
+    }
+    castAll(cart);
+  }
+
+  // ---- Spinner: a polished arm sweeping round a striped post ----------------
+  const SP = { len: 0.088, r: 0.0055, post: 0.009 };
+  const spinner = new THREE.Group(); group.add(spinner);
+  {
+    const stripe = textTexture(64, 128, (c) => { for (let i = 0; i < 8; i++) { c.fillStyle = i % 2 ? '#f7f4ee' : '#c0392b'; c.fillRect(0, i * 16, 64, 16); } });
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(SP.post, SP.post, 0.05, 20), new THREE.MeshStandardMaterial({ map: stripe, roughness: 0.4 }));
+    post.rotation.x = Math.PI / 2; post.position.z = 0.025; spinner.add(post);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.011, 20, 12), M.gold); ball.position.z = 0.052; spinner.add(ball);
+    const arm = new THREE.Group(); arm.position.z = 0.013; spinner.add(arm);
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(SP.r, SP.r, SP.len, 14), M.steel);
+    bar.rotation.z = -Math.PI / 2; bar.position.x = SP.len / 2; arm.add(bar);
+    const tip = new THREE.Mesh(new THREE.SphereGeometry(SP.r * 1.5, 14, 10), M.rubber); tip.position.x = SP.len; arm.add(tip);
+    spinner.userData.arm = arm;
+    castAll(spinner);
+  }
+
+  // ---- Rubber bumpers ------------------------------------------------------
+  const BUMP_R = 0.016;
+  const bumpers = [0, 1].map(() => {
+    const b = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(BUMP_R, BUMP_R * 1.08, 0.022, 24), M.rubber); body.rotation.x = Math.PI / 2; body.position.z = 0.011; b.add(body);
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(BUMP_R * 1.02, BUMP_R * 1.02, 0.005, 24), M.white); band.rotation.x = Math.PI / 2; band.position.z = 0.014; b.add(band);
+    const top = new THREE.Mesh(new THREE.SphereGeometry(BUMP_R * 0.55, 16, 8, 0, TAU, 0, Math.PI / 2), M.gold); top.rotation.x = Math.PI / 2; top.position.z = 0.022; b.add(top);
+    castAll(b); group.add(b); return b;
+  });
+
+  // ---- Level state --------------------------------------------------------
+  const L = { n: 0, def: LEVELS[0], wmPos: new THREE.Vector2(), cartMid: new THREE.Vector2(), cartPos: new THREE.Vector2(), cartVel: new THREE.Vector2(),
+              spPos: new THREE.Vector2(), spAng: 0, bumps: [] };
+  function setLevel(n) {
+    L.n = Math.max(0, Math.min(LEVELS.length - 1, n)); const d = L.def = LEVELS[L.n];
+    windmill.visible = !!d.windmill; cart.visible = !!d.cart; spinner.visible = !!d.spinner;
+    if (d.windmill) { L.wmPos.copy(onLine(d.windmill.at)); windmill.position.set(L.wmPos.x, L.wmPos.y, heightAt(L.wmPos.x, L.wmPos.y) - 0.002); windmill.rotation.z = lineAng; }
+    if (d.cart) L.cartMid.copy(onLine(d.cart.at));
+    if (d.spinner) { L.spPos.copy(onLine(d.spinner.at, d.spinner.off)); spinner.position.set(L.spPos.x, L.spPos.y, heightAt(L.spPos.x, L.spPos.y)); }
+    L.bumps = (d.bumpers || []).map(([at, off]) => onLine(at, off));
+    bumpers.forEach((b, i) => { const p = L.bumps[i]; b.visible = !!p; if (p) b.position.set(p.x, p.y, heightAt(p.x, p.y)); });
+    $('hole').textContent = `HOLE ${L.n + 1} · PAR ${d.par}`;
+  }
+  function updateObstacles(t) {
+    const d = L.def;
+    if (d.windmill) windmill.userData.hub.rotation.x = -TAU * t / WM.period;
+    if (d.cart) {
+      const w = TAU / CART.period;
+      const amp = d.cart.amp ?? CART.amp;
+      L.cartPos.copy(L.cartMid).addScaledVector(lineN, amp * Math.sin(w * t));
+      L.cartVel.copy(lineN).multiplyScalar(amp * w * Math.cos(w * t));
+      cart.position.set(L.cartPos.x, L.cartPos.y, heightAt(L.cartPos.x, L.cartPos.y));
+      cart.rotation.z = lineAng + Math.PI / 2 + (Math.cos(w * t) < 0 ? Math.PI : 0);
+    }
+    if (d.spinner) { L.spAng = (d.spinner.off > 0 ? -1 : 1) * TAU * t / d.spinner.period; spinner.userData.arm.rotation.z = L.spAng; }
+  }
+  const windmillBlocked = () => {
+    const a = windmill.userData.hub.rotation.x;
+    for (let i = 0; i < 4; i++) {        // blade i points straight down when its angle is PI
+      const k = ((a + i * Math.PI / 2) % TAU + TAU) % TAU;
+      if (Math.abs(k - Math.PI) < WM.block) return true;
+    }
+    return false;
+  };
+  function collideObstacles() {
+    const d = L.def;
+    if (d.windmill) {
+      const { D, W, T } = WM, c = L.wmPos, a = lineAng;
+      for (const sy of [-1, 1]) {
+        const o = tmpV.copy(c).addScaledVector(lineN, sy * (T + W / 2));
+        if (hitBox(o.x, o.y, a, D / 2, W / 2)) bonk('Off the windmill!');
+      }
+      if (windmillBlocked()) {
+        const g = tmpV.copy(c).addScaledVector(lineU, -D / 2 - 0.009);
+        if (hitBox(g.x, g.y, a, 0.003, T)) bonk('Blocked by a blade!');
+      }
+    }
+    if (d.cart && hitBox(L.cartPos.x, L.cartPos.y, lineAng + Math.PI / 2, CART.len / 2, CART.wid / 2, L.cartVel.x, L.cartVel.y)) bonk('Bonk! Watch the cart');
+    if (d.spinner) {
+      const p = L.spPos, w = (d.spinner.off > 0 ? -1 : 1) * TAU / d.spinner.period;
+      const bx = p.x + Math.cos(L.spAng) * SP.len, by = p.y + Math.sin(L.spAng) * SP.len;
+      if (hitCapsule(p.x, p.y, bx, by, SP.r * 1.4, (qx, qy) => [-w * (qy - p.y), w * (qx - p.x)])) bonk('Swatted!');
+      hitCapsule(p.x, p.y, p.x, p.y, SP.post);
+    }
+    for (const p of L.bumps) if (hitCapsule(p.x, p.y, p.x, p.y, BUMP_R, null, 1.05)) bonk('Boing!');
+  }
 
   let resultTimer = 0;
   let accumulator = 0;
@@ -755,13 +993,21 @@ function makeGame({ group, camera, renderer, isTracking }) {
     st.holed = true; st.moving = false; st.vel.set(0, 0); st.sinkT = 0.001;
     burstConfetti();
     if (navigator.vibrate) navigator.vibrate([40, 60, 80]);
-    const n = st.strokes;
-    const name = n === 1 ? 'Hole in one!' : n === PAR - 1 ? 'Birdie!' : n === PAR ? 'Par' : n === PAR + 1 ? 'Bogey' : n === PAR + 2 ? 'Double bogey' : 'In the cup';
+    const n = st.strokes, par = L.def.par, last = L.n === LEVELS.length - 1;
+    const name = n === 1 ? (last ? 'Course champion!' : 'Hole in one!') : n === par - 1 ? 'Birdie!' : n === par ? 'Par' : n === par + 1 ? 'Bogey' : n === par + 2 ? 'Double bogey' : 'In the cup';
     $('resTitle').textContent = name;
-    let line = n === 1 ? 'One stroke. Drinks are on you.' : `${n} strokes${n <= PAR ? '. Nice putting.' : '. The bar is still open.'}`;
-    if (best === null || n < best) { if (best !== null) line += ' New personal best!'; best = n; try { localStorage.setItem('tjsHoleBest', String(n)); } catch (e) {} }
-    else line += ` Your best: ${best}.`;
+    let line = n === 1 ? 'One stroke. Drinks are on you.' : `${n} strokes${n <= par ? '. Nice putting.' : '. The bar is still open.'}`;
+    if (n === 1 && !last) line += ` Hole ${L.n + 2}, ${LEVELS[L.n + 1].name}, is open.`;
+    else if (n === 1 && last) line += ' You beat every hole on the course.';
+    else line += last ? ' Sink a hole in one to beat the course.' : ` Sink a hole in one to unlock hole ${L.n + 2}.`;
+    if (n !== 1 || L.n === 0) {
+      if (best === null || n < best) { if (best !== null && L.n === 0) line += ' New personal best!'; best = n; try { localStorage.setItem('tjsHoleBest', String(n)); } catch (e) {} }
+    }
+    if (n === 1 && last) line = 'One stroke on the hardest hole. You beat the whole course!';
     $('resScore').textContent = line;
+    $('next').hidden = n !== 1;
+    $('next').textContent = last ? 'Start over' : 'Next hole';
+    $('again').textContent = n === 1 ? 'Replay hole' : 'Try again';
     resultTimer = setTimeout(() => show($('result'), true), 1100);
   };
 
@@ -775,6 +1021,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
   }
   function advance() {
     const h = FIXED_STEP;
+    st.t += h; updateObstacles(st.t);       // obstacles keep moving whether or not the ball is
     if (st.splashT > 0) {
       st.splashT -= h;
       if (st.splashT <= 0) {
@@ -821,6 +1068,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
     if (surfaceAt(st.pos.x, st.pos.y) === 'water') { splash(); return; }
     for (const [tx, ty, r] of COURSE.trees) bounceCircle(tx, ty, r, false);
     bounceBox(COURSE.qr);
+    collideObstacles();
     bounceCircle(0, 0, COURSE.edge, true);
     const distance = previous.distanceTo(st.pos);
     if (distance > 0) {
@@ -830,6 +1078,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
   }
 
   const step = dt => {
+    fitShadow();
     const t = performance.now() / 1000;
     const arr = clothGeo.attributes.position.array;
     const wind = st.wind / WIND_MAX;
@@ -875,8 +1124,14 @@ function makeGame({ group, camera, renderer, isTracking }) {
     }
   };
 
+  setLevel(0);
+  $('next').onclick = () => {
+    const nextN = L.n === LEVELS.length - 1 ? 0 : L.n + 1;
+    setLevel(nextN); reset();
+    toast(`Hole ${nextN + 1}: ${L.def.name}`);
+  };
   reset();
-  return { step, reset, cancelDrag,
+  return { step, reset, cancelDrag, setLevel, levels: LEVELS, level: () => L.n,
     dispose: () => removeEventListener('resize', cancelDrag),
     start: () => { st.started = true; }, state: st };
 }
@@ -997,6 +1252,8 @@ async function go(demo) {
       throw new Error('Camera requires HTTPS and a compatible browser');
     }
     THREE ||= await import('three');
+    try { const { RoomEnvironment } = await import('three/addons/environments/RoomEnvironment.js'); ENV_SCENE = new RoomEnvironment(); }
+    catch (e) { console.warn('No environment lighting', e); }
     if (demo) startDemo();
     else await startAR();
   } catch (error) {
