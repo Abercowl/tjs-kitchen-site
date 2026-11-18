@@ -1,0 +1,292 @@
+{
+  "version": 1,
+  "coordinate_system": "Three.js Y-up; x horizontal, z along hole, y vertical",
+  "units": "meters",
+  "notes": [
+    "Each GLB is a full visual course, including rails, tee, cup, flag and themed obstacles.",
+    "GLB meshes are decorative; use the hazard coordinates and existing physics for gameplay.",
+    "The windmill passage is decorative, and spinner/windmill animation is not rigged.",
+    "All holes use the same 1.38 m × 2.82 m footprint; scale the root uniformly for smaller tabletops.",
+    "Start ball at tee x=0,z=-1.10, just above surface y=0.14; cup at x=0,z=1.11.",
+    "GLBs use Y-up; if your engine expects Z-up, rotate accordingly."
+  ],
+  "holes": [
+    {
+      "hole": 1,
+      "name": "Garden Slalom",
+      "file": "hole-01.glb",
+      "par": 2,
+      "tee": [
+        0,
+        0.14,
+        -1.1
+      ],
+      "cup": [
+        0,
+        0.13,
+        1.11
+      ],
+      "bounds": {
+        "width": 1.38,
+        "length": 2.82
+      },
+      "hazards": [
+        {
+          "type": "solid",
+          "shape": "circle",
+          "center": [
+            -0.43,
+            -0.4
+          ],
+          "radius": 0.14
+        },
+        {
+          "type": "solid",
+          "shape": "circle",
+          "center": [
+            0.43,
+            0.33
+          ],
+          "radius": 0.14
+        },
+        {
+          "type": "solid",
+          "shape": "circle",
+          "center": [
+            0.32,
+            -0.77
+          ],
+          "radius": 0.19
+        },
+        {
+          "type": "solid",
+          "shape": "circle",
+          "center": [
+            -0.31,
+            0.65
+          ],
+          "radius": 0.19
+        }
+      ]
+    },
+    {
+      "hole": 2,
+      "name": "Bunker Run",
+      "file": "hole-02.glb",
+      "par": 2,
+      "tee": [
+        0,
+        0.14,
+        -1.1
+      ],
+      "cup": [
+        0,
+        0.13,
+        1.11
+      ],
+      "bounds": {
+        "width": 1.38,
+        "length": 2.82
+      },
+      "hazards": [
+        {
+          "type": "sand",
+          "shape": "circle",
+          "center": [
+            -0.22,
+            -0.16
+          ],
+          "radius": 0.27,
+          "speed_multiplier": 0.45
+        },
+        {
+          "type": "solid",
+          "shape": "circle",
+          "center": [
+            0.4,
+            -0.57
+          ],
+          "radius": 0.13
+        },
+        {
+          "type": "solid",
+          "shape": "circle",
+          "center": [
+            0.38,
+            0.55
+          ],
+          "radius": 0.13
+        },
+        {
+          "type": "solid",
+          "shape": "circle",
+          "center": [
+            -0.35,
+            0.62
+          ],
+          "radius": 0.18
+        }
+      ]
+    },
+    {
+      "hole": 3,
+      "name": "Water Crossing",
+      "file": "hole-03.glb",
+      "par": 3,
+      "tee": [
+        0,
+        0.14,
+        -1.1
+      ],
+      "cup": [
+        0,
+        0.13,
+        1.11
+      ],
+      "bounds": {
+        "width": 1.38,
+        "length": 2.82
+      },
+      "hazards": [
+        {
+          "type": "water",
+          "shape": "circle",
+          "center": [
+            0.18,
+            -0.05
+          ],
+          "radius": 0.32,
+          "penalty_strokes": 1
+        },
+        {
+          "type": "solid",
+          "shape": "circle",
+          "center": [
+            -0.43,
+            -0.62
+          ],
+          "radius": 0.13
+        },
+        {
+          "type": "solid",
+          "shape": "circle",
+          "center": [
+            0.42,
+            0.7
+          ],
+          "radius": 0.12
+        }
+      ]
+    },
+    {
+      "hole": 4,
+      "name": "Windmill Challenge",
+      "file": "hole-04.glb",
+      "par": 3,
+      "tee": [
+        0,
+        0.14,
+        -1.1
+      ],
+      "cup": [
+        0,
+        0.13,
+        1.11
+      ],
+      "bounds": {
+        "width": 1.38,
+        "length": 2.82
+      },
+      "hazards": [
+        {
+          "type": "solid",
+          "shape": "circle",
+          "center": [
+            0,
+            0.07
+          ],
+          "radius": 0.22,
+          "passage": "front opening is decorative; game collision requires custom tunnel"
+        },
+        {
+          "type": "solid",
+          "shape": "circle",
+          "center": [
+            -0.4,
+            -0.73
+          ],
+          "radius": 0.11
+        },
+        {
+          "type": "solid",
+          "shape": "circle",
+          "center": [
+            0.4,
+            0.77
+          ],
+          "radius": 0.11
+        }
+      ]
+    },
+    {
+      "hole": 5,
+      "name": "TJ’s Grand Finale",
+      "file": "hole-05.glb",
+      "par": 3,
+      "tee": [
+        0,
+        0.14,
+        -1.1
+      ],
+      "cup": [
+        0,
+        0.13,
+        1.11
+      ],
+      "bounds": {
+        "width": 1.38,
+        "length": 2.82
+      },
+      "hazards": [
+        {
+          "type": "spinner",
+          "shape": "circle",
+          "center": [
+            0,
+            -0.13
+          ],
+          "radius": 0.25,
+          "animated": false
+        },
+        {
+          "type": "solid",
+          "shape": "circle",
+          "center": [
+            -0.42,
+            0.61
+          ],
+          "radius": 0.22
+        },
+        {
+          "type": "sand",
+          "shape": "circle",
+          "center": [
+            0.4,
+            0.57
+          ],
+          "radius": 0.16,
+          "speed_multiplier": 0.5
+        },
+        {
+          "type": "solid",
+          "shape": "circle",
+          "center": [
+            0.37,
+            -0.76
+          ],
+          "radius": 0.18
+        }
+      ]
+    }
+  ]
+}

@@ -144,18 +144,20 @@ const show = (el, on) => el.classList.toggle('hidden', !on);
 // Units: the tracked image is 1 unit wide, centred on the coaster, x right,
 // y toward the top of the art, z up off the coaster (toward the camera).
 // ---------------------------------------------------------------------------
-const COURSE = {
+const COURSE_OLD = {
   tee:  { x: 0.0, y: -0.78 },                    // sits on the coaster
   cup:  { x: 0.10, y: 0.70, r: 0.020 },
   trees: [ [-0.30, 0.05, 0.055], [0.33, 0.42, 0.05], [-0.33, 0.86, 0.045] ],   // planter islands: obstacles
 };
+// Course files (all five holes share tee and cup; hazards come from the manifest)
+const COURSE = { tee: { x: 0, y: -1.10 }, cup: { x: 0, y: 1.11, r: 0.065 }, trees: [] };
 // How big the course is on the real bar: metres per course unit (the hole is about 1.5 units long)
-const SIZES = { S: 0.11, M: 0.15, L: 0.2 };      // M: the hole is about 22 cm long
+const SIZES = { S: 0.1, M: 0.13, L: 0.17 };      // metres on the bar per course metre: M makes the 2.8 m course ~37 cm long
 const EXT = 2.4;                                  // texture extent in course units (covers -1.2..1.2)
-const BALL_R = 0.014;
-const FRICTION = { green: 0.36, rough: 0.55, sand: 2.7 };   // rough = the fairway carpet
-const MAX_SPEED = 1.9, POWER = 4.5;
-const SINK_SPEED = 0.46;
+const BALL_R = 0.03;                              // course files are 1.38 x 2.82 m with a 0.07 m cup
+const FRICTION = { green: 0.45, rough: 0.45, sand: 2.4 };
+const MAX_SPEED = 2.7, POWER = 4.5;
+const SINK_SPEED = 0.8;
 const PAR = 3;
 const BETA_UNLOCK_ALL = true;      // beta testing: no par requirement to move on
 const FIXED_STEP = 1 / 120;
@@ -209,13 +211,13 @@ function radialOutline(points, x, y) {
   return { x, y, radii, inset };
 }
 
-const green = radialOutline(OUTLINES.green, COURSE.cup.x, COURSE.cup.y);
+const green = radialOutline(OUTLINES.green, COURSE_OLD.cup.x, COURSE_OLD.cup.y);   // (old built-in course)
 const bunker = radialOutline(OUTLINES.bunker, -0.26, 0.42);
 const pond = radialOutline(OUTLINES.pond, 0.25, -0.12);
 const carpet = radialOutline(OUTLINES.carpet, 0.02, 0.03);
 const FLOOR = 0.001;
-const CUP_FLOOR = 0.003;
-const WATER_Z = 0.006;
+const CUP_FLOOR = 0.05;                                 // inside the course file's cup
+const WATER_Z = 0.125;                                  // course file water surface
 const MOUTH = COURSE.cup.r + 0.001;
 
 function greenHeight(x, y) {
@@ -228,12 +230,25 @@ function sandHeight(depth) {
   return FLOOR + 0.012 - 0.011 * smooth(depth / 0.044);
 }
 function heightAt(x, y) {
+  if (MANIFEST) {                                       // course files: flat turf, except the spinner's low round stage
+    const sp = hazards('spinner')[0];
+    if (sp) { const d = Math.hypot(x - sp.center[0], y - sp.center[1]); if (d < sp.radius) return SURFACE + 0.054 * smooth((sp.radius - d) / 0.06); }
+    const wm = hazards('solid').find(h => h.passage);     // the windmill stands on a low round base; the tunnel runs across it
+    if (wm) { const d = Math.hypot(x - wm.center[0], y - wm.center[1]); if (d < 0.29) return SURFACE + 0.051 * smooth((0.29 - d) / 0.06); }
+    return SURFACE;
+  }
   const sand = bunker.inset(x, y);
   const grass = greenHeight(x, y);
   if (sand >= 0) return sandHeight(sand);
   return THREE.MathUtils.lerp(grass, sandHeight(0), smooth(1 + sand / 0.028));
 }
 function surfaceAt(x, y) {
+  if (MANIFEST) {
+    const bridge = holeData()?.file === 'hole-03.glb' && Math.abs(x) < 0.32 && y > -0.18 && y < 0.08;   // the plank bridge is dry
+    if (!bridge && hazards('water').some(h => inCircle(h, x, y, -0.02))) return 'water';
+    if (hazards('sand').some(h => inCircle(h, x, y))) return 'sand';
+    return 'green';
+  }
   if (pond.inset(x, y) > 0.004) return 'water';
   if (bunker.inset(x, y) >= 0) return 'sand';
   return green.inset(x, y) >= 0 ? 'green' : 'rough';
@@ -311,6 +326,38 @@ function textTexture(w, h, draw) {
   document.fonts?.ready.then(paint).catch(() => {});        // repaint once Lobster / Inter arrive
   return t;
 }
+// ---------------------------------------------------------------------------
+// Course files: /play2/courses/hole-01..05.glb + course-manifest.json (from ChatGPT).
+// Each file is a whole hole (turf, rails, tee, cup, flag, obstacles), Y-up, metres.
+// Turned Z-up, the manifest's (x, z) are exactly the game's (x, y): tee near the player.
+// ---------------------------------------------------------------------------
+let MANIFEST = null;
+const COURSE_FILES = [];
+let CUR_HOLE = 0;
+const SURFACE = 0.109;                                   // turf top in the files
+const RAIL_IN = { x: 0.61, y: 1.32 };                    // inside faces of the rails
+async function loadCourses() {
+  const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+  MANIFEST = await fetch('/play2/courses/course-manifest.json').then(r => r.json());
+  const loader = new GLTFLoader();
+  await Promise.all(MANIFEST.holes.map((h, i) => loader.loadAsync(`/play2/courses/${h.file}`).then(g => {
+    srgbToLinearColours(g.scene);
+    g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    COURSE_FILES[i] = g.scene;
+  })));
+}
+function srgbToLinearColours(root) {                    // the files store sRGB vertex colours; glTF expects linear
+  root.traverse(o => {
+    const c = o.isMesh && o.geometry.attributes.color; if (!c || c.userData?.linear) return;
+    const col = new THREE.Color();
+    for (let i = 0; i < c.count; i++) { col.setRGB(c.getX(i), c.getY(i), c.getZ(i)).convertSRGBToLinear(); c.setXYZ(i, col.r, col.g, col.b); }
+    c.userData = { linear: true }; c.needsUpdate = true;
+  });
+}
+const holeData = () => MANIFEST?.holes[CUR_HOLE];
+const hazards = (type) => (holeData()?.hazards || []).filter(h => h.type === type);
+const inCircle = (h, x, y, pad = 0) => Math.hypot(x - h.center[0], y - h.center[1]) < h.radius + pad;
+
 // ---------------------------------------------------------------------------
 // 3D models (/play2/models/*.glb, low-poly, Y-up, metres, origin at the base centre).
 // Loaded before the game starts; if any fail, the built-in shapes are used instead.
@@ -562,7 +609,7 @@ if (IN_APP) { show($('start'), false); show($('inapp'), true); }
 function makeGame({ group, camera, renderer, isTracking }) {
   // ---- Rendering: filmic tone mapping, image-based lighting and real soft shadows
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.92;
+  renderer.toneMappingExposure = 1.15;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   let scene = group; while (scene.parent) scene = scene.parent;
@@ -572,7 +619,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
     pmrem.dispose();
   }
   // Both ends of the directional light follow the anchor's pose.
-  const fill = new THREE.HemisphereLight(0xfff7e8, 0x3a5a30, 0.35);
+  const fill = new THREE.HemisphereLight(0xfff7e8, 0x3a5a30, 0.6);
   const sun = new THREE.DirectionalLight(0xfff2d6, 2.0);
   sun.position.set(-0.6, 0.8, 2);
   sun.castShadow = true;
@@ -586,12 +633,43 @@ function makeGame({ group, camera, renderer, isTracking }) {
     if (Math.abs(k - shadowScale) < shadowScale * 0.02) return;
     shadowScale = k;
     const c = sun.shadow.camera;
-    c.left = c.bottom = -1.35 * k; c.right = c.top = 1.35 * k; c.near = 0.4 * k; c.far = 4.5 * k;
+    c.left = c.bottom = -1.7 * k; c.right = c.top = 1.7 * k; c.near = 0.3 * k; c.far = 5 * k;
     c.updateProjectionMatrix();
     sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.003 * k;
   };
 
-  buildTerrain(group);
+  // The hole itself comes from the course file for the current hole (swapped in setLevel)
+  const courseHolder = new THREE.Group(); group.add(courseHolder);
+  const catcher = new THREE.Mesh(new THREE.PlaneGeometry(8, 8), new THREE.ShadowMaterial({ opacity: 0.3 }));
+  catcher.position.z = -0.06 + 0.0005; catcher.receiveShadow = true; group.add(catcher);   // shadows on the real bar
+  let windmillSails = null, wheel = null;
+  const showCourse = (i) => {
+    courseHolder.clear(); windmillSails = wheel = null;
+    if (!COURSE_FILES[i]) return;
+    const hole = COURSE_FILES[i].clone(true);
+    hole.rotation.x = Math.PI / 2;                       // file Y-up -> course Z-up (the manifest's x,z become our x,y)
+    for (const n of ['geometry_36', 'geometry_37']) hole.getObjectByName(n)?.removeFromParent();   // its static flag: ours waves with the wind
+    const file = MANIFEST.holes[i].file;
+    if (file === 'hole-04.glb') {                        // windmill: turn the sails, and open a passage right through the tower
+      const hub = new THREE.Vector3(0, 0.4895, 0.169);
+      const pivot = new THREE.Group(); pivot.position.copy(hub); hole.add(pivot);
+      for (let k = 55; k <= 71; k++) { const n = hole.getObjectByName('geometry_' + k); if (n) { n.position.sub(hub); pivot.add(n); } }
+      windmillSails = pivot;
+      const dark = new THREE.MeshStandardMaterial({ color: 0x1d1a16, roughness: 1 });
+      for (const z of [0.122, -0.255]) {                 // tunnel mouths, front and back, down to the turf
+        const m = new THREE.Mesh(new THREE.BoxGeometry(0.124, 0.19, 0.012), dark); m.position.set(0, 0.16 + 0.095, z); hole.add(m);   // from the base top
+      }
+    }
+    if (file === 'hole-05.glb') {                        // spin the prize wheel (decorative)
+      const parts = []; hole.traverse(o => { if (o.isMesh) { const b = new THREE.Box3().setFromObject(o); const c = b.getCenter(new THREE.Vector3());
+        if (b.min.y > 0.25 && Math.abs(c.x) < 0.25 && c.z > 0.05 && c.z < 0.21) parts.push(o); } });
+      if (parts.length) {
+        const hub = new THREE.Vector3(0, 0.49, 0.13); wheel = new THREE.Group(); wheel.position.copy(hub); hole.add(wheel);
+        parts.forEach(o => { o.position.sub(hub); wheel.add(o); });
+      }
+    }
+    courseHolder.add(hole);
+  };
   group.traverse(o => { if (o.isMesh) o.receiveShadow = true; });
   group.traverse(o => { if (o.isMesh && o.material.roughness < 0.4) o.material.envMapIntensity = 0.3; });   // keep the pond from mirroring the studio light
   group.traverse(o => { if (o.isMesh && o.userData.cast) o.castShadow = true; });
@@ -633,7 +711,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
   const cloth = new THREE.Mesh(clothGeo, new THREE.MeshStandardMaterial({ map: flagTex, emissive: 0xffffff, emissiveMap: flagTex, emissiveIntensity: 0.24, side: THREE.DoubleSide, roughness: 0.8 }));
   cloth.rotation.x = Math.PI / 2;                          // stand the flag up (plane XY -> XZ)
   cloth.position.set(0.055, 0, 0.157); flag.add(cloth);
-  flag.position.set(COURSE.cup.x, COURSE.cup.y, heightAt(COURSE.cup.x, COURSE.cup.y));
+  flag.position.set(COURSE.cup.x, COURSE.cup.y, SURFACE); flag.scale.setScalar(2.4);   // sized to the course files
   flag.traverse(o => { if (o.isMesh) o.castShadow = true; });
   group.add(flag);
   document.fonts?.load('84px Lobster').then(() => {      // redraw once the font arrives
@@ -667,7 +745,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
   const burstConfetti = () => {
     conf.visible = true; confT = 0;
     for (const q of parts) {
-      q.p.set(COURSE.cup.x, COURSE.cup.y, 0.02);
+      q.p.set(COURSE.cup.x, COURSE.cup.y, SURFACE + 0.04);
       const a = Math.random() * Math.PI * 2, out = 0.15 + Math.random() * 0.45;
       q.v.set(Math.cos(a) * out, Math.sin(a) * out, 0.9 + Math.random() * 1.1);
       q.r.set(Math.random() * 6, Math.random() * 6, Math.random() * 6); q.s.set(Math.random() * 12 - 6, Math.random() * 12 - 6, Math.random() * 12 - 6);
@@ -689,7 +767,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
   // Positions are given along the tee -> cup line ("at", 0 = tee, 1 = cup) and
   // to the side of it ("off", + is left of the line looking at the cup).
   // ---------------------------------------------------------------------------
-  const LEVELS = [
+  const LEVELS = MANIFEST ? MANIFEST.holes.map(h => ({ name: h.name, par: h.par })) : [
     { name: 'The Opener',   par: 3 },
     { name: 'The Windmill', par: 3, windmill: { at: 0.45 } },
     { name: 'Beverage Run', par: 3, cart: { at: 0.52 }, bumpers: [[0.8, 0.075], [0.8, -0.075]] },
@@ -867,10 +945,13 @@ function makeGame({ group, camera, renderer, isTracking }) {
     if (d.spinner) { L.spPos.copy(onLine(d.spinner.at, d.spinner.off)); spinner.position.set(L.spPos.x, L.spPos.y, heightAt(L.spPos.x, L.spPos.y)); }
     L.bumps = (d.bumpers || []).map(([at, off]) => onLine(at, off));
     bumpers.forEach((b, i) => { const p = L.bumps[i]; b.visible = !!p; if (p) b.position.set(p.x, p.y, heightAt(p.x, p.y)); });
+    CUR_HOLE = L.n; showCourse(L.n);
     $('hole').textContent = `HOLE ${L.n + 1} · PAR ${d.par}`;
   }
   function updateObstacles(t) {
     const d = L.def;
+    if (windmillSails) windmillSails.rotation.z = t * 1.6;   // decorative sails (course file)
+    if (wheel) wheel.rotation.z = -t * 1.1;
     if (d.windmill) {
       windmill.userData.hub.rotation.x = -TAU * t / WM.period;
       // model sails sit at 45 degrees: offset so a sail points down exactly when the tunnel is blocked
@@ -968,7 +1049,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
     const unproject = group.matrixWorld.clone().invert()
       .multiply(camera.matrixWorld).multiply(camera.projectionMatrixInverse);
     const point = toCoaster(e, rect, unproject);
-    if (!point || carpet.inset(point.x, point.y) < -0.1) return;
+    if (!point || (MANIFEST ? Math.abs(point.x) > RAIL_IN.x + 0.3 || Math.abs(point.y) > RAIL_IN.y + 0.3 : carpet.inset(point.x, point.y) < -0.1)) return;
     drag = { point, rect, unproject, id: e.pointerId };
     shot.set(0, 0);
     canvas.setPointerCapture(e.pointerId);
@@ -988,8 +1069,8 @@ function makeGame({ group, camera, renderer, isTracking }) {
     for (let i = 0; aim.visible && i < dots.length; i++) {
       const d = 0.024 + (0.035 + 0.18 * power) * i / (dots.length - 1);
       const x = st.pos.x + shot.x * d / speed, y = st.pos.y + shot.y * d / speed;
-      dots[i].visible = carpet.inset(x, y) >= 0;
-      dots[i].position.set(x, y, heightAt(x, y) + 0.012);
+      dots[i].visible = MANIFEST ? Math.abs(x) < RAIL_IN.x && Math.abs(y) < RAIL_IN.y : carpet.inset(x, y) >= 0;
+      dots[i].position.set(x, y, heightAt(x, y) + 0.02);
       dots[i].scale.setScalar(1 - 0.04 * i);
     }
     $('powerBar').style.width = Math.round(power * 100) + '%';
@@ -1020,6 +1101,14 @@ function makeGame({ group, camera, renderer, isTracking }) {
   };
   // Rails: the edge of the carpet. Push the ball back inside and reflect it off the rail.
   const bounceRail = () => {
+    if (MANIFEST) {                                     // course files: straight wooden rails round a rectangle
+      const mx = RAIL_IN.x - BALL_R, my = RAIL_IN.y - BALL_R;
+      if (st.pos.x < -mx) { st.pos.x = -mx; st.vel.x = Math.abs(st.vel.x) * 0.75; }
+      if (st.pos.x > mx) { st.pos.x = mx; st.vel.x = -Math.abs(st.vel.x) * 0.75; }
+      if (st.pos.y < -my) { st.pos.y = -my; st.vel.y = Math.abs(st.vel.y) * 0.75; }
+      if (st.pos.y > my) { st.pos.y = my; st.vel.y = -Math.abs(st.vel.y) * 0.75; }
+      return;
+    }
     const { x, y } = st.pos, e = 0.002;
     const d = carpet.inset(x, y) - RAIL_W - BALL_R;
     if (d >= 0) return;
@@ -1119,6 +1208,18 @@ function makeGame({ group, camera, renderer, isTracking }) {
 
     if (surfaceAt(st.pos.x, st.pos.y) === 'water') { splash(); return; }
     for (const [tx, ty, r] of COURSE.trees) bounceCircle(tx, ty, r, false);
+    for (const sp of hazards('spinner')) {
+      if (!inCircle(sp, st.pos.x, st.pos.y)) continue;
+      const kick = 1.1 * Math.sin(st.t * 1.1);           // the wheel's spin pushes the ball left or right
+      st.vel.x += kick * FIXED_STEP;
+    }
+    for (const h of hazards('solid')) {
+      if (h.passage && Math.abs(st.pos.x - h.center[0]) < 0.062 - BALL_R) continue;   // windmill tunnel straight through
+      if (h.passage && Math.abs(st.pos.x - h.center[0]) < 0.062 + BALL_R && Math.abs(st.pos.y - h.center[1]) < h.radius) {   // tunnel walls
+        st.pos.x = h.center[0] + Math.sign(st.pos.x - h.center[0]) * (0.062 - BALL_R); st.vel.x *= -0.6; continue;
+      }
+      bounceCircle(h.center[0], h.center[1], h.radius, false);
+    }
     collideObstacles();
     bounceRail();
     const distance = previous.distanceTo(st.pos);
@@ -1205,7 +1306,7 @@ function startDemo() {
     const a = innerWidth / innerHeight;
     camera.aspect = a; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight);
     const k = Math.max(1, 0.75 / a);
-    camera.position.set(0, -1.35 - 1.45 * k, 0.75 + 0.75 * k); camera.lookAt(0, 0.25, 0);   // a low, standing-at-the-bar view
+    camera.position.set(0, -2.6 - 1.9 * k, 1.5 + 1.1 * k); camera.lookAt(0, 0.2, 0);   // a low, standing-at-the-bar view
   };
   fit(); addEventListener('resize', fit);
   const bar = new THREE.Group(); scene.add(bar);
@@ -1222,7 +1323,7 @@ function startDemo() {
   bar.add(top);                              // the course's shadow catcher draws the shadows
   const coasterDisk = new THREE.Mesh(new THREE.CylinderGeometry(0.0445 / SIZES.M, 0.0445 / SIZES.M, 0.004, 48), new THREE.MeshStandardMaterial({ color: 0xf1ece2, roughness: 0.9 }));
   coasterDisk.rotation.x = Math.PI / 2; coasterDisk.position.set(COURSE.tee.x, COURSE.tee.y, 0.002); bar.add(coasterDisk);
-  const group = new THREE.Group(); group.position.z = LIFT; scene.add(group);
+  const group = new THREE.Group(); group.position.z = 0.06; scene.add(group);
 
   const game = makeGame({ group, camera, renderer, isTracking: () => true });
   game.start();
@@ -1416,7 +1517,7 @@ async function startEighth() {
         smoothCamera = makeCameraSmoother(camera, () => 1 / worldPerMetre);
         place = new THREE.Group(); place.visible = false; scene.add(place);
         scaler = new THREE.Group(); place.add(scaler);
-        group = new THREE.Group(); group.position.set(-COURSE.tee.x, -COURSE.tee.y, LIFT); scaler.add(group);
+        group = new THREE.Group(); group.position.set(-COURSE.tee.x, -COURSE.tee.y, 0.06); scaler.add(group);   // file's base is 6 cm below the turf
         game = makeGame({ group, camera, renderer, isTracking: () => placed });
         $('again').onclick = () => game.reset();
         game.tip('');                                     // the scan prompts come first
@@ -1465,7 +1566,7 @@ async function go(demo) {
       throw new Error('Camera requires HTTPS and a compatible browser');
     }
     THREE ||= await import('three');
-    try { await loadModels(); } catch (e) { console.warn('3D models unavailable, using built-in shapes', e); }
+    await loadCourses();                               // the five course files (required)
     try { const { RoomEnvironment } = await import('three/addons/environments/RoomEnvironment.js'); ENV_SCENE = new RoomEnvironment(); }
     catch (e) { console.warn('No environment lighting', e); }
     if (demo) startDemo();
