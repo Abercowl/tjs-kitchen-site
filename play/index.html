@@ -89,7 +89,7 @@
   <div class="steps">
     <div><b>Aim</b>Pull back opposite the shot</div>
     <div><b>Putt</b>Pull further, hit harder. Let go to putt</div>
-    <div><b>Sink it</b>Mind the wind, the slope and the cart</div>
+    <div><b>Sink it</b>Read the slope and avoid the pond</div>
   </div>
   <button id="go" class="btn">Tee it up</button>
   <div class="small">We'll ask to use your camera. Nothing is recorded.<br>No coaster handy? <a href="#demo" id="demoLink">Practice here</a></div>
@@ -105,7 +105,7 @@
 <div id="loading" class="hidden">Starting camera…</div>
 <div id="hud" class="hidden">STROKES<b id="strokes">0</b><div class="wind">WIND <span id="wind">0 mph</span></div></div>
 <div id="power" class="hidden"><i id="powerBar"></i></div>
-<div id="tip" class="hidden"><span id="tipText">Watch the flag for wind and dodge the cart. Pull back, then let go</span></div>
+<div id="tip" class="hidden"><span id="tipText">Pull back, then let go</span></div>
 <div id="toast" class="hidden"><span id="toastText"></span></div>
 
 <div id="result" class="screen hidden">
@@ -146,12 +146,7 @@ const PAR = 3;
 const FIXED_STEP = 1 / 120;
 const SLOPE_GRAVITY = 1.25;
 const MAX_SLOPE_ACCEL = 0.24;
-const WIND_MAX = 18;                                         // mph shown at full strength
-const WIND_ACCEL_MAX = 0.1;    // push of a full-strength wind on a rolling ball (units / s^2). Slope (0.24) + wind
-                               // stays under green friction (0.36) so a ball always comes to rest.
-// TJ's beverage cart: drives back and forth across the line from tee to cup. Time the putt to slip past it.
-const CART = { len: 0.085, wid: 0.048, amp: 0.15, period: 3.6,   // size, swing either side of its track centre, seconds per round trip
-               at: 0.52 };                                         // how far along tee -> cup its track crosses
+const WIND_MAX = 18;
 
 // Printed outlines from coaster-art-generator.py, converted from the
 // 1400 x 1400 artwork to MindAR's centered, unit-width target coordinates.
@@ -441,60 +436,12 @@ function makeGame({ group, camera, renderer, isTracking }) {
   cloth.rotation.x = Math.PI / 2;                          // stand the flag up (plane XY -> XZ)
   cloth.position.set(0.055, 0, 0.157); flag.add(cloth);
   flag.position.set(COURSE.cup.x, COURSE.cup.y, heightAt(COURSE.cup.x, COURSE.cup.y));
-  flag.scale.setScalar(1.3);                                // big enough to read the wind from a phone's distance
   group.add(flag);
   document.fonts?.load('84px Lobster').then(() => {      // redraw once the font arrives
     const g = flagTex.image.getContext('2d'); g.fillStyle = '#d4a854'; g.fillRect(0, 0, 256, 160);
     g.fillStyle = '#15302a'; g.font = '84px Lobster, cursive'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText("TJ's", 120, 86);
     flagTex.needsUpdate = true;
   }).catch(() => {});
-
-  // ---- TJ's beverage cart (moving obstacle) ---------------------------------
-  const cart = new THREE.Group();
-  const gold = new THREE.MeshStandardMaterial({ color: 0xd4a854, roughness: 0.5 });
-  const cream = new THREE.MeshStandardMaterial({ color: 0xf3eee4, roughness: 0.6 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x1b1b1b, roughness: 0.8 });
-  const box = (w, d, h, m, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, d, h), m); o.position.set(x, y, z); cart.add(o); return o; };
-  box(CART.len, CART.wid, 0.022, gold, 0, 0, 0.022);                                  // body
-  box(CART.len * 0.42, CART.wid * 0.9, 0.03, cream, -CART.len * 0.22, 0, 0.048);       // cooler box in the back
-  box(CART.len * 0.95, CART.wid * 1.04, 0.004, cream, -0.004, 0, 0.082);               // roof
-  for (const sx of [-0.035, 0.03]) for (const sy of [-1, 1]) box(0.003, 0.003, 0.05, cream, sx, sy * CART.wid * 0.45, 0.058);  // roof posts
-  for (const sx of [-0.026, 0.026]) for (const sy of [-1, 1]) {                        // wheels
-    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.007, 14), dark);
-    w.position.set(sx, sy * CART.wid * 0.5, 0.011); cart.add(w);
-  }
-  const signTex = (() => {
-    const c = document.createElement('canvas'); c.width = 256; c.height = 96; const g = c.getContext('2d');
-    const draw = () => { g.fillStyle = '#15302a'; g.fillRect(0, 0, 256, 96); g.fillStyle = '#d4a854'; g.font = '64px Lobster, cursive';
-      g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText("TJ's", 128, 52); };
-    draw(); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-    document.fonts?.load('64px Lobster').then(() => { draw(); t.needsUpdate = true; }).catch(() => {});
-    return t;
-  })();
-  for (const sy of [-1, 1]) {                                                          // "TJ's" on both sides
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.019), new THREE.MeshBasicMaterial({ map: signTex }));
-    sign.position.set(0.004, sy * (CART.wid / 2 + 0.0008), 0.022); sign.rotation.x = sy * Math.PI / 2; if (sy < 0) sign.rotation.y = Math.PI;
-    cart.add(sign);
-  }
-  const cartShadow = new THREE.Mesh(new THREE.PlaneGeometry(CART.len * 1.05, CART.wid * 1.1),
-    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false }));
-  group.add(cartShadow, cart);
-  // Its track runs perpendicular to the tee -> cup line, crossing it CART.at of the way along
-  const tc = new THREE.Vector2(COURSE.cup.x - COURSE.tee.x, COURSE.cup.y - COURSE.tee.y);
-  const cartMid = new THREE.Vector2(COURSE.tee.x, COURSE.tee.y).addScaledVector(tc, CART.at);
-  const cartDir = new THREE.Vector2(-tc.y, tc.x).normalize();
-  const cartAngle = Math.atan2(cartDir.y, cartDir.x);
-  const cartPos = new THREE.Vector2(), cartVel = new THREE.Vector2();
-  const placeCart = (t) => {
-    const w = TAU / CART.period;
-    cartPos.copy(cartMid).addScaledVector(cartDir, CART.amp * Math.sin(w * t));
-    cartVel.copy(cartDir).multiplyScalar(CART.amp * w * Math.cos(w * t));
-    const ground = heightAt(cartPos.x, cartPos.y);
-    cart.position.set(cartPos.x, cartPos.y, ground);
-    cart.rotation.z = cartAngle + (Math.cos(w * t) < 0 ? Math.PI : 0);               // face the way it's driving
-    cartShadow.position.set(cartPos.x + 0.006, cartPos.y - 0.006, ground + 0.002); cartShadow.rotation.z = cartAngle;
-  };
-  placeCart(0);
 
   // Raised sight line follows the local terrain and stays visible on bright grass.
   const aim = new THREE.Group();
@@ -532,7 +479,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
   // ---- State --------------------------------------------------------------
   const st = { pos: new THREE.Vector2(), vel: new THREE.Vector2(), last: new THREE.Vector2(), strokes: 0,
                moving: false, holed: false, sinkT: 0, started: false,
-               wind: 0, windV: new THREE.Vector2(), t: 0, splashT: 0, lipped: false, bonked: false };
+               wind: 0, splashT: 0, lipped: false };
   let best = null; try { best = +localStorage.getItem('tjsHoleBest') || null; } catch (e) {}
   const updateHud = () => { $('strokes').textContent = st.strokes; };
   const tip = (t) => { $('tipText').textContent = t; show($('tip'), !!t); };
@@ -548,17 +495,12 @@ function makeGame({ group, camera, renderer, isTracking }) {
     accumulator = 0; st.splashT = 0;
     st.pos.set(COURSE.tee.x, COURSE.tee.y); st.last.copy(st.pos); st.vel.set(0, 0);
     st.strokes = 0; st.moving = false; st.holed = false; st.sinkT = 0; st.lipped = false;
-    // New wind every round. Never straight at or away from the cup, so you always have to aim off.
-    const toCup = Math.atan2(COURSE.cup.y - COURSE.tee.y, COURSE.cup.x - COURSE.tee.x);
-    const windAng = toCup + (Math.random() < 0.5 ? 1 : -1) * (Math.PI / 2 + (Math.random() - 0.5) * 1.6);
-    const windK = 0.3 + 0.7 * Math.random();                          // 30%..100% strength
-    st.wind = Math.round(windK * WIND_MAX);
-    st.windV.set(Math.cos(windAng), Math.sin(windAng)).multiplyScalar(windK * WIND_ACCEL_MAX);
-    flag.rotation.z = windAng;                                        // the flag points downwind
+    st.wind = Math.round(Math.random() * WIND_MAX);
+    flag.rotation.z = Math.random() * TAU;
     $('wind').textContent = st.wind + ' mph';
     ball.visible = shadow.visible = true; ball.quaternion.identity();
     hideConfetti(); updateHud(); show($('result'), false);
-    tip('Watch the flag for wind and dodge the cart. Pull back, then let go');
+    tip('Pull back, then let go');
   };
 
   // Capture the coaster projection at the beginning of the gesture so small
@@ -654,23 +596,6 @@ function makeGame({ group, camera, renderer, isTracking }) {
     if (i === 3) { st.pos.y = y1; st.vel.y =  Math.abs(st.vel.y) * 0.7; }
   };
 
-  // Bounce off the moving cart: work in the cart's own frame, so its speed knocks the ball along too
-  const bounceCart = () => {
-    const c = Math.cos(cartAngle), s = Math.sin(cartAngle);
-    const dx = st.pos.x - cartPos.x, dy = st.pos.y - cartPos.y;
-    const lx = dx * c + dy * s, ly = -dx * s + dy * c;               // ball in cart coords (x along its track)
-    const hx = CART.len / 2 + BALL_R, hy = CART.wid / 2 + BALL_R;     // cart is long along its track
-    if (Math.abs(lx) > hx || Math.abs(ly) > hy) return;
-    let rvx = (st.vel.x - cartVel.x) * c + (st.vel.y - cartVel.y) * s, rvy = -(st.vel.x - cartVel.x) * s + (st.vel.y - cartVel.y) * c;
-    let nx = lx, ny = ly;
-    if (hx - Math.abs(lx) < hy - Math.abs(ly)) { nx = Math.sign(lx) * hx; if (rvx * lx < 0) rvx = -rvx * 0.75; }
-    else { ny = Math.sign(ly) * hy; if (rvy * ly < 0) rvy = -rvy * 0.75; }
-    st.pos.set(cartPos.x + nx * c - ny * s, cartPos.y + nx * s + ny * c);
-    st.vel.set(rvx * c - rvy * s + cartVel.x, rvx * s + rvy * c + cartVel.y);
-    if (st.vel.length() > MAX_SPEED) st.vel.setLength(MAX_SPEED);
-    if (!st.bonked) { toast('Bonk! Watch the cart'); st.bonked = true; setTimeout(() => (st.bonked = false), 1200); }
-  };
-
   const sink = () => {
     st.holed = true; st.moving = false; st.vel.set(0, 0); st.sinkT = 0.001;
     burstConfetti();
@@ -695,7 +620,6 @@ function makeGame({ group, camera, renderer, isTracking }) {
   }
   function advance() {
     const h = FIXED_STEP;
-    st.t += h; placeCart(st.t);              // the cart keeps driving whether or not the ball is moving
     if (st.splashT > 0) {
       st.splashT -= h;
       if (st.splashT <= 0) {
@@ -714,7 +638,6 @@ function makeGame({ group, camera, renderer, isTracking }) {
       heightAt(x, y - gradientStep) - heightAt(x, y + gradientStep)
     ).multiplyScalar(SLOPE_GRAVITY / (2 * gradientStep)).clampLength(0, MAX_SLOPE_ACCEL);
     st.vel.addScaledVector(slope, h);
-    if (surface !== 'sand') st.vel.addScaledVector(st.windV, h);   // the wind (sand holds the ball)
     const speed = st.vel.length();
     const drag = (FRICTION[surface] + speed * 0.14) * h;
     if (speed <= drag) {
@@ -743,7 +666,6 @@ function makeGame({ group, camera, renderer, isTracking }) {
     if (surfaceAt(st.pos.x, st.pos.y) === 'water') { splash(); return; }
     for (const [tx, ty, r] of COURSE.trees) bounceCircle(tx, ty, r, false);
     bounceBox(COURSE.qr);
-    bounceCart();
     bounceCircle(0, 0, COURSE.edge, true);
     const distance = previous.distanceTo(st.pos);
     if (distance > 0) {
