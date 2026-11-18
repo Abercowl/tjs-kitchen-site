@@ -6,16 +6,16 @@
  "properties": {
   "left": 0,
   "top": 0,
-  "width": 1050,
-  "height": 1400,
+  "width": 1400,
+  "height": 1867,
   "isRotated": false,
-  "originalWidth": 1050,
-  "originalHeight": 1400
+  "originalWidth": 1400,
+  "originalHeight": 1867
  },
  "resources": {
   "luminanceImage": "coaster_luminance.png",
   "thumbnailImage": "coaster_thumbnail.png"
  },
- "created": 1795035865805,
- "updated": 1795035865805
+ "created": 1795025869329,
+ "updated": 1795025869329
 }
