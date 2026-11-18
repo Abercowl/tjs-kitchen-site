@@ -330,7 +330,162 @@ function radialMesh(outline, radiate, material) {
   return new THREE.Mesh(geometry, material);
 }
 
+// Extra printed features, converted from coaster-art-generator.py (1400 px art -> centred units)
+const ART = {
+  fringe: [[0.37493,0.02857],[0.36835,0.00943],[0.36128,-0.00905],[0.35425,-0.02705],[0.34728,-0.04474],[0.33998,-0.0622],[0.33171,-0.07929],[0.3218,-0.09572],[0.3098,-0.11104],[0.29558,-0.12487],[0.2794,-0.13697],[0.26181,-0.14733],[0.24349,-0.15624],[0.22507,-0.16414],[0.20696,-0.17155],[0.18926,-0.17887],[0.17182,-0.18622],[0.15429,-0.19342],[0.13634,-0.19996],[0.11776,-0.20516],[0.09858,-0.20835],[0.07905,-0.20909],[0.05958,-0.20728],[0.04059,-0.20327],[0.02234,-0.19777],[0.00484,-0.19168],[-0.01218,-0.18591],[-0.02922,-0.1811],[-0.04681,-0.17749],[-0.06535,-0.17483],[-0.08497,-0.17247],[-0.10537,-0.16952],[-0.12591,-0.16507],[-0.14575,-0.15839],[-0.16401,-0.14916],[-0.18006,-0.13744],[-0.19366,-0.12367],[-0.20504,-0.10849],[-0.21486,-0.09254],[-0.22397,-0.07633],[-0.23321,-0.06008],[-0.24312,-0.04371],[-0.25375,-0.02695],[-0.26462,-0.00945],[-0.27475,0.00904],[-0.28294,0.02857],[-0.28798,0.0489],[-0.28897,0.06954],[-0.28549,0.0899],[-0.27768,0.10938],[-0.26618,0.12754],[-0.25194,0.14418],[-0.23597,0.15934],[-0.21914,0.1732],[-0.20199,0.18602],[-0.18469,0.19793],[-0.16713,0.20889],[-0.14902,0.21866],[-0.13014,0.22686],[-0.1104,0.23308],[-0.09,0.23711],[-0.06933,0.23898],[-0.0489,0.23909],[-0.02918,0.23814],[-0.01043,0.237],[0.00736,0.23652],[0.02449,0.23728],[0.04144,0.23949],[0.0587,0.24286],[0.07666,0.24672],[0.09542,0.25011],[0.1148,0.25209],[0.13437,0.25189],[0.15362,0.24914],[0.17212,0.24391],[0.1897,0.23666],[0.20649,0.2281],[0.22296,0.21895],[0.23971,0.20976],[0.2573,0.20073],[0.27603,0.19168],[0.29575,0.18212],[0.31581,0.17142],[0.33515,0.15896],[0.35248,0.14439],[0.36654,0.12765],[0.37644,0.10907],[0.38177,0.08922],[0.38274,0.06879],[0.38011,0.04842]],
+  path: [[-0.45714,0.23571],[-0.45,0.22377],[-0.44286,0.21196],[-0.43571,0.20042],[-0.42857,0.18929],[-0.42143,0.17869],[-0.41429,0.16873],[-0.40714,0.15954],[-0.4,0.15122],[-0.39286,0.14385],[-0.38571,0.13752],[-0.37857,0.1323],[-0.37143,0.12823],[-0.36429,0.12537],[-0.35714,0.12373],[-0.35,0.12332],[-0.34286,0.12413],[-0.33571,0.12616],[-0.32857,0.12936],[-0.32143,0.13367],[-0.31429,0.13905],[-0.30714,0.14541],[-0.3,0.15265],[-0.29286,0.16069],[-0.28571,0.16942],[-0.27857,0.1787],[-0.27143,0.18843],[-0.26429,0.19846],[-0.25714,0.20867],[-0.25,0.21891],[-0.24286,0.22906],[-0.23571,0.23897],[-0.22857,0.24851],[-0.22143,0.25756],[-0.21429,0.26598],[-0.20714,0.27368],[-0.2,0.28054],[-0.19286,0.28646],[-0.18571,0.29137],[-0.17857,0.29519]],              // cart path centre line, 34 px wide
+  sprinklers: [[-0.08571,0.42857],[0.42857,-0.12857],[-0.43571,-0.21429],[0.22857,-0.33571],[-0.17857,0.21429]],
+  markers: [[-0.33571,0.16429,"150"],[-0.37143,-0.02857,"75"],[0.34286,-0.04286,"50"]],
+  title: { tj: [-0.04286, 0.36786], hio: [-0.01429, 0.31786] },
+  qrPanel: { x0: -0.11357, x1: 0.12786, y0: -0.41571, y1: -0.17429 },
+  scan: [0.00714, -0.15429],
+  radius: 0.46349,                   // printed circle (116.8 / 252)
+};
+
+// ---------------------------------------------------------------------------
+// The rest of the coaster in 3D: mowed rough with a fringe, the cart path,
+// trees, sprinkler heads, yardage markers, the title and a raised QR sign.
+// Together with buildTerrain() this covers the whole printed coaster.
+// ---------------------------------------------------------------------------
+function pointInPoly(poly, x, y) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i], [xj, yj] = poly[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+function textTexture(w, h, draw) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  const paint = () => { g.clearRect(0, 0, w, h); draw(g); t.needsUpdate = true; };
+  paint();
+  document.fonts?.ready.then(paint).catch(() => {});        // repaint once Lobster / Inter arrive
+  return t;
+}
+function flatLabel(group, tex, w, h, x, y, z, shadow = true) {
+  if (shadow) {
+    const s = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, color: 0x000000, transparent: true, opacity: 0.45, depthWrite: false }));
+    s.position.set(x + 0.003, y - 0.003, z - 0.0005); group.add(s);
+  }
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
+  m.position.set(x, y, z); group.add(m);
+  return m;
+}
+
+function buildCoaster(group) {
+  // ---- Rough: mowing bands, blade noise, and a lighter fringe around the green
+  const SIZE = 1024;
+  const rc = document.createElement('canvas'); rc.width = rc.height = SIZE;
+  const g = rc.getContext('2d');
+  const px = (x) => (0.5 + x) * SIZE, py = (y) => (0.5 - y) * SIZE;
+  g.fillStyle = '#224e28'; g.fillRect(0, 0, SIZE, SIZE);
+  for (let i = -6; i < 14; i++) {                         // curved mowing bands, as printed
+    const w = (95 + (i * 37) % 60) / 1400 * SIZE, x0 = (i * 130 + (i * i * 7) % 40) / 1400 * SIZE;
+    g.fillStyle = i % 2 ? '#2c6030' : '#1e4624';
+    g.beginPath();
+    for (let y = -20; y <= SIZE + 40; y += 16) g.lineTo(x0 + 44 * Math.sin(y / 190), y);
+    for (let y = SIZE + 40; y >= -20; y -= 16) g.lineTo(x0 + w + 44 * Math.sin(y / 190), y);
+    g.fill();
+  }
+  for (let i = 0; i < 7000; i++) {                        // grass blades
+    const x = Math.random() * SIZE, y = Math.random() * SIZE, L = 4 + Math.random() * 7, a = -1.9 + Math.random() * 0.7;
+    g.strokeStyle = `rgba(${20 + Math.random() * 50 | 0},${70 + Math.random() * 60 | 0},${25 + Math.random() * 35 | 0},.8)`;
+    g.lineWidth = 1.4; g.beginPath(); g.moveTo(x, y); g.lineTo(x + L * Math.cos(a), y + L * Math.sin(a)); g.stroke();
+  }
+  g.fillStyle = '#347636'; g.beginPath();                 // fringe (collar) around the green
+  ART.fringe.forEach(([x, y], i) => i ? g.lineTo(px(x), py(y)) : g.moveTo(px(x), py(y))); g.closePath(); g.fill();
+  // cart path
+  g.lineCap = g.lineJoin = 'round';
+  g.strokeStyle = '#d6ccb4'; g.lineWidth = 34 / 1400 * SIZE; g.beginPath();
+  ART.path.forEach(([x, y], i) => i ? g.lineTo(px(x), py(y)) : g.moveTo(px(x), py(y))); g.stroke();
+  g.strokeStyle = 'rgba(120,110,90,.7)'; g.lineWidth = 2; g.stroke();
+  const roughTex = new THREE.CanvasTexture(rc); roughTex.colorSpace = THREE.SRGBColorSpace; roughTex.anisotropy = 4;
+  const rough = new THREE.Mesh(new THREE.CircleGeometry(ART.radius, 128),
+    new THREE.MeshStandardMaterial({ map: roughTex, roughness: 1 }));
+  const uv = rough.geometry.attributes.uv, pos = rough.geometry.attributes.position;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, pos.getX(i) + 0.5, pos.getY(i) + 0.5);
+  rough.position.z = 0.0004;
+  group.add(rough);
+
+  // Coaster edge: a thin cream lip so the course reads as a disc on the bar
+  const lip = new THREE.Mesh(new THREE.RingGeometry(ART.radius - 0.004, ART.radius + 0.004, 128),
+    new THREE.MeshStandardMaterial({ color: 0xf1ece2, roughness: 0.8 }));
+  lip.position.z = 0.003; group.add(lip);
+
+  // ---- Trees (also obstacles in the physics: COURSE.trees)
+  const leaf = [0x1f5c2a, 0x2c7a36, 0x3a8d40, 0x4c9c45].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9, flatShading: true }));
+  const bark = new THREE.MeshStandardMaterial({ color: 0x5a3d24, roughness: 1 });
+  const treeShadow = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.32, depthWrite: false });
+  COURSE.trees.forEach(([x, y, r], n) => {
+    const s = new THREE.Mesh(new THREE.CircleGeometry(r * 1.05, 24), treeShadow);
+    s.position.set(x + r * 0.35, y - r * 0.4, 0.0016); group.add(s);
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.12, r * 0.16, r * 0.7, 8), bark);
+    trunk.rotation.x = Math.PI / 2; trunk.position.set(x, y, r * 0.35); group.add(trunk);
+    const crown = [[0, 0, 1.05, 0.62], [0.42, 0.1, 0.8, 0.45], [-0.38, 0.2, 0.82, 0.45], [0.1, -0.42, 0.78, 0.44], [-0.15, 0.4, 0.86, 0.42], [0.05, 0.05, 1.35, 0.4]];
+    crown.forEach(([dx, dy, dz, rr], k) => {
+      const ball = new THREE.Mesh(new THREE.IcosahedronGeometry(r * rr, 1), leaf[(k + n) % leaf.length]);
+      ball.position.set(x + dx * r, y + dy * r, dz * r); group.add(ball);
+    });
+  });
+
+  // ---- Sprinkler heads
+  const headMat = new THREE.MeshStandardMaterial({ color: 0x1c1c1c, roughness: 0.6 });
+  const ringMat = new THREE.MeshStandardMaterial({ color: 0xebebdc, roughness: 0.6 });
+  for (const [x, y] of ART.sprinklers) {
+    const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.0115, 0.0115, 0.003, 20), ringMat);
+    ring.rotation.x = Math.PI / 2; ring.position.set(x, y, 0.0015); group.add(ring);
+    const head = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.004, 20), headMat);
+    head.rotation.x = Math.PI / 2; head.position.set(x, y, 0.002); group.add(head);
+  }
+
+  // ---- Yardage markers: little wooden blocks with the yardage on top
+  const wood = new THREE.MeshStandardMaterial({ color: 0x3d291a, roughness: 0.8 });
+  for (const [x, y, t] of ART.markers) {
+    const w = 92 / 1400, h = 52 / 1400, tall = 0.012;
+    const block = new THREE.Mesh(new THREE.BoxGeometry(w, h, tall), wood);
+    block.position.set(x, y, tall / 2); group.add(block);
+    const tex = textTexture(184, 104, (c) => {
+      c.strokeStyle = '#f7eed9'; c.lineWidth = 6; c.strokeRect(6, 6, 172, 92);
+      c.fillStyle = '#f7eed9'; c.font = '800 62px Inter, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(t, 92, 56);
+    });
+    flatLabel(group, tex, w, h, x, y, tall + 0.0005, false);
+  }
+
+  // ---- Title
+  const tjTex = textTexture(400, 140, (c) => {
+    c.fillStyle = '#dba854'; c.font = '110px Lobster, cursive'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText("TJ's", 200, 74);
+  });
+  flatLabel(group, tjTex, 0.16, 0.056, ART.title.tj[0], ART.title.tj[1], 0.004, false);
+  const hioTex = textTexture(1100, 160, (c) => {
+    c.fillStyle = '#f7eed9'; c.font = '800 118px Inter, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('HOLE IN ONE', 550, 84);
+  });
+  flatLabel(group, hioTex, 0.4, 0.058, ART.title.hio[0], ART.title.hio[1], 0.004, false);
+
+  // ---- QR sign: a raised white panel carrying the printed QR (cut from the coaster art)
+  const q = ART.qrPanel, qw = q.x1 - q.x0, qh = q.y1 - q.y0, qz = 0.01;
+  const qrTex = new THREE.TextureLoader().load('/play/coaster.jpg', t => { t.needsUpdate = true; });
+  qrTex.colorSpace = THREE.SRGBColorSpace;
+  qrTex.repeat.set(qw, qh); qrTex.offset.set(q.x0 + 0.5, q.y0 + 0.5);
+  const white = new THREE.MeshStandardMaterial({ color: 0xfbf8f2, roughness: 0.7 });
+  const face = new THREE.MeshStandardMaterial({ map: qrTex, roughness: 0.7 });
+  const sign = new THREE.Mesh(new THREE.BoxGeometry(qw, qh, qz), [white, white, white, white, face, white]);
+  sign.position.set((q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2, qz / 2); group.add(sign);
+  const qs = new THREE.Mesh(new THREE.PlaneGeometry(qw, qh), treeShadow);
+  qs.position.set(sign.position.x + 0.006, sign.position.y - 0.007, 0.0016); group.add(qs);
+  const scanTex = textTexture(600, 90, (c) => {
+    c.fillStyle = '#15302a'; c.beginPath(); c.roundRect(40, 4, 520, 82, 20); c.fill();
+    c.fillStyle = '#dba854'; c.font = '800 58px Inter, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('SCAN TO PLAY', 300, 48);
+  });
+  const scan = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 0.0225), new THREE.MeshBasicMaterial({ map: scanTex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+  scan.rotation.x = Math.PI / 2 - 0.6;                    // leans back on the top edge of the QR sign so it reads from above
+  scan.scale.setScalar(1.3);
+  scan.position.set(sign.position.x, q.y1 - 0.004, qz + 0.0115); group.add(scan);
+}
+
 function buildTerrain(group) {
+  buildCoaster(group);
   const grass = terrainMap((x, y, n) => {
     const stripe = Math.sin((x - 0.43 * y) * 162) > 0 ? 9 : 0;
     const fringe = smooth(green.inset(x, y) / 0.022);
@@ -753,6 +908,7 @@ function startDemo() {
   // CircleGeometry UVs map the circle to the middle of the texture; scale them to the printed circle
   const uv = coaster.geometry.attributes.uv;
   for (let i = 0; i < uv.count; i++) uv.setXY(i, 0.5 + (uv.getX(i) - 0.5) * 0.9272, 0.5 + (uv.getY(i) - 0.5) * 0.9272);
+  coaster.position.z = -0.003;      // the printed art sits under the 3D course, as in the camera view
   group.add(coaster);
   const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.47, 0.47, 0.012, 96), new THREE.MeshStandardMaterial({ color: 0xf1ece2, roughness: 1 }));
   rim.rotation.x = Math.PI / 2; rim.position.z = -0.007; group.add(rim);
