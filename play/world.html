@@ -1,0 +1,1352 @@
+<!DOCTYPE html>
+<!-- FILE:  tjs-kitchen-site/play/world.html   (BETA: "TJ's Hole in One" AR mini golf)
+     tjs-kitchen-site/
+     ├── play/
+     │   ├── index.html   <-- THIS FILE (QR on the back of the bar coaster; "Beta - Golf" in the menu)
+     │   ├── target.mind  (compiled tracking data for the coaster back)
+     │   └── coaster.jpg  (coaster art, used by the no-camera practice mode: /play#demo)
+     └── ar/vendor/       (three.js + MindAR, self-hosted, shared with /ar) -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TJ's Kitchen | Tabletop AR Beta</title>
+<meta name="description" content="Point your phone at a TJ's Kitchen coaster and putt for a hole in one.">
+<meta name="theme-color" content="#1c3a2e">
+<link rel="icon" href="/assets/favicon.png" type="image/png">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Lobster&display=swap" rel="stylesheet">
+<script type="importmap">
+{
+  "imports": {
+    "three": "/ar/vendor/three.module.js",
+    "three/addons/": "/ar/vendor/addons/",
+    "mindar-image-three": "/ar/vendor/mindar/mindar-image-three.prod.js"
+  }
+}
+</script>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; touch-action: none;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #f3eee4;
+    -webkit-user-select: none; user-select: none; }
+  #ar { position: fixed; inset: 0; }
+  .screen { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; text-align: center; padding: 32px; box-sizing: border-box; z-index: 10; transition: opacity .4s; }
+  .hidden { visibility: hidden; opacity: 0 !important; pointer-events: none !important; }
+  #start, #inapp { background: radial-gradient(circle at 50% 35%, #24493a, #15302a 70%); }
+  h1 { font-family: Lobster, cursive; font-weight: 400; color: #d4a854; font-size: 44px; margin: 0 0 6px; line-height: 1.05; }
+  .beta { display:inline-block; margin-bottom:14px; padding:3px 10px; border-radius:999px; border:1px solid rgba(212,168,84,.6); color:#d4a854; font-size:12px; font-weight:700; letter-spacing:.12em; }
+  .screen p { opacity: .85; margin: 0 0 24px; max-width: 310px; line-height: 1.45; }
+  .steps { display: flex; gap: 10px; margin: 0 0 26px; }
+  .steps div { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12); border-radius: 14px; padding: 10px 8px; width: 88px; font-size: 13px; line-height: 1.3; }
+  .steps b { display: block; color: #d4a854; font-size: 15px; margin-bottom: 2px; }
+  .btn { background: #d4a854; color: #15302a; text-decoration: none; border: 0; border-radius: 999px; font-size: 18px;
+    font-weight: 700; padding: 15px 28px; box-shadow: 0 6px 24px rgba(212,168,84,.35); cursor: pointer; font-family: inherit; }
+  .ghost { background: rgba(0,0,0,.5); color: #fff; box-shadow: none; border: 1px solid rgba(255,255,255,.5); }
+  .small { font-size: 13px; opacity: .65; margin-top: 18px; }
+  .small a { color: #d4a854; }
+  #close { position: fixed; top: 14px; left: 14px; z-index: 20; width: 40px; height: 40px; border-radius: 999px; background: rgba(0,0,0,.45); color: #fff; display:flex; align-items:center; justify-content:center; text-decoration:none; }
+  #close svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+  #guide { position: fixed; inset: 0; z-index: 5; pointer-events: none; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity .4s; }
+  #guide .frame { width: 64vw; max-width: 300px; aspect-ratio: 1; border: 3px dashed rgba(255,255,255,.85); border-radius: 50%;
+    box-shadow: 0 0 0 9999px rgba(0,0,0,.25); animation: pulse 1.6s ease-in-out infinite; }
+  #guide .hint { margin-top: 18px; background: rgba(0,0,0,.55); padding: 8px 14px; border-radius: 999px; font-size: 15px; }
+  @keyframes pulse { 50% { transform: scale(1.04); opacity: .7; } }
+  #loading { position: fixed; bottom: 40px; left: 0; right: 0; text-align: center; z-index: 6; font-size: 14px; opacity: .8; }
+  /* Scorecard (top right) and tip line (bottom) */
+  #hud { position: fixed; top: 14px; right: 14px; z-index: 8; background: rgba(0,0,0,.5); border-radius: 14px; padding: 8px 14px; text-align: right; font-size: 12px; letter-spacing: .06em; transition: opacity .4s; }
+  #hud .hole { font-size: 11px; font-weight: 800; color: #d4a854; margin-bottom: 4px; letter-spacing: .08em; }
+  #hud .wind { margin-top: 4px; font-size: 11px; opacity: .85; }
+  #hud .wind span { color: #f3eee4; font-weight: 700; }
+  #hud b { display: block; font-size: 26px; letter-spacing: 0; color: #d4a854; line-height: 1.1; }
+  #tip { position: fixed; left: 0; right: 0; bottom: 34px; z-index: 7; text-align: center; pointer-events: none; transition: opacity .4s; }
+  #tip span { background: rgba(0,0,0,.55); padding: 9px 16px; border-radius: 999px; font-size: 15px; }
+  #power { position: fixed; left: 50%; bottom: 84px; width: 180px; height: 10px; margin-left: -90px; z-index: 7; border-radius: 999px; background: rgba(0,0,0,.5); overflow: hidden; transition: opacity .2s; }
+  #power i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #8fd16a, #d4a854 60%, #e05a3a); }
+  #close { top: max(14px, env(safe-area-inset-top)); left: max(14px, env(safe-area-inset-left)); }
+  #hud { top: max(14px, env(safe-area-inset-top)); right: max(14px, env(safe-area-inset-right)); }
+  #tip { bottom: max(34px, calc(env(safe-area-inset-bottom) + 12px)); padding: 0 12px; }
+  #tip span { display: inline-block; }
+  #ar { overflow: hidden; }
+  /* Result card */
+  #result { background: rgba(10,25,20,.55); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+  #result .card { background: #15302a; border: 1px solid rgba(212,168,84,.45); border-radius: 22px; padding: 26px 24px 22px; max-width: 320px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+  #result h1 { font-size: 46px; }
+  #result .score { font-size: 15px; opacity: .85; margin-bottom: 20px; }
+  #result .row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  #result .btn { font-size: 16px; padding: 13px 22px; }
+  #result .btn[hidden] { display: none; }
+  #result #next { background: #8fd16a; box-shadow: 0 6px 24px rgba(143,209,106,.35); }
+  #toast { position: fixed; top: 34%; left: 0; right: 0; text-align: center; z-index: 9; pointer-events: none; transition: opacity .3s, transform .3s; }
+  #toast span { font-family: Lobster, cursive; font-size: 34px; color: #fff; text-shadow: 0 3px 12px rgba(0,0,0,.6); }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@8thwall/engine-binary@1/dist/xr.js" async crossorigin="anonymous" data-preload-chunks="slam"></script>
+<style>
+#placeControls {position:fixed;left:0;right:0;bottom:max(32px,env(safe-area-inset-bottom));z-index:12;display:flex;justify-content:center;gap:12px;pointer-events:auto}
+#placeControls.hidden{display:none}
+#placeControls .btn{font-size:15px;padding:12px 18px}
+#scanStatus{position:fixed;left:12%;right:12%;top:18%;z-index:12;text-align:center;background:rgba(0,0,0,.7);border-radius:14px;padding:12px}
+#scanStatus.hidden{display:none}
+#ar canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+</style>
+</head>
+<body>
+<div id="ar"><canvas id="camerafeed"></canvas></div><div id="scanStatus" class="hidden">Move your phone slowly across the bar top to scan the surface.</div><div id="placeControls" class="hidden"><button id="placeCourse" class="btn" disabled>Place course</button><button id="resetCourse" class="btn ghost hidden">Move course</button></div>
+
+<a id="close" href="/" aria-label="Back to TJ's Kitchen"><svg viewBox="0 0 24 24"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></a>
+
+<div id="start" class="screen">
+  <div class="beta">BETA</div>
+  <h1>TJ's Hole in One</h1>
+  <p>Scan the bar top, place your miniature course, then walk around and putt.</p>
+  <div class="steps">
+    <div><b>Aim</b>Pull back opposite the shot</div>
+    <div><b>Putt</b>Pull further, hit harder. Let go to putt</div>
+    <div><b>Sink it</b>Read the slope and avoid the pond</div>
+  </div>
+  <button id="go" class="btn">Tee it up</button>
+  <div class="small">Uses your camera for world tracking; no app installation.<br>No coaster handy? <a href="#demo" id="demoLink">Practice here</a></div>
+  <div class="small" style="margin-top:6px;font-size:11px">AR powered by 8th Wall. 8th Wall Engine © 2026 Niantic Spatial, Inc., provided as is, without warranties, under the <a href="/play2/xr/LICENSE">XR Engine License</a>.</div>
+</div>
+
+<div id="inapp" class="screen hidden">
+  <h1>Open in Safari</h1>
+  <p>This app's built-in browser can't use the camera. Tap the ••• or share menu and choose <b>Open in Safari</b> (or Chrome).</p>
+  <div class="small"><a href="#demo" id="demoLink2">Or practice without the camera</a></div>
+</div>
+
+<div id="guide" class="hidden"><div class="frame"></div><div class="hint" id="trackingHint">Move the phone slowly over the bar</div></div>
+<div id="loading" class="hidden">Starting camera…</div>
+<div id="hud" class="hidden"><div class="hole" id="hole">HOLE 1 · PAR 3</div>STROKES<b id="strokes">0</b><div class="wind">WIND <span id="wind">0 mph</span></div></div>
+<div id="power" class="hidden"><i id="powerBar"></i></div>
+<div id="tip" class="hidden"><span id="tipText">Pull back, then let go</span></div>
+<div id="toast" class="hidden"><span id="toastText"></span></div>
+
+<div id="result" class="screen hidden">
+  <div class="card">
+    <h1 id="resTitle">Hole in one!</h1>
+    <div class="score" id="resScore">1 stroke</div>
+    <div class="row">
+      <button class="btn" id="next" hidden>Next hole</button>
+      <a class="btn" id="orderBtn" href="https://order.tjskitchenvc.com">Order now</a>
+      <button class="btn ghost" id="again">Play again</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+let THREE;
+let ENV_SCENE = null;      // RoomEnvironment: soft studio light for reflections (loaded with three.js)
+
+const $ = id => document.getElementById(id);
+const show = (el, on) => el.classList.toggle('hidden', !on);
+
+// ---------------------------------------------------------------------------
+// Course layout, measured from the coaster art (coaster-back-ar.png).
+// Units: the tracked image is 1 unit wide, centred on the coaster, x right,
+// y toward the top of the art, z up off the coaster (toward the camera).
+// ---------------------------------------------------------------------------
+const COURSE = {
+  edge: 0.455,                                   // printed circle (0.4635) less a lip
+  tee:  { x: -0.150, y: -0.043 },                // the printed ball
+  cup:  { x:  0.154, y:  0.068, r: 0.020 },      // the printed hole (catch radius a bit under the drawn one)
+  trees: [ [-0.214, 0.400, 0.050], [0.236, 0.371, 0.039], [0.400, 0.186, 0.044],
+           [-0.421, 0.043, 0.034], [0.107, -0.421, 0.037], [-0.300, -0.371, 0.031] ],
+  qr: { x0: -0.113, x1: 0.125, y0: -0.413, y1: -0.175 },   // "Scan to play" panel: a wall
+};
+const BALL_R = 0.014;
+const FRICTION = { green: 0.36, rough: 0.92, sand: 2.7 };
+const MAX_SPEED = 1.28, POWER = 4.5;
+const SINK_SPEED = 0.46;
+const PAR = 3;
+const FIXED_STEP = 1 / 120;
+const SLOPE_GRAVITY = 1.25;
+const MAX_SLOPE_ACCEL = 0.24;
+const WIND_MAX = 18;
+
+// Printed outlines from coaster-art-generator.py, converted from the
+// 1400 x 1400 artwork to MindAR's centered, unit-width target coordinates.
+const OUTLINES = {
+  green: [
+    [0.349694, 0.028571], [0.343623, 0.010914], [0.337107, -0.00613], [0.33062, -0.022725], [0.32419, -0.039044],
+    [0.317457, -0.055146], [0.309827, -0.070915], [0.30069, -0.086062], [0.289621, -0.100198], [0.276506, -0.112955],
+    [0.261582, -0.124111], [0.245357, -0.133671], [0.228462, -0.141883], [0.211473, -0.14917], [0.194766, -0.156006],
+    [0.178444, -0.162754], [0.162354, -0.169538], [0.14619, -0.176176], [0.129635, -0.182206], [0.112498, -0.187002],
+    [0.094804, -0.18995], [0.07679, -0.19063], [0.058833, -0.188964], [0.041317, -0.185265], [0.024487, -0.180188],
+    [0.008349, -0.174575], [-0.007352, -0.169252], [-0.023065, -0.164817], [-0.039287, -0.161484], [-0.056395, -0.159031],
+    [-0.074485, -0.156858], [-0.0933, -0.154136], [-0.11225, -0.150026], [-0.130545, -0.143872], [-0.147388, -0.135358],
+    [-0.16219, -0.12455], [-0.174733, -0.111848], [-0.185234, -0.09784], [-0.194287, -0.083134], [-0.202691, -0.068183],
+    [-0.211215, -0.053193], [-0.220355, -0.038098], [-0.230161, -0.022642], [-0.240179, -0.006501], [-0.249525, 0.010559],
+    [-0.257077, 0.028571], [-0.261728, 0.047318], [-0.262642, 0.066359], [-0.259433, 0.085135], [-0.252232, 0.103102],
+    [-0.241625, 0.119854], [-0.228488, 0.135204], [-0.213761, 0.149181], [-0.198237, 0.161971], [-0.182417, 0.173792],
+    [-0.166463, 0.184776], [-0.150262, 0.194888], [-0.133565, 0.203899], [-0.116145, 0.211456], [-0.097943, 0.217199],
+    [-0.079124, 0.22091], [-0.060059, 0.222634], [-0.041218, 0.222736], [-0.023027, 0.221861], [-0.005734, 0.220813],
+    [0.010676, 0.220365], [0.026474, 0.221069], [0.042101, 0.223103], [0.058025, 0.226216], [0.07459, 0.229772],
+    [0.091895, 0.232906], [0.109769, 0.234731], [0.127821, 0.234547], [0.145575, 0.232009], [0.162638, 0.227182],
+    [0.178847, 0.220497], [0.194337, 0.212602], [0.209524, 0.204168], [0.224972, 0.195692], [0.241199, 0.187361],
+    [0.258475, 0.179012], [0.276663, 0.170197], [0.295168, 0.160322], [0.313004, 0.148835], [0.328982, 0.135393],
+    [0.341958, 0.119958], [0.351084, 0.102819], [0.356, 0.084508], [0.3569, 0.065665], [0.354468, 0.046881]
+  ],
+  bunker: [
+    [-0.106185, -0.178571], [-0.106039, -0.18637], [-0.107463, -0.194073], [-0.11055, -0.201451], [-0.115197, -0.208291],
+    [-0.121119, -0.214441], [-0.127918, -0.219846], [-0.135168, -0.224548], [-0.14251, -0.228658], [-0.149717, -0.232305],
+    [-0.156715, -0.23558], [-0.163557, -0.238497], [-0.170369, -0.240985], [-0.177266, -0.242908], [-0.184296, -0.24413],
+    [-0.1914, -0.244581], [-0.198427, -0.244318], [-0.205181, -0.243564], [-0.211492, -0.242684], [-0.217286, -0.242134],
+    [-0.222635, -0.242362], [-0.227755, -0.243699], [-0.232965, -0.246273], [-0.238613, -0.249959], [-0.24498, -0.254386],
+    [-0.252205, -0.259], [-0.260242, -0.263173], [-0.268869, -0.266327], [-0.277745, -0.268038], [-0.286494, -0.268109],
+    [-0.2948, -0.266583], [-0.302482, -0.2637], [-0.309521, -0.259815], [-0.316042, -0.255294], [-0.322244, -0.250433],
+    [-0.328315, -0.245394], [-0.334344, -0.240198], [-0.340267, -0.234757], [-0.345857, -0.228936], [-0.350768, -0.222625],
+    [-0.354622, -0.215791], [-0.357101, -0.208506], [-0.358041, -0.200933], [-0.357471, -0.193288], [-0.355614, -0.185782],
+    [-0.352832, -0.178571], [-0.349529, -0.171727], [-0.34606, -0.165235], [-0.342645, -0.159025], [-0.339336, -0.153018],
+    [-0.336023, -0.147173], [-0.332496, -0.141514], [-0.328527, -0.136131], [-0.323956, -0.131152], [-0.318742, -0.126693],
+    [-0.312989, -0.122808], [-0.306904, -0.119449], [-0.300744, -0.11646], [-0.294727, -0.113614], [-0.288971, -0.110669],
+    [-0.28346, -0.107452], [-0.278051, -0.10392], [-0.272531, -0.100204], [-0.266686, -0.096595], [-0.26038, -0.093493],
+    [-0.253606, -0.091309], [-0.246494, -0.090368], [-0.239278, -0.090814], [-0.232222, -0.092564], [-0.225539, -0.095311],
+    [-0.219316, -0.098591], [-0.21348, -0.101878], [-0.207809, -0.10471], [-0.20199, -0.106788], [-0.195712, -0.108038],
+    [-0.188755, -0.108622], [-0.181061, -0.108888], [-0.172767, -0.109282], [-0.164173, -0.110241], [-0.155677, -0.112101],
+    [-0.147674, -0.11504], [-0.140467, -0.119059], [-0.134203, -0.12402], [-0.128855, -0.129708], [-0.124263, -0.135897],
+    [-0.120209, -0.142417], [-0.11651, -0.149175], [-0.113095, -0.156157], [-0.110057, -0.163384], [-0.10764, -0.170869]
+  ],
+  pond: [
+    [0.40689, -0.214286], [0.406144, -0.220239], [0.403875, -0.225977], [0.399969, -0.231254], [0.394495, -0.235827],
+    [0.387723, -0.239508], [0.38011, -0.242225], [0.372237, -0.244052], [0.364722, -0.245228], [0.358106, -0.246129],
+    [0.352765, -0.247208], [0.348838, -0.248913], [0.346212, -0.251602], [0.344548, -0.255459], [0.343357, -0.260459],
+    [0.342101, -0.266358], [0.340293, -0.272738], [0.337584, -0.279081], [0.333809, -0.284865], [0.328992, -0.28965],
+    [0.323313, -0.293151], [0.31704, -0.295269], [0.310464, -0.296084], [0.303832, -0.295815], [0.297309, -0.294752],
+    [0.290965, -0.293191], [0.284794, -0.291374], [0.278745, -0.289451], [0.27276, -0.287472], [0.266809, -0.285405],
+    [0.260904, -0.283162], [0.255102, -0.280637], [0.249498, -0.277739], [0.244199, -0.274405], [0.239316, -0.270615],
+    [0.234954, -0.266379], [0.231206, -0.261733], [0.228161, -0.25673], [0.225903, -0.251434], [0.224503, -0.245928],
+    [0.224006, -0.240309], [0.224405, -0.234689], [0.225615, -0.229189], [0.227452, -0.223918], [0.22964, -0.218946],
+    [0.231832, -0.214286], [0.233663, -0.209867], [0.234818, -0.205544], [0.235104, -0.201117], [0.234508, -0.196374],
+    [0.233221, -0.191147], [0.231625, -0.18537], [0.230234, -0.179118], [0.229604, -0.172617], [0.230231, -0.166229],
+    [0.232452, -0.160387], [0.236383, -0.15552], [0.241895, -0.151966], [0.248647, -0.149896], [0.256154, -0.149275],
+    [0.263891, -0.149859], [0.271386, -0.151236], [0.278308, -0.152908], [0.284509, -0.154377], [0.290025, -0.155243],
+    [0.295041, -0.155263], [0.299823, -0.154393], [0.304645, -0.152771], [0.309726, -0.150675], [0.315188, -0.148459],
+    [0.321045, -0.146478], [0.327221, -0.145031], [0.333578, -0.144316], [0.339964, -0.144423], [0.346241, -0.145346],
+    [0.352307, -0.147011], [0.358102, -0.149313], [0.363599, -0.152141], [0.36879, -0.155404], [0.373674, -0.159032],
+    [0.378251, -0.162972], [0.382523, -0.167186], [0.386502, -0.171639], [0.390208, -0.176302], [0.393671, -0.181154],
+    [0.396911, -0.186187], [0.399912, -0.191409], [0.402601, -0.196836], [0.404826, -0.202479], [0.406352, -0.20832]
+  ]
+};
+// Sample the exact polygon from an interior point. The green is sampled from the
+// cup so its inner ring is an opening in the mesh, including at grazing angles.
+const SEGMENTS = 120;
+const TAU = Math.PI * 2;
+const clamp01 = n => Math.max(0, Math.min(1, n));
+const smooth = n => { const t = clamp01(n); return t * t * (3 - 2 * t); };
+
+function radialOutline(points, x, y) {
+  const radii = Array.from({ length: SEGMENTS }, (_, i) => {
+    const a = i * TAU / SEGMENTS;
+    const dx = Math.cos(a), dy = Math.sin(a);
+    for (let j = 0; j < points.length; j++) {
+      const [ax, ay] = points[j];
+      const [bx, by] = points[(j + 1) % points.length];
+      const ex = bx - ax, ey = by - ay;
+      const cross = dx * ey - dy * ex;
+      if (Math.abs(cross) < 1e-10) continue;
+      const alongEdge = ((ax - x) * dy - (ay - y) * dx) / cross;
+      const radius = ((ax - x) * ey - (ay - y) * ex) / cross;
+      if (alongEdge >= 0 && alongEdge <= 1 && radius > 0) return radius;
+    }
+    throw new Error('Coaster outline does not enclose its origin');
+  });
+  const inset = (px, py) => {
+    const dx = px - x, dy = py - y;
+    const index = ((Math.atan2(dy, dx) / TAU + 1) % 1) * SEGMENTS;
+    const i = Math.floor(index);
+    const limit = THREE.MathUtils.lerp(radii[i], radii[(i + 1) % SEGMENTS], index - i);
+    return limit - Math.hypot(dx, dy);
+  };
+  return { x, y, radii, inset };
+}
+
+const green = radialOutline(OUTLINES.green, COURSE.cup.x, COURSE.cup.y);
+const bunker = radialOutline(OUTLINES.bunker, 370 / 1400 - 0.5, 0.5 - 950 / 1400);
+const pond = radialOutline(OUTLINES.pond, 1130 / 1400 - 0.5, 0.5 - 1000 / 1400);
+const FLOOR = 0.001;
+const CUP_FLOOR = 0.003;
+const WATER_Z = 0.006;
+const MOUTH = COURSE.cup.r + 0.001;
+
+function greenHeight(x, y) {
+  const cupBlend = smooth((Math.hypot(x - green.x, y - green.y) - MOUTH) / 0.058);
+  const crown = 0.022 + cupBlend * (0.005 * Math.sin(17 * x + 8 * y) + 0.003 * Math.sin(22 * y - 4 * x));
+  return FLOOR + crown * smooth((green.inset(x, y) + 0.025) / 0.088);
+}
+function sandHeight(depth) {
+  return FLOOR + 0.012 - 0.011 * smooth(depth / 0.044);
+}
+function heightAt(x, y) {
+  const sand = bunker.inset(x, y);
+  const grass = greenHeight(x, y);
+  if (sand >= 0) return sandHeight(sand);
+  return THREE.MathUtils.lerp(grass, sandHeight(0), smooth(1 + sand / 0.028));
+}
+function surfaceAt(x, y) {
+  if (pond.inset(x, y) > 0.004) return 'water';
+  if (bunker.inset(x, y) >= 0) return 'sand';
+  return green.inset(x, y) >= 0 ? 'green' : 'rough';
+}
+
+function terrainMap(paint, maskBunker = false) {
+  const canvas = document.createElement('canvas');
+  const size = canvas.width = canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  const pixels = ctx.createImageData(size, size);
+  for (let i = 0; i < size * size; i++) {
+    const x = (i % size + 0.5) / size - 0.5;
+    const y = 0.5 - (Math.floor(i / size) + 0.5) / size;
+    const noise = ((Math.imul(i + 1, 0x9e3779b1) >>> 24) / 255 - 0.5) * 12;
+    const rgb = paint(x, y, noise);
+    pixels.data.set(rgb, i * 4);
+    pixels.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(pixels, 0, 0);
+  if (maskBunker) {
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath();
+    OUTLINES.bunker.forEach(([x, y], i) => {
+      const px = (0.5 + x) * size, py = (0.5 - y) * size;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    });
+    ctx.closePath();
+    ctx.fill();
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  return texture;
+}
+
+function radialMesh(outline, radiate, material) {
+  const positions = [], uv = [], faces = [];
+  const rings = radiate.length;
+  for (const ring of radiate) {
+    for (let i = 0; i < SEGMENTS; i++) {
+      const angle = i * TAU / SEGMENTS;
+      const [radius, elevation] = ring(outline.radii[i], Math.cos(angle), Math.sin(angle));
+      const x = outline.x + radius * Math.cos(angle), y = outline.y + radius * Math.sin(angle);
+      positions.push(x, y, elevation(x, y));
+      uv.push(x + 0.5, y + 0.5);
+    }
+  }
+  for (let j = 0; j < rings - 1; j++) {
+    for (let i = 0; i < SEGMENTS; i++) {
+      const a = j * SEGMENTS + i, b = j * SEGMENTS + (i + 1) % SEGMENTS;
+      faces.push(a, a + SEGMENTS, b, b, a + SEGMENTS, b + SEGMENTS);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geometry.setIndex(faces);
+  geometry.computeVertexNormals();
+  return new THREE.Mesh(geometry, material);
+}
+
+// Extra printed features, converted from coaster-art-generator.py (1400 px art -> centred units)
+const ART = {
+  fringe: [[0.37493,0.02857],[0.36835,0.00943],[0.36128,-0.00905],[0.35425,-0.02705],[0.34728,-0.04474],[0.33998,-0.0622],[0.33171,-0.07929],[0.3218,-0.09572],[0.3098,-0.11104],[0.29558,-0.12487],[0.2794,-0.13697],[0.26181,-0.14733],[0.24349,-0.15624],[0.22507,-0.16414],[0.20696,-0.17155],[0.18926,-0.17887],[0.17182,-0.18622],[0.15429,-0.19342],[0.13634,-0.19996],[0.11776,-0.20516],[0.09858,-0.20835],[0.07905,-0.20909],[0.05958,-0.20728],[0.04059,-0.20327],[0.02234,-0.19777],[0.00484,-0.19168],[-0.01218,-0.18591],[-0.02922,-0.1811],[-0.04681,-0.17749],[-0.06535,-0.17483],[-0.08497,-0.17247],[-0.10537,-0.16952],[-0.12591,-0.16507],[-0.14575,-0.15839],[-0.16401,-0.14916],[-0.18006,-0.13744],[-0.19366,-0.12367],[-0.20504,-0.10849],[-0.21486,-0.09254],[-0.22397,-0.07633],[-0.23321,-0.06008],[-0.24312,-0.04371],[-0.25375,-0.02695],[-0.26462,-0.00945],[-0.27475,0.00904],[-0.28294,0.02857],[-0.28798,0.0489],[-0.28897,0.06954],[-0.28549,0.0899],[-0.27768,0.10938],[-0.26618,0.12754],[-0.25194,0.14418],[-0.23597,0.15934],[-0.21914,0.1732],[-0.20199,0.18602],[-0.18469,0.19793],[-0.16713,0.20889],[-0.14902,0.21866],[-0.13014,0.22686],[-0.1104,0.23308],[-0.09,0.23711],[-0.06933,0.23898],[-0.0489,0.23909],[-0.02918,0.23814],[-0.01043,0.237],[0.00736,0.23652],[0.02449,0.23728],[0.04144,0.23949],[0.0587,0.24286],[0.07666,0.24672],[0.09542,0.25011],[0.1148,0.25209],[0.13437,0.25189],[0.15362,0.24914],[0.17212,0.24391],[0.1897,0.23666],[0.20649,0.2281],[0.22296,0.21895],[0.23971,0.20976],[0.2573,0.20073],[0.27603,0.19168],[0.29575,0.18212],[0.31581,0.17142],[0.33515,0.15896],[0.35248,0.14439],[0.36654,0.12765],[0.37644,0.10907],[0.38177,0.08922],[0.38274,0.06879],[0.38011,0.04842]],
+  path: [[-0.45714,0.23571],[-0.45,0.22377],[-0.44286,0.21196],[-0.43571,0.20042],[-0.42857,0.18929],[-0.42143,0.17869],[-0.41429,0.16873],[-0.40714,0.15954],[-0.4,0.15122],[-0.39286,0.14385],[-0.38571,0.13752],[-0.37857,0.1323],[-0.37143,0.12823],[-0.36429,0.12537],[-0.35714,0.12373],[-0.35,0.12332],[-0.34286,0.12413],[-0.33571,0.12616],[-0.32857,0.12936],[-0.32143,0.13367],[-0.31429,0.13905],[-0.30714,0.14541],[-0.3,0.15265],[-0.29286,0.16069],[-0.28571,0.16942],[-0.27857,0.1787],[-0.27143,0.18843],[-0.26429,0.19846],[-0.25714,0.20867],[-0.25,0.21891],[-0.24286,0.22906],[-0.23571,0.23897],[-0.22857,0.24851],[-0.22143,0.25756],[-0.21429,0.26598],[-0.20714,0.27368],[-0.2,0.28054],[-0.19286,0.28646],[-0.18571,0.29137],[-0.17857,0.29519]],              // cart path centre line, 34 px wide
+  sprinklers: [[-0.08571,0.42857],[0.42857,-0.12857],[-0.43571,-0.21429],[0.22857,-0.33571],[-0.17857,0.21429]],
+  markers: [[-0.33571,0.16429,"150"],[-0.37143,-0.02857,"75"],[0.34286,-0.04286,"50"]],
+  title: { tj: [-0.04286, 0.36786], hio: [-0.01429, 0.31786] },
+  qrPanel: { x0: -0.11357, x1: 0.12786, y0: -0.41571, y1: -0.17429 },
+  scan: [0.00714, -0.15429],
+  radius: 0.46349,                   // printed circle (116.8 / 252)
+};
+
+// ---------------------------------------------------------------------------
+// The rest of the coaster in 3D: mowed rough with a fringe, the cart path,
+// trees, sprinkler heads, yardage markers, the title and a raised QR sign.
+// Together with buildTerrain() this covers the whole printed coaster.
+// ---------------------------------------------------------------------------
+function pointInPoly(poly, x, y) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i], [xj, yj] = poly[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+function textTexture(w, h, draw) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  const paint = () => { g.clearRect(0, 0, w, h); draw(g); t.needsUpdate = true; };
+  paint();
+  document.fonts?.ready.then(paint).catch(() => {});        // repaint once Lobster / Inter arrive
+  return t;
+}
+function flatLabel(group, tex, w, h, x, y, z, shadow = true) {
+  if (shadow) {
+    const s = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, color: 0x000000, transparent: true, opacity: 0.45, depthWrite: false }));
+    s.position.set(x + 0.003, y - 0.003, z - 0.0005); group.add(s);
+  }
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
+  m.position.set(x, y, z); group.add(m);
+  return m;
+}
+
+function buildCoaster(group) {
+  // ---- Rough: mowing bands, blade noise, and a lighter fringe around the green
+  const SIZE = 1024;
+  const rc = document.createElement('canvas'); rc.width = rc.height = SIZE;
+  const g = rc.getContext('2d');
+  const px = (x) => (0.5 + x) * SIZE, py = (y) => (0.5 - y) * SIZE;
+  g.fillStyle = '#224e28'; g.fillRect(0, 0, SIZE, SIZE);
+  for (let i = -6; i < 14; i++) {                         // curved mowing bands, as printed
+    const w = (95 + (i * 37) % 60) / 1400 * SIZE, x0 = (i * 130 + (i * i * 7) % 40) / 1400 * SIZE;
+    g.fillStyle = i % 2 ? '#2c6030' : '#1e4624';
+    g.beginPath();
+    for (let y = -20; y <= SIZE + 40; y += 16) g.lineTo(x0 + 44 * Math.sin(y / 190), y);
+    for (let y = SIZE + 40; y >= -20; y -= 16) g.lineTo(x0 + w + 44 * Math.sin(y / 190), y);
+    g.fill();
+  }
+  for (let i = 0; i < 7000; i++) {                        // grass blades
+    const x = Math.random() * SIZE, y = Math.random() * SIZE, L = 4 + Math.random() * 7, a = -1.9 + Math.random() * 0.7;
+    g.strokeStyle = `rgba(${20 + Math.random() * 50 | 0},${70 + Math.random() * 60 | 0},${25 + Math.random() * 35 | 0},.8)`;
+    g.lineWidth = 1.4; g.beginPath(); g.moveTo(x, y); g.lineTo(x + L * Math.cos(a), y + L * Math.sin(a)); g.stroke();
+  }
+  g.fillStyle = '#347636'; g.beginPath();                 // fringe (collar) around the green
+  ART.fringe.forEach(([x, y], i) => i ? g.lineTo(px(x), py(y)) : g.moveTo(px(x), py(y))); g.closePath(); g.fill();
+  // cart path
+  g.lineCap = g.lineJoin = 'round';
+  g.strokeStyle = '#d6ccb4'; g.lineWidth = 34 / 1400 * SIZE; g.beginPath();
+  ART.path.forEach(([x, y], i) => i ? g.lineTo(px(x), py(y)) : g.moveTo(px(x), py(y))); g.stroke();
+  g.strokeStyle = 'rgba(120,110,90,.7)'; g.lineWidth = 2; g.stroke();
+  const roughTex = new THREE.CanvasTexture(rc); roughTex.colorSpace = THREE.SRGBColorSpace; roughTex.anisotropy = 4;
+  const rough = new THREE.Mesh(new THREE.CircleGeometry(ART.radius, 128),
+    new THREE.MeshStandardMaterial({ map: roughTex, roughness: 1 }));
+  const uv = rough.geometry.attributes.uv, pos = rough.geometry.attributes.position;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, pos.getX(i) + 0.5, pos.getY(i) + 0.5);
+  rough.position.z = 0.0004;
+  group.add(rough);
+
+  // Coaster edge: a thin cream lip so the course reads as a disc on the bar
+  const lip = new THREE.Mesh(new THREE.RingGeometry(ART.radius - 0.004, ART.radius + 0.004, 128),
+    new THREE.MeshStandardMaterial({ color: 0xf1ece2, roughness: 0.8 }));
+  lip.position.z = 0.003; group.add(lip);
+
+  // ---- Trees (also obstacles in the physics: COURSE.trees)
+  const leaf = [0x1f5c2a, 0x2c7a36, 0x3a8d40, 0x4c9c45].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9, flatShading: true }));
+  const bark = new THREE.MeshStandardMaterial({ color: 0x5a3d24, roughness: 1 });
+  const treeShadow = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.32, depthWrite: false });
+  COURSE.trees.forEach(([x, y, r], n) => {
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.12, r * 0.16, r * 0.7, 8), bark);
+    trunk.rotation.x = Math.PI / 2; trunk.position.set(x, y, r * 0.35); trunk.userData.cast = true; group.add(trunk);
+    const crown = [[0, 0, 1.05, 0.62], [0.42, 0.1, 0.8, 0.45], [-0.38, 0.2, 0.82, 0.45], [0.1, -0.42, 0.78, 0.44], [-0.15, 0.4, 0.86, 0.42], [0.05, 0.05, 1.35, 0.4]];
+    crown.forEach(([dx, dy, dz, rr], k) => {
+      const ball = new THREE.Mesh(new THREE.IcosahedronGeometry(r * rr, 1), leaf[(k + n) % leaf.length]);
+      ball.position.set(x + dx * r, y + dy * r, dz * r); ball.userData.cast = true; group.add(ball);
+    });
+  });
+
+  // ---- Sprinkler heads
+  const headMat = new THREE.MeshStandardMaterial({ color: 0x1c1c1c, roughness: 0.6 });
+  const ringMat = new THREE.MeshStandardMaterial({ color: 0xebebdc, roughness: 0.6 });
+  for (const [x, y] of ART.sprinklers) {
+    const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.0115, 0.0115, 0.003, 20), ringMat);
+    ring.rotation.x = Math.PI / 2; ring.position.set(x, y, 0.0015); group.add(ring);
+    const head = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.004, 20), headMat);
+    head.rotation.x = Math.PI / 2; head.position.set(x, y, 0.002); group.add(head);
+  }
+
+  // ---- Yardage markers: little wooden blocks with the yardage on top
+  const wood = new THREE.MeshStandardMaterial({ color: 0x3d291a, roughness: 0.8 });
+  for (const [x, y, t] of ART.markers) {
+    const w = 92 / 1400, h = 52 / 1400, tall = 0.012;
+    const block = new THREE.Mesh(new THREE.BoxGeometry(w, h, tall), wood);
+    block.position.set(x, y, tall / 2); block.userData.cast = true; group.add(block);
+    const tex = textTexture(184, 104, (c) => {
+      c.strokeStyle = '#f7eed9'; c.lineWidth = 6; c.strokeRect(6, 6, 172, 92);
+      c.fillStyle = '#f7eed9'; c.font = '800 62px Inter, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(t, 92, 56);
+    });
+    flatLabel(group, tex, w, h, x, y, tall + 0.0005, false);
+  }
+
+  // ---- Title
+  const tjTex = textTexture(400, 140, (c) => {
+    c.fillStyle = '#dba854'; c.font = '110px Lobster, cursive'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText("TJ's", 200, 74);
+  });
+  flatLabel(group, tjTex, 0.16, 0.056, ART.title.tj[0], ART.title.tj[1], 0.004, false);
+  const hioTex = textTexture(1100, 160, (c) => {
+    c.fillStyle = '#f7eed9'; c.font = '800 118px Inter, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('HOLE IN ONE', 550, 84);
+  });
+  flatLabel(group, hioTex, 0.4, 0.058, ART.title.hio[0], ART.title.hio[1], 0.004, false);
+
+  // ---- QR sign: a raised white panel carrying the printed QR (cut from the coaster art)
+  const q = ART.qrPanel, qw = q.x1 - q.x0, qh = q.y1 - q.y0, qz = 0.01;
+  const qrTex = new THREE.TextureLoader().load('/play/coaster.jpg', t => { t.needsUpdate = true; });
+  qrTex.colorSpace = THREE.SRGBColorSpace;
+  qrTex.repeat.set(qw, qh); qrTex.offset.set(q.x0 + 0.5, q.y0 + 0.5);
+  const white = new THREE.MeshStandardMaterial({ color: 0xfbf8f2, roughness: 0.7 });
+  const face = new THREE.MeshStandardMaterial({ map: qrTex, roughness: 0.7 });
+  const sign = new THREE.Mesh(new THREE.BoxGeometry(qw, qh, qz), [white, white, white, white, face, white]);
+  sign.position.set((q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2, qz / 2); sign.userData.cast = true; group.add(sign);
+  const scanTex = textTexture(600, 90, (c) => {
+    c.fillStyle = '#15302a'; c.beginPath(); c.roundRect(40, 4, 520, 82, 20); c.fill();
+    c.fillStyle = '#dba854'; c.font = '800 58px Inter, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('SCAN TO PLAY', 300, 48);
+  });
+  const scan = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 0.0225), new THREE.MeshBasicMaterial({ map: scanTex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+  scan.rotation.x = Math.PI / 2 - 0.6;                    // leans back on the top edge of the QR sign so it reads from above
+  scan.scale.setScalar(1.3);
+  scan.position.set(sign.position.x, q.y1 - 0.004, qz + 0.0115); group.add(scan);
+}
+
+function buildTerrain(group) {
+  buildCoaster(group);
+  const grass = terrainMap((x, y, n) => {
+    const stripe = Math.sin((x - 0.43 * y) * 162) > 0 ? 9 : 0;
+    const fringe = smooth(green.inset(x, y) / 0.022);
+    return [34 + fringe * (37 + stripe) + n, 84 + fringe * (56 + stripe) + n, 45 + fringe * 15 + n];
+  }, true);
+  const sand = terrainMap((x, y, n) => {
+    const rake = Math.sin((Math.hypot(x + 0.33, y + 0.29) + 0.003 * Math.sin(x * 54)) * 520) * 3;
+    return [208 + n + rake, 165 + n + rake, 106 + n + rake];
+  });
+  const water = terrainMap((x, y, n) => {
+    const shore = 1 - smooth(pond.inset(x, y) / 0.046);
+    const ripple = Math.pow(0.5 + 0.5 * Math.sin(y * 405 + Math.sin(x * 54) * 2.5), 16) * 27;
+    return [22 + shore * 27 + ripple, 85 + shore * 41 + ripple + n, 110 + shore * 40 + ripple + n];
+  });
+  const rings = (count, radius, height) => Array.from({ length: count + 1 }, (_, i) =>
+    (edge) => [radius(edge, i / count), height]);
+  const greenRings = rings(24, (edge, t) => THREE.MathUtils.lerp(MOUTH, edge, t), heightAt);
+  group.add(radialMesh(green, greenRings,
+    new THREE.MeshStandardMaterial({ map: grass, alphaTest: 0.5, roughness: 0.94 })));
+
+  const sandRings = rings(15, (edge, t) => edge * t, (x, y) => sandHeight(bunker.inset(x, y)));
+  const sandMesh = radialMesh(bunker, sandRings, new THREE.MeshStandardMaterial({ map: sand, roughness: 1 }));
+  group.add(sandMesh);
+
+  const bankRings = [
+    edge => [edge * 0.89, () => WATER_Z - 0.002],
+    edge => [edge * 0.96, () => 0.013],
+    edge => [edge, () => FLOOR]
+  ];
+  const waterRings = rings(1, (edge, t) => edge * t * 0.96, () => WATER_Z);
+  group.add(
+    radialMesh(pond, bankRings, new THREE.MeshStandardMaterial({ color: 0x2b624c, roughness: 0.9, side: THREE.DoubleSide })),
+    radialMesh(pond, waterRings, new THREE.MeshStandardMaterial({ map: water, roughness: 0.26, metalness: 0.12 }))
+  );
+
+  const lip = heightAt(green.x + MOUTH, green.y);
+  const cup = { ...green, radii: Array(SEGMENTS).fill(MOUTH) };
+  // The wall slopes inward to the liner floor. Double-sided shading lets the
+  // inside remain visible when viewed down the flagstick.
+  const liner = radialMesh(cup, [
+    () => [0, () => CUP_FLOOR],
+    () => [MOUTH * 0.85, () => CUP_FLOOR],
+    () => [MOUTH, () => lip - 0.001]
+  ], new THREE.MeshStandardMaterial({ color: 0x242c25, roughness: 0.96, side: THREE.DoubleSide }));
+  const rim = radialMesh(cup, [
+    () => [MOUTH * 0.94, () => lip - 0.001],
+    () => [MOUTH * 1.085, () => lip + 0.0004]
+  ], new THREE.MeshStandardMaterial({ color: 0xe5dfc8, roughness: 0.75, side: THREE.DoubleSide }));
+  group.add(liner, rim);
+}
+
+// In-app browsers (Instagram, Facebook, Snapchat, etc.) often block the camera.
+const IN_APP = /Instagram|FBAN|FBAV|Snapchat|Line\/|TikTok|musical_ly/i.test(navigator.userAgent);
+if (IN_APP) { show($('start'), false); show($('inapp'), true); }
+
+// ---------------------------------------------------------------------------
+// The game itself. It only needs a group to draw into (the coaster), a camera
+// and a renderer, so it runs the same on the camera (MindAR) and in practice mode.
+// ---------------------------------------------------------------------------
+function makeGame({ group, camera, renderer, isTracking }) {
+  // ---- Rendering: filmic tone mapping, image-based lighting and real soft shadows
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 0.92;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  let scene = group; while (scene.parent) scene = scene.parent;
+  if (ENV_SCENE && scene.isScene) {
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(ENV_SCENE, 0.04).texture;      // soft studio reflections for PBR materials
+    pmrem.dispose();
+  }
+  // Both ends of the directional light follow the anchor's pose.
+  const fill = new THREE.HemisphereLight(0xfff7e8, 0x3a5a30, 0.35);
+  const sun = new THREE.DirectionalLight(0xfff2d6, 2.0);
+  sun.position.set(-0.6, 0.8, 2);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(1024, 1024);
+  sun.shadow.radius = 3;
+  group.add(fill, sun, sun.target);
+  let shadowScale = 0;
+  const fitShadow = () => {              // the anchor is scaled in AR, so size the shadow camera in world units
+    group.updateWorldMatrix(true, false);
+    const k = group.matrixWorld.getMaxScaleOnAxis();
+    if (Math.abs(k - shadowScale) < shadowScale * 0.02) return;
+    shadowScale = k;
+    const c = sun.shadow.camera;
+    c.left = c.bottom = -0.62 * k; c.right = c.top = 0.62 * k; c.near = 1 * k; c.far = 3.6 * k;
+    c.updateProjectionMatrix();
+    sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.003 * k;
+  };
+
+  buildTerrain(group);
+  group.traverse(o => { if (o.isMesh) o.receiveShadow = true; });
+  group.traverse(o => { if (o.isMesh && o.material.roughness < 0.4) o.material.envMapIntensity = 0.3; });   // keep the pond from mirroring the studio light
+  group.traverse(o => { if (o.isMesh && o.userData.cast) o.castShadow = true; });
+
+  // Ball (with a soft contact shadow)
+  const ballTex = (() => {      // tiny dimple texture so the roll is visible
+    const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, 64, 64); g.fillStyle = '#d9dde0';
+    for (let i = 0; i < 70; i++) { g.beginPath(); g.arc(Math.random() * 64, Math.random() * 64, 2, 0, 7); g.fill(); }
+    g.fillStyle = '#c0392b'; g.fillRect(0, 30, 64, 4);                       // red stripe
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  })();
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(BALL_R, 24, 16), new THREE.MeshStandardMaterial({ map: ballTex, roughness: 0.35, emissive: 0xffffff, emissiveIntensity: 0.08 }));
+  const shadowCanvas = document.createElement('canvas');
+  shadowCanvas.width = shadowCanvas.height = 32;
+  const shadowCtx = shadowCanvas.getContext('2d');
+  const shade = shadowCtx.createRadialGradient(16, 16, 2, 16, 16, 16);
+  shade.addColorStop(0, 'rgba(0,0,0,0.6)');
+  shade.addColorStop(1, 'rgba(0,0,0,0)');
+  shadowCtx.fillStyle = shade;
+  shadowCtx.fillRect(0, 0, 32, 32);
+  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(BALL_R * 3.1, BALL_R * 3.1),
+    new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(shadowCanvas), transparent: true, depthWrite: false }));
+  ball.castShadow = true;
+  group.add(ball, shadow);
+
+  // Flagstick standing in the printed cup, with a TJ's flag that waves
+  const flag = new THREE.Group();
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.0022, 0.0022, 0.193, 10), new THREE.MeshStandardMaterial({ color: 0xf4f1ea, roughness: 0.4 }));
+  pole.rotation.x = Math.PI / 2; pole.position.z = 0.0965; flag.add(pole);
+  const flagTex = (() => {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 160; const g = c.getContext('2d');
+    g.fillStyle = '#d4a854'; g.fillRect(0, 0, 256, 160);
+    g.fillStyle = '#15302a'; g.font = '84px Lobster, cursive'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText("TJ's", 120, 86);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  })();
+  const clothGeo = new THREE.PlaneGeometry(0.11, 0.068, 12, 4);
+  const clothBase = clothGeo.attributes.position.array.slice();
+  const cloth = new THREE.Mesh(clothGeo, new THREE.MeshStandardMaterial({ map: flagTex, emissive: 0xffffff, emissiveMap: flagTex, emissiveIntensity: 0.24, side: THREE.DoubleSide, roughness: 0.8 }));
+  cloth.rotation.x = Math.PI / 2;                          // stand the flag up (plane XY -> XZ)
+  cloth.position.set(0.055, 0, 0.157); flag.add(cloth);
+  flag.position.set(COURSE.cup.x, COURSE.cup.y, heightAt(COURSE.cup.x, COURSE.cup.y));
+  flag.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  group.add(flag);
+  document.fonts?.load('84px Lobster').then(() => {      // redraw once the font arrives
+    const g = flagTex.image.getContext('2d'); g.fillStyle = '#d4a854'; g.fillRect(0, 0, 256, 160);
+    g.fillStyle = '#15302a'; g.font = '84px Lobster, cursive'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText("TJ's", 120, 86);
+    flagTex.needsUpdate = true;
+  }).catch(() => {});
+
+  // Raised sight line follows the local terrain and stays visible on bright grass.
+  const aim = new THREE.Group();
+  const dotGeometry = new THREE.SphereGeometry(0.0045, 10, 6);
+  const dotMaterial = new THREE.MeshBasicMaterial({ color: 0xffe4a0 });
+  const dots = Array.from({ length: 9 }, () => {
+    const dot = new THREE.Mesh(dotGeometry, dotMaterial);
+    aim.add(dot);
+    return dot;
+  });
+  aim.visible = false;
+  group.add(aim);
+
+  // Confetti for a sunk putt
+  const CONF = 85;
+  const conf = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.012, 0.007), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }), CONF);
+  conf.frustumCulled = false; group.add(conf);
+  const confColors = ['#d4a854', '#f3eee4', '#c0392b', '#8fd16a', '#ffffff'];
+  const parts = Array.from({ length: CONF }, (_, i) => { conf.setColorAt(i, new THREE.Color(confColors[i % confColors.length]));
+    return { p: new THREE.Vector3(), v: new THREE.Vector3(), r: new THREE.Euler(), s: new THREE.Vector3() }; });
+  const tmp = new THREE.Object3D(), zero = new THREE.Matrix4().makeScale(0, 0, 0);
+  let confT = -1;
+  const hideConfetti = () => { for (let i = 0; i < CONF; i++) conf.setMatrixAt(i, zero); conf.instanceMatrix.needsUpdate = true; conf.visible = false; confT = -1; };
+  const burstConfetti = () => {
+    conf.visible = true; confT = 0;
+    for (const q of parts) {
+      q.p.set(COURSE.cup.x, COURSE.cup.y, 0.02);
+      const a = Math.random() * Math.PI * 2, out = 0.15 + Math.random() * 0.45;
+      q.v.set(Math.cos(a) * out, Math.sin(a) * out, 0.9 + Math.random() * 1.1);
+      q.r.set(Math.random() * 6, Math.random() * 6, Math.random() * 6); q.s.set(Math.random() * 12 - 6, Math.random() * 12 - 6, Math.random() * 12 - 6);
+    }
+  };
+  hideConfetti();
+
+  // ---- State --------------------------------------------------------------
+  const st = { pos: new THREE.Vector2(), vel: new THREE.Vector2(), last: new THREE.Vector2(), strokes: 0,
+               moving: false, holed: false, sinkT: 0, started: false,
+               wind: 0, splashT: 0, lipped: false, t: 0 };
+  let best = null; try { best = +localStorage.getItem('tjsHoleBest') || null; } catch (e) {}
+  const updateHud = () => { $('strokes').textContent = st.strokes; };
+  const tip = (t) => { $('tipText').textContent = t; show($('tip'), !!t); };
+  let toastTimer = 0;
+  const toast = (t) => { $('toastText').textContent = t; show($('toast'), true); clearTimeout(toastTimer); toastTimer = setTimeout(() => show($('toast'), false), 1400); };
+  // ---------------------------------------------------------------------------
+  // Levels. Making par (3 or better) moves you to the next hole, which adds obstacles.
+  // Positions are given along the tee -> cup line ("at", 0 = tee, 1 = cup) and
+  // to the side of it ("off", + is left of the line looking at the cup).
+  // ---------------------------------------------------------------------------
+  const LEVELS = [
+    { name: 'The Opener',   par: 3 },
+    { name: 'The Windmill', par: 3, windmill: { at: 0.45 } },
+    { name: 'Beverage Run', par: 3, cart: { at: 0.52 }, bumpers: [[0.8, 0.075], [0.8, -0.075]] },
+    { name: 'Spin Cycle',   par: 3, windmill: { at: 0.4 }, spinner: { at: 0.84, off: 0.06, period: 2.6 } },
+    { name: 'The Gauntlet', par: 3, cart: { at: 0.22, amp: 0.1 }, windmill: { at: 0.5 }, spinner: { at: 0.86, off: -0.06, period: 2.2 } },
+  ];
+  const lineU = new THREE.Vector2(COURSE.cup.x - COURSE.tee.x, COURSE.cup.y - COURSE.tee.y);
+  const lineLen = lineU.length(); lineU.normalize();
+  const lineN = new THREE.Vector2(-lineU.y, lineU.x);
+  const lineAng = Math.atan2(lineU.y, lineU.x);
+  const onLine = (at, off = 0) => new THREE.Vector2(COURSE.tee.x, COURSE.tee.y).addScaledVector(lineU, at * lineLen).addScaledVector(lineN, off);
+
+  // Shared materials (PBR: they pick up the environment reflections)
+  const M = {
+    stucco: new THREE.MeshStandardMaterial({ color: 0xf3eee4, roughness: 0.85 }),
+    roof:   new THREE.MeshStandardMaterial({ color: 0x1c3a2e, roughness: 0.55 }),
+    gold:   new THREE.MeshStandardMaterial({ color: 0xd4a854, roughness: 0.35, metalness: 0.6 }),
+    wood:   new THREE.MeshStandardMaterial({ color: 0x7a4e2a, roughness: 0.7 }),
+    steel:  new THREE.MeshStandardMaterial({ color: 0xd8dde2, roughness: 0.18, metalness: 0.95 }),
+    rubber: new THREE.MeshStandardMaterial({ color: 0xc0392b, roughness: 0.45 }),
+    white:  new THREE.MeshStandardMaterial({ color: 0xf7f4ee, roughness: 0.5 }),
+    dark:   new THREE.MeshStandardMaterial({ color: 0x1b1b1b, roughness: 0.8 }),
+  };
+  const castAll = (o) => o.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+
+  // ---- Physics helpers for moving parts ----------------------------------
+  // Oriented box (centre c, angle a, half sizes hx/hy) moving with velocity v.
+  const tmpV = new THREE.Vector2();
+  function hitBox(cx, cy, a, hx, hy, vx = 0, vy = 0, bounce = 0.75) {
+    const c = Math.cos(a), s = Math.sin(a);
+    const dx = st.pos.x - cx, dy = st.pos.y - cy;
+    const lx = dx * c + dy * s, ly = -dx * s + dy * c;
+    const ex = hx + BALL_R, ey = hy + BALL_R;
+    if (Math.abs(lx) > ex || Math.abs(ly) > ey) return false;
+    let rvx = (st.vel.x - vx) * c + (st.vel.y - vy) * s, rvy = -(st.vel.x - vx) * s + (st.vel.y - vy) * c;
+    let nx = lx, ny = ly;
+    if (ex - Math.abs(lx) < ey - Math.abs(ly)) { nx = Math.sign(lx) * ex; if (rvx * lx < 0) rvx = -rvx * bounce; }
+    else { ny = Math.sign(ly) * ey; if (rvy * ly < 0) rvy = -rvy * bounce; }
+    st.pos.set(cx + nx * c - ny * s, cy + nx * s + ny * c);
+    st.vel.set(rvx * c - rvy * s + vx, rvx * s + rvy * c + vy);
+    if (st.vel.length() > MAX_SPEED) st.vel.setLength(MAX_SPEED);
+    return true;
+  }
+  // Capsule from A to B with radius r; the surface moves with velocity vel(px, py) at the contact point.
+  function hitCapsule(ax, ay, bx, by, r, vel, bounce = 0.8) {
+    const ex = bx - ax, ey = by - ay, L2 = ex * ex + ey * ey;
+    const t = L2 ? Math.max(0, Math.min(1, ((st.pos.x - ax) * ex + (st.pos.y - ay) * ey) / L2)) : 0;
+    const qx = ax + ex * t, qy = ay + ey * t;
+    const dx = st.pos.x - qx, dy = st.pos.y - qy, d = Math.hypot(dx, dy) || 1e-6;
+    if (d >= r + BALL_R) return false;
+    const nx = dx / d, ny = dy / d;
+    const [vx, vy] = vel ? vel(qx, qy) : [0, 0];
+    const rv = (st.vel.x - vx) * nx + (st.vel.y - vy) * ny;
+    if (rv < 0) { st.vel.x -= (1 + bounce) * rv * nx; st.vel.y -= (1 + bounce) * rv * ny; }
+    st.pos.set(qx + nx * (r + BALL_R), qy + ny * (r + BALL_R));
+    if (st.vel.length() > MAX_SPEED) st.vel.setLength(MAX_SPEED);
+    return true;
+  }
+  let bonkT = 0;
+  const bonk = (msg) => { if (st.t - bonkT > 1) { toast(msg); bonkT = st.t; } };
+
+  // ---- Windmill: blades turn across the tunnel entrance --------------------
+  const WM = { D: 0.062, W: 0.046, T: 0.027, H: 0.078, L: 0.07, period: 4.2, block: 0.4 };
+  const windmill = new THREE.Group(); group.add(windmill);
+  {
+    const { D, W, T, H, L } = WM, tunnelH = 0.036;
+    for (const sy of [-1, 1]) {
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(D, W, H), M.stucco); wall.position.set(0, sy * (T + W / 2), H / 2); windmill.add(wall);
+      const win = new THREE.Mesh(new THREE.PlaneGeometry(0.014, 0.018), M.roof);          // little windows on the sides
+      win.position.set(0, sy * (T + W + 0.0005), H * 0.62); win.rotation.x = sy * Math.PI / 2; windmill.add(win);
+    }
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(D, 2 * T, H - tunnelH), M.stucco);
+    lintel.position.set(0, 0, tunnelH + (H - tunnelH) / 2); windmill.add(lintel);
+    const trim = new THREE.Mesh(new THREE.BoxGeometry(D + 0.006, 2 * (T + W) + 0.006, 0.006), M.gold);
+    trim.position.z = H; windmill.add(trim);
+    const roofGeo = new THREE.ConeGeometry(Math.SQRT1_2, 1, 4, 1); roofGeo.rotateY(Math.PI / 4); roofGeo.rotateX(Math.PI / 2); roofGeo.translate(0, 0, 0.5);
+    const roof = new THREE.Mesh(roofGeo, M.roof); roof.scale.set(D + 0.018, 2 * (T + W) + 0.018, 0.055); roof.position.z = H + 0.003; windmill.add(roof);
+    const signTex = textTexture(256, 96, (c) => { c.fillStyle = '#1c3a2e'; c.fillRect(0, 0, 256, 96); c.fillStyle = '#d4a854';
+      c.font = '64px Lobster, cursive'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText("TJ's", 128, 52); });
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.044, 0.016), new THREE.MeshStandardMaterial({ map: signTex, roughness: 0.6 }));
+    sign.rotation.set(Math.PI / 2, 0, -Math.PI / 2, 'ZYX'); sign.position.set(-D / 2 - 0.0006, 0, tunnelH + 0.012); windmill.add(sign);
+    // Blades: lattice sails on a gold hub, turning about the line of play
+    const latTex = textTexture(64, 256, (c) => { c.fillStyle = '#f3eee4'; c.fillRect(0, 0, 64, 256); c.strokeStyle = '#7a4e2a'; c.lineWidth = 6;
+      for (let y = 0; y <= 256; y += 32) { c.beginPath(); c.moveTo(0, y); c.lineTo(64, y); c.stroke(); }
+      c.beginPath(); c.moveTo(32, 0); c.lineTo(32, 256); c.stroke(); c.strokeRect(3, 3, 58, 250); });
+    const sailMat = new THREE.MeshStandardMaterial({ map: latTex, roughness: 0.8, side: THREE.DoubleSide });
+    const hub = new THREE.Group(); hub.position.set(-D / 2 - 0.009, 0, H - 0.004); windmill.add(hub);
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.01, 16), M.gold); cap.rotation.z = Math.PI / 2; hub.add(cap);
+    for (let i = 0; i < 4; i++) {
+      const arm = new THREE.Group(); arm.rotation.x = i * Math.PI / 2; hub.add(arm);
+      const spar = new THREE.Mesh(new THREE.BoxGeometry(0.003, 0.004, L), M.wood); spar.position.z = L / 2 + 0.004; arm.add(spar);
+      const sail = new THREE.Mesh(new THREE.PlaneGeometry(0.018, L * 0.78), sailMat);
+      sail.rotation.y = Math.PI / 2; sail.position.set(-0.002, 0.009, L * 0.56); arm.add(sail);
+    }
+    windmill.userData.hub = hub;
+    castAll(windmill);
+  }
+
+  // ---- TJ's beverage cart: drives back and forth across the line -------------
+  const CART = { len: 0.085, wid: 0.048, amp: 0.15, period: 3.6 };
+  const cart = new THREE.Group(); group.add(cart);
+  {
+    const box = (w, d, h, m, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, d, h), m); o.position.set(x, y, z); cart.add(o); };
+    box(CART.len, CART.wid, 0.022, M.gold, 0, 0, 0.022);
+    box(CART.len * 0.42, CART.wid * 0.9, 0.03, M.white, -CART.len * 0.22, 0, 0.048);
+    box(CART.len * 0.95, CART.wid * 1.04, 0.004, M.white, -0.004, 0, 0.082);
+    for (const sx of [-0.035, 0.03]) for (const sy of [-1, 1]) box(0.003, 0.003, 0.05, M.steel, sx, sy * CART.wid * 0.45, 0.058);
+    for (const sx of [-0.026, 0.026]) for (const sy of [-1, 1]) {
+      const w = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.007, 16), M.dark); w.position.set(sx, sy * CART.wid * 0.5, 0.011); cart.add(w);
+    }
+    const t = textTexture(256, 96, (c) => { c.fillStyle = '#15302a'; c.fillRect(0, 0, 256, 96); c.fillStyle = '#d4a854';
+      c.font = '64px Lobster, cursive'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText("TJ's", 128, 52); });
+    for (const sy of [-1, 1]) {
+      const s = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.019), new THREE.MeshStandardMaterial({ map: t, roughness: 0.6 }));
+      s.position.set(0.004, sy * (CART.wid / 2 + 0.0008), 0.022); s.rotation.x = sy * Math.PI / 2; if (sy < 0) s.rotation.y = Math.PI; cart.add(s);
+    }
+    castAll(cart);
+  }
+
+  // ---- Spinner: a polished arm sweeping round a striped post ----------------
+  const SP = { len: 0.088, r: 0.0055, post: 0.009 };
+  const spinner = new THREE.Group(); group.add(spinner);
+  {
+    const stripe = textTexture(64, 128, (c) => { for (let i = 0; i < 8; i++) { c.fillStyle = i % 2 ? '#f7f4ee' : '#c0392b'; c.fillRect(0, i * 16, 64, 16); } });
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(SP.post, SP.post, 0.05, 20), new THREE.MeshStandardMaterial({ map: stripe, roughness: 0.4 }));
+    post.rotation.x = Math.PI / 2; post.position.z = 0.025; spinner.add(post);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.011, 20, 12), M.gold); ball.position.z = 0.052; spinner.add(ball);
+    const arm = new THREE.Group(); arm.position.z = 0.013; spinner.add(arm);
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(SP.r, SP.r, SP.len, 14), M.steel);
+    bar.rotation.z = -Math.PI / 2; bar.position.x = SP.len / 2; arm.add(bar);
+    const tip = new THREE.Mesh(new THREE.SphereGeometry(SP.r * 1.5, 14, 10), M.rubber); tip.position.x = SP.len; arm.add(tip);
+    spinner.userData.arm = arm;
+    castAll(spinner);
+  }
+
+  // ---- Rubber bumpers ------------------------------------------------------
+  const BUMP_R = 0.016;
+  const bumpers = [0, 1].map(() => {
+    const b = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(BUMP_R, BUMP_R * 1.08, 0.022, 24), M.rubber); body.rotation.x = Math.PI / 2; body.position.z = 0.011; b.add(body);
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(BUMP_R * 1.02, BUMP_R * 1.02, 0.005, 24), M.white); band.rotation.x = Math.PI / 2; band.position.z = 0.014; b.add(band);
+    const top = new THREE.Mesh(new THREE.SphereGeometry(BUMP_R * 0.55, 16, 8, 0, TAU, 0, Math.PI / 2), M.gold); top.rotation.x = Math.PI / 2; top.position.z = 0.022; b.add(top);
+    castAll(b); group.add(b); return b;
+  });
+
+  // ---- Level state --------------------------------------------------------
+  const L = { n: 0, def: LEVELS[0], wmPos: new THREE.Vector2(), cartMid: new THREE.Vector2(), cartPos: new THREE.Vector2(), cartVel: new THREE.Vector2(),
+              spPos: new THREE.Vector2(), spAng: 0, bumps: [] };
+  function setLevel(n) {
+    L.n = Math.max(0, Math.min(LEVELS.length - 1, n)); const d = L.def = LEVELS[L.n];
+    windmill.visible = !!d.windmill; cart.visible = !!d.cart; spinner.visible = !!d.spinner;
+    if (d.windmill) { L.wmPos.copy(onLine(d.windmill.at)); windmill.position.set(L.wmPos.x, L.wmPos.y, heightAt(L.wmPos.x, L.wmPos.y) - 0.002); windmill.rotation.z = lineAng; }
+    if (d.cart) L.cartMid.copy(onLine(d.cart.at));
+    if (d.spinner) { L.spPos.copy(onLine(d.spinner.at, d.spinner.off)); spinner.position.set(L.spPos.x, L.spPos.y, heightAt(L.spPos.x, L.spPos.y)); }
+    L.bumps = (d.bumpers || []).map(([at, off]) => onLine(at, off));
+    bumpers.forEach((b, i) => { const p = L.bumps[i]; b.visible = !!p; if (p) b.position.set(p.x, p.y, heightAt(p.x, p.y)); });
+    $('hole').textContent = `HOLE ${L.n + 1} · PAR ${d.par}`;
+  }
+  function updateObstacles(t) {
+    const d = L.def;
+    if (d.windmill) windmill.userData.hub.rotation.x = -TAU * t / WM.period;
+    if (d.cart) {
+      const w = TAU / CART.period;
+      const amp = d.cart.amp ?? CART.amp;
+      L.cartPos.copy(L.cartMid).addScaledVector(lineN, amp * Math.sin(w * t));
+      L.cartVel.copy(lineN).multiplyScalar(amp * w * Math.cos(w * t));
+      cart.position.set(L.cartPos.x, L.cartPos.y, heightAt(L.cartPos.x, L.cartPos.y));
+      cart.rotation.z = lineAng + Math.PI / 2 + (Math.cos(w * t) < 0 ? Math.PI : 0);
+    }
+    if (d.spinner) { L.spAng = (d.spinner.off > 0 ? -1 : 1) * TAU * t / d.spinner.period; spinner.userData.arm.rotation.z = L.spAng; }
+  }
+  const windmillBlocked = () => {
+    const a = windmill.userData.hub.rotation.x;
+    for (let i = 0; i < 4; i++) {        // blade i points straight down when its angle is PI
+      const k = ((a + i * Math.PI / 2) % TAU + TAU) % TAU;
+      if (Math.abs(k - Math.PI) < WM.block) return true;
+    }
+    return false;
+  };
+  function collideObstacles() {
+    const d = L.def;
+    if (d.windmill) {
+      const { D, W, T } = WM, c = L.wmPos, a = lineAng;
+      for (const sy of [-1, 1]) {
+        const o = tmpV.copy(c).addScaledVector(lineN, sy * (T + W / 2));
+        if (hitBox(o.x, o.y, a, D / 2, W / 2)) bonk('Off the windmill!');
+      }
+      if (windmillBlocked()) {
+        const g = tmpV.copy(c).addScaledVector(lineU, -D / 2 - 0.009);
+        if (hitBox(g.x, g.y, a, 0.003, T)) bonk('Blocked by a blade!');
+      }
+    }
+    if (d.cart && hitBox(L.cartPos.x, L.cartPos.y, lineAng + Math.PI / 2, CART.len / 2, CART.wid / 2, L.cartVel.x, L.cartVel.y)) bonk('Bonk! Watch the cart');
+    if (d.spinner) {
+      const p = L.spPos, w = (d.spinner.off > 0 ? -1 : 1) * TAU / d.spinner.period;
+      const bx = p.x + Math.cos(L.spAng) * SP.len, by = p.y + Math.sin(L.spAng) * SP.len;
+      if (hitCapsule(p.x, p.y, bx, by, SP.r * 1.4, (qx, qy) => [-w * (qy - p.y), w * (qx - p.x)])) bonk('Swatted!');
+      hitCapsule(p.x, p.y, p.x, p.y, SP.post);
+    }
+    for (const p of L.bumps) if (hitCapsule(p.x, p.y, p.x, p.y, BUMP_R, null, 1.05)) bonk('Boing!');
+  }
+
+  let resultTimer = 0;
+  let accumulator = 0;
+  const reset = () => {
+    cancelDrag();
+    clearTimeout(resultTimer); clearTimeout(toastTimer);
+    show($('toast'), false);
+    accumulator = 0; st.splashT = 0;
+    st.pos.set(COURSE.tee.x, COURSE.tee.y); st.last.copy(st.pos); st.vel.set(0, 0);
+    st.strokes = 0; st.moving = false; st.holed = false; st.sinkT = 0; st.lipped = false;
+    st.wind = Math.round(Math.random() * WIND_MAX);
+    flag.rotation.z = Math.random() * TAU;
+    $('wind').textContent = st.wind + ' mph';
+    ball.visible = shadow.visible = true; ball.quaternion.identity();
+    hideConfetti(); updateHud(); show($('result'), false);
+    tip('Pull back, then let go');
+  };
+
+  // Capture the coaster projection at the beginning of the gesture so small
+  // movements of the phone do not change the direction or power of a shot.
+  const near = new THREE.Vector3(), far = new THREE.Vector3();
+  let drag = null;
+  const toCoaster = (event, rect, unproject) => {
+    const x = 2 * (event.clientX - rect.left) / rect.width - 1;
+    const y = 1 - 2 * (event.clientY - rect.top) / rect.height;
+    near.set(x, y, -1).applyMatrix4(unproject);
+    far.set(x, y, 1).applyMatrix4(unproject);
+    const dz = far.z - near.z;
+    if (Math.abs(dz) < 1e-7 || -near.z / dz < 0) return null;
+    return near.clone().lerp(far, -near.z / dz);
+  };
+  const shot = new THREE.Vector2();
+  const canPutt = () => st.started && !st.moving && !st.holed && !st.splashT && isTracking();
+  const canvas = renderer.domElement;
+  canvas.style.touchAction = 'none';
+  function cancelDrag() {
+    const previous = drag;
+    drag = null;
+    if (previous && canvas.hasPointerCapture(previous.id)) canvas.releasePointerCapture(previous.id);
+    aim.visible = false;
+    show($('power'), false);
+  }
+  canvas.addEventListener('pointerdown', e => {
+    if (drag || e.button !== 0 || !canPutt()) return;
+    group.updateWorldMatrix(true, false);
+    camera.updateWorldMatrix(true, false);
+    const rect = canvas.getBoundingClientRect();
+    const unproject = group.matrixWorld.clone().invert()
+      .multiply(camera.matrixWorld).multiply(camera.projectionMatrixInverse);
+    const point = toCoaster(e, rect, unproject);
+    if (!point || Math.hypot(point.x, point.y) > COURSE.edge + 0.1) return;
+    drag = { point, rect, unproject, id: e.pointerId };
+    shot.set(0, 0);
+    canvas.setPointerCapture(e.pointerId);
+  });
+  function aimShot(e) {
+    if (e.pointerId !== drag?.id) return false;
+    const point = toCoaster(e, drag.rect, drag.unproject);
+    if (!point) return false;
+    shot.set(drag.point.x - point.x, drag.point.y - point.y).multiplyScalar(POWER).clampLength(0, MAX_SPEED);
+    return true;
+  }
+  canvas.addEventListener('pointermove', e => {
+    if (!aimShot(e)) return;
+    const speed = shot.length();
+    const power = speed / MAX_SPEED;
+    aim.visible = speed > 0.045;
+    for (let i = 0; aim.visible && i < dots.length; i++) {
+      const d = 0.024 + (0.035 + 0.18 * power) * i / (dots.length - 1);
+      const x = st.pos.x + shot.x * d / speed, y = st.pos.y + shot.y * d / speed;
+      dots[i].visible = Math.hypot(x, y) <= COURSE.edge;
+      dots[i].position.set(x, y, heightAt(x, y) + 0.012);
+      dots[i].scale.setScalar(1 - 0.04 * i);
+    }
+    $('powerBar').style.width = Math.round(power * 100) + '%';
+    show($('power'), aim.visible);
+  });
+  canvas.addEventListener('pointerup', e => {
+    if (e.pointerId !== drag?.id) return;
+    const valid = aimShot(e);
+    cancelDrag();
+    if (!valid || shot.length() < 0.045 || !canPutt()) return;
+    st.last.copy(st.pos); st.vel.copy(shot); st.moving = true; st.lipped = false;
+    st.strokes++; updateHud(); tip('');
+  });
+  for (const event of ['pointercancel', 'lostpointercapture']) {
+    canvas.addEventListener(event, e => { if (e.pointerId === drag?.id) cancelDrag(); });
+  }
+  addEventListener('resize', cancelDrag);
+
+  // ---- Physics ------------------------------------------------------------
+  const bounceCircle = (cx, cy, r, inside) => {     // reflect off a round wall (inside: the coaster rim)
+    const dx = st.pos.x - cx, dy = st.pos.y - cy, d = Math.hypot(dx, dy) || 1e-6;
+    const hit = inside ? d > r - BALL_R : d < r + BALL_R;
+    if (!hit) return;
+    const nx = dx / d, ny = dy / d, dot = st.vel.x * nx + st.vel.y * ny;
+    if ((inside && dot > 0) || (!inside && dot < 0)) { st.vel.x -= 1.6 * dot * nx; st.vel.y -= 1.6 * dot * ny; st.vel.multiplyScalar(0.8); }
+    const target = inside ? r - BALL_R : r + BALL_R;
+    st.pos.set(cx + nx * target, cy + ny * target);
+  };
+  const bounceBox = (b) => {
+    const x0 = b.x0 - BALL_R, x1 = b.x1 + BALL_R, y0 = b.y0 - BALL_R, y1 = b.y1 + BALL_R;
+    if (st.pos.x < x0 || st.pos.x > x1 || st.pos.y < y0 || st.pos.y > y1) return;
+    const pen = [st.pos.x - x0, x1 - st.pos.x, st.pos.y - y0, y1 - st.pos.y];   // push out the shortest way
+    const i = pen.indexOf(Math.min(...pen));
+    if (i === 0) { st.pos.x = x0; st.vel.x = -Math.abs(st.vel.x) * 0.7; }
+    if (i === 1) { st.pos.x = x1; st.vel.x =  Math.abs(st.vel.x) * 0.7; }
+    if (i === 2) { st.pos.y = y0; st.vel.y = -Math.abs(st.vel.y) * 0.7; }
+    if (i === 3) { st.pos.y = y1; st.vel.y =  Math.abs(st.vel.y) * 0.7; }
+  };
+
+  const sink = () => {
+    st.holed = true; st.moving = false; st.vel.set(0, 0); st.sinkT = 0.001;
+    burstConfetti();
+    if (navigator.vibrate) navigator.vibrate([40, 60, 80]);
+    const n = st.strokes, par = L.def.par, last = L.n === LEVELS.length - 1;
+    const made = n <= par;                      // par or better unlocks the next hole
+    const name = made && last ? 'Course champion!' : n === 1 ? 'Hole in one!' : n === par - 1 ? 'Birdie!' : n === par ? 'Par' : n === par + 1 ? 'Bogey' : n === par + 2 ? 'Double bogey' : 'In the cup';
+    $('resTitle').textContent = name;
+    let line = n === 1 ? 'One stroke. Drinks are on you.' : `${n} strokes${n <= par ? '. Nice putting.' : '. The bar is still open.'}`;
+    if (made && !last) line += ` Hole ${L.n + 2}, ${LEVELS[L.n + 1].name}, is open.`;
+    else if (made && last) line += ' You beat every hole on the course.';
+    else line += last ? ` Make par (${par}) to beat the course.` : ` Make par (${par}) to unlock hole ${L.n + 2}.`;
+    if (n !== 1 || L.n === 0) {
+      if (best === null || n < best) { if (best !== null && L.n === 0) line += ' New personal best!'; best = n; try { localStorage.setItem('tjsHoleBest', String(n)); } catch (e) {} }
+    }
+    if (n === 1 && last) line = 'A hole in one on the hardest hole. You beat the whole course!';
+    $('resScore').textContent = line;
+    $('next').hidden = !made;
+    $('next').textContent = last ? 'Start over' : 'Next hole';
+    $('again').textContent = made ? 'Replay hole' : 'Try again';
+    resultTimer = setTimeout(() => show($('result'), true), 1100);
+  };
+
+  const origin = new THREE.Vector2();
+  const slope = new THREE.Vector2(), previous = new THREE.Vector2();
+  const rollAxis = new THREE.Vector3(), roll = new THREE.Quaternion();
+  const gradientStep = 0.002;
+  function splash() {
+    st.strokes++; updateHud(); toast('Splash! +1 stroke');
+    st.vel.set(0, 0); st.moving = false; st.splashT = 0.35;
+  }
+  function advance() {
+    const h = FIXED_STEP;
+    st.t += h; updateObstacles(st.t);       // obstacles keep moving whether or not the ball is
+    if (st.splashT > 0) {
+      st.splashT -= h;
+      if (st.splashT <= 0) {
+        st.splashT = 0; st.pos.copy(st.last);
+        tip('Pull back to putt again');
+      }
+      return;
+    }
+    if (!st.moving) return;
+
+    const { x, y } = st.pos;
+    const surface = surfaceAt(x, y);
+    if (surface === 'water') { splash(); return; }
+    slope.set(
+      heightAt(x - gradientStep, y) - heightAt(x + gradientStep, y),
+      heightAt(x, y - gradientStep) - heightAt(x, y + gradientStep)
+    ).multiplyScalar(SLOPE_GRAVITY / (2 * gradientStep)).clampLength(0, MAX_SLOPE_ACCEL);
+    st.vel.addScaledVector(slope, h);
+    const speed = st.vel.length();
+    const drag = (FRICTION[surface] + speed * 0.14) * h;
+    if (speed <= drag) {
+      st.vel.set(0, 0); st.moving = false;
+      tip(surface === 'sand' ? 'In the sand. Pull back farther.' : 'Pull back to putt again');
+      return;
+    }
+    st.vel.setLength(speed - drag);
+    previous.copy(st.pos);
+    st.pos.addScaledVector(st.vel, h);
+
+    const cx = st.pos.x - COURSE.cup.x, cy = st.pos.y - COURSE.cup.y;
+    if (Math.hypot(cx, cy) >= COURSE.cup.r) st.lipped = false;
+    else if (!st.lipped) {
+      if (st.vel.length() <= SINK_SPEED) {
+        st.pos.set(COURSE.cup.x, COURSE.cup.y);
+        sink();
+        return;
+      }
+      const side = Math.sign(st.vel.x * cy - st.vel.y * cx) || 1;
+      st.vel.rotateAround(origin, side * 0.35).multiplyScalar(0.72);
+      st.lipped = true;
+      toast('Lipped out!');
+    }
+
+    if (surfaceAt(st.pos.x, st.pos.y) === 'water') { splash(); return; }
+    for (const [tx, ty, r] of COURSE.trees) bounceCircle(tx, ty, r, false);
+    bounceBox(COURSE.qr);
+    collideObstacles();
+    bounceCircle(0, 0, COURSE.edge, true);
+    const distance = previous.distanceTo(st.pos);
+    if (distance > 0) {
+      rollAxis.set(previous.y - st.pos.y, st.pos.x - previous.x, 0).normalize();
+      ball.quaternion.premultiply(roll.setFromAxisAngle(rollAxis, distance / BALL_R));
+    }
+  }
+
+  const step = dt => {
+    fitShadow();
+    const t = performance.now() / 1000;
+    const arr = clothGeo.attributes.position.array;
+    const wind = st.wind / WIND_MAX;
+    for (let i = 0; i < arr.length; i += 3) {
+      const x = clothBase[i] + 0.055;
+      arr[i + 2] = Math.sin(t * (4 + 8 * wind) + x * 60) * (0.002 + 0.009 * wind) * (x / 0.11);
+    }
+    clothGeo.attributes.position.needsUpdate = true;
+
+    accumulator += dt;
+    while (accumulator >= FIXED_STEP) {
+      advance();
+      accumulator -= FIXED_STEP;
+    }
+    const floor = heightAt(st.pos.x, st.pos.y);
+    let z = floor + BALL_R;
+    ball.visible = shadow.visible = true;
+    if (st.holed) {
+      st.sinkT += dt;
+      z = Math.max(CUP_FLOOR + BALL_R, z - st.sinkT * 0.15);
+      ball.visible = st.sinkT < 0.27;
+      shadow.visible = false;
+    } else if (st.splashT) {
+      z = WATER_Z + BALL_R - (0.35 - st.splashT) * 0.17;
+      ball.visible = z + BALL_R > WATER_Z;
+      shadow.visible = false;
+    }
+    ball.position.set(st.pos.x, st.pos.y, z);
+    shadow.position.set(st.pos.x + 0.003, st.pos.y - 0.003, floor + 0.002);
+
+    // Confetti
+    if (confT >= 0) {
+      confT += dt;
+      parts.forEach((q, i) => {
+        q.v.z -= 2.2 * dt; q.v.multiplyScalar(1 - 1.4 * dt);
+        q.p.addScaledVector(q.v, dt);
+        if (q.p.z < 0.002) { q.p.z = 0.002; q.v.set(0, 0, 0); }
+        else { q.r.x += q.s.x * dt; q.r.y += q.s.y * dt; q.r.z += q.s.z * dt; }
+        tmp.position.copy(q.p); tmp.rotation.copy(q.r); tmp.updateMatrix(); conf.setMatrixAt(i, tmp.matrix);
+      });
+      conf.instanceMatrix.needsUpdate = true;
+      if (confT > 1.75) hideConfetti();
+    }
+  };
+
+  setLevel(0);
+  $('next').onclick = () => {
+    const nextN = L.n === LEVELS.length - 1 ? 0 : L.n + 1;
+    setLevel(nextN); reset();
+    toast(`Hole ${nextN + 1}: ${L.def.name}`);
+  };
+  reset();
+  return { step, reset, cancelDrag, tip, setLevel, levels: LEVELS, level: () => L.n,
+    dispose: () => removeEventListener('resize', cancelDrag),
+    start: () => { st.started = true; }, state: st };
+}
+
+// ---------------------------------------------------------------------------
+// Practice mode (/play#demo): the coaster art on a virtual table, no camera.
+// ---------------------------------------------------------------------------
+function startDemo() {
+  show($('start'), false); show($('inapp'), false); show($('hud'), true);
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  $('ar').appendChild(renderer.domElement);
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x2b1d14);                          // dark wood bar top
+  const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.01, 20);
+  const fit = () => {
+    const a = innerWidth / innerHeight;
+    camera.aspect = a; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight);
+    const dist = Math.max(1.31, 1.24 / a);                                  // keep the whole coaster in view
+    camera.position.set(0, -dist * 0.44, dist * 0.9); camera.lookAt(0, 0.012, 0);
+  };
+  fit(); addEventListener('resize', fit);
+  const group = new THREE.Group(); scene.add(group);
+  const tex = new THREE.TextureLoader().load('/play/coaster.jpg');
+  tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+  const coaster = new THREE.Mesh(new THREE.CircleGeometry(0.4636, 96), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9 }));
+  // CircleGeometry UVs map the circle to the middle of the texture; scale them to the printed circle
+  const uv = coaster.geometry.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, 0.5 + (uv.getX(i) - 0.5) * 0.9272, 0.5 + (uv.getY(i) - 0.5) * 0.9272);
+  coaster.position.z = -0.003;      // the printed art sits under the 3D course, as in the camera view
+  group.add(coaster);
+  const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.47, 0.47, 0.012, 96), new THREE.MeshStandardMaterial({ color: 0xf1ece2, roughness: 1 }));
+  rim.rotation.x = Math.PI / 2; rim.position.z = -0.007; group.add(rim);
+
+  const game = makeGame({ group, camera, renderer, isTracking: () => true });
+  game.start();
+  $('again').onclick = () => game.reset();
+  const clock = new THREE.Clock();
+  renderer.setAnimationLoop(() => { game.step(Math.min(clock.getDelta(), 0.05)); renderer.render(scene, camera); });
+  window.__game = game;           // for automated testing
+}
+
+// ---------------------------------------------------------------------------
+// Camera mode: MindAR finds the coaster and the course sits on top of it.
+// ---------------------------------------------------------------------------
+async function startAR() {
+  show($('start'), false);
+  show($('loading'), true);
+  $('loading').textContent = 'Loading tabletop tracking…';
+  const sdk = await new Promise((resolve, reject) => {
+    if (window.XR8) return resolve(window.XR8);
+    const timeout = setTimeout(() => reject(new Error('8th Wall engine failed to load')), 20000);
+    window.addEventListener('xrloaded', () => { clearTimeout(timeout); resolve(window.XR8); }, {once:true});
+  });
+  const XR8 = sdk;
+  const canvas = $('camerafeed');
+  // Fill the screen: without this the canvas stays at the browser default of 300 x 150
+  canvas.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;display:block';
+  const sizeCanvas = () => { const k = Math.min(devicePixelRatio, 2); canvas.width = innerWidth * k; canvas.height = innerHeight * k; };
+  sizeCanvas(); addEventListener('resize', sizeCanvas);
+  let game = null, placed = false, tracking = false, preview = null, root = null;
+  let camera, scene, renderer, lastFrame = performance.now(), lastHit = null;
+  const ray = new THREE.Raycaster();
+  const hitPosition = new THREE.Vector3();
+  const resetButton = $('resetCourse'), placeButton = $('placeCourse');
+  const status = $('scanStatus'), controls = $('placeControls');
+  const hidePlacement = () => { show(status, false); show(controls, false); };
+  const showPlacement = () => { show(status, true); show(controls, true); };
+  const updateHit = () => {
+    if (!tracking || placed || !camera) return;
+    // Screen-center hit test against tracked world feature points.
+    // Never invent a tabletop plane if tracking does not return a hit.
+    let hits = [];
+    try { hits = XR8.XrController.hitTest(0.5, 0.5, ['FEATURE_POINT']) || []; }
+    catch (error) { console.warn('Hit testing unavailable', error); }
+    const h = hits.find(p => p && p.position && Number.isFinite(p.position.y));
+    if (!h) {
+      lastHit = null; placeButton.disabled = true;
+      if (preview) preview.visible = false;
+      status.textContent = 'Move slowly and point at a textured part of the bar until the placement ring appears.';
+      return;
+    }
+    hitPosition.set(h.position.x, h.position.y, h.position.z);
+    lastHit = hitPosition.clone();
+    preview.position.copy(hitPosition); preview.visible = true;
+    placeButton.disabled = false;
+    status.textContent = 'Move the ring to a clear area, then tap Place course.';
+  };
+  const init = () => ({
+    name: 'tjs-tabletop-course',
+    onStart: () => {
+      ({scene, camera, renderer} = XR8.Threejs.xrScene());
+      // Game logic is in the original XY plane with Z up. Rotate to an XZ tabletop with Y up.
+      root = new THREE.Group();
+      root.rotation.x = -Math.PI / 2;
+      root.scale.setScalar(0.3);           // absolute scale is metres: course about 28 cm across (1 unit = 0.93 m otherwise)
+      root.visible = false;
+      scene.add(root);
+      const marker = new THREE.Mesh(
+        new THREE.RingGeometry(0.12, 0.135, 64),
+        new THREE.MeshBasicMaterial({color:0xd4a854,side:THREE.DoubleSide,depthTest:false})
+      );
+      marker.rotation.x = -Math.PI / 2;
+      preview = new THREE.Group(); preview.add(marker); preview.visible = false; scene.add(preview);
+      game = makeGame({group:root,camera,renderer,isTracking:()=>tracking && placed});
+      $('again').onclick = () => game.reset();
+      game.tip('');                         // keep the putting tip hidden until the course is placed
+      resetButton.onclick = () => {
+        placed = false; root.visible = false; game.cancelDrag();
+        show(resetButton,false); show(placeButton,true); showPlacement();
+        status.textContent = 'Scan the bar to move the course.';
+      };
+      placeButton.onclick = () => {
+        if (!tracking || !lastHit) return;
+        // Keep the course at a fixed world pose. Only the camera moves after placement.
+        root.position.copy(lastHit);
+        root.visible = true;
+        placed = true; preview.visible = false;
+        hidePlacement(); show($('hud'),true);
+        show(resetButton,true); show(controls,true); show(placeButton,false);
+        game.start(); game.tip('Walk around the course, get behind the ball, then putt.');
+      };
+      show($('loading'),false); showPlacement();
+    },
+    onUpdate: ({processCpuResult}) => {
+      const reality = processCpuResult?.reality;
+      if (reality) {
+        tracking = reality.trackingStatus === 'NORMAL';
+        if (!tracking && placed) {
+          game?.cancelDrag();
+          status.textContent = 'Tracking limited — move the phone slowly to recover.';
+          show(status,true);
+        } else if (placed) show(status,false);
+      }
+    },
+    onRender: () => {
+      if (!game) return;
+      if (!placed) updateHit();
+      const now = performance.now(), dt = Math.min((now-lastFrame)/1000,0.05);
+      lastFrame = now;
+      if (placed && tracking) game.step(dt);
+    }
+  });
+  window.THREE = THREE;                 // 8th Wall's three.js pipeline module looks for window.THREE
+  XR8.XrController.configure({disableWorldTracking:false,scale:'absolute',enableWorldPoints:true});
+  XR8.addCameraPipelineModules([
+    XR8.GlTextureRenderer.pipelineModule(),
+    XR8.Threejs.pipelineModule(),
+    XR8.XrController.pipelineModule(),
+    init()
+  ]);
+  XR8.run({canvas,allowedDevices:XR8.XrConfig.device().MOBILE});
+  window.__ar = {isTracking:()=>tracking,isPlaced:()=>placed};
+}
+
+let started = false;
+async function go(demo) {
+  if (started) return;
+  started = true;
+  show($('start'), false); show($('inapp'), false);
+  $('loading').textContent = demo ? 'Setting up the course…' : 'Starting camera…';
+  show($('loading'), true);
+  try {
+    if (!demo && (!isSecureContext || !navigator.mediaDevices?.getUserMedia)) {
+      throw new Error('Camera requires HTTPS and a compatible browser');
+    }
+    THREE ||= await import('three');
+    try { const { RoomEnvironment } = await import('three/addons/environments/RoomEnvironment.js'); ENV_SCENE = new RoomEnvironment(); }
+    catch (e) { console.warn('No environment lighting', e); }
+    if (demo) startDemo();
+    else await startAR();
+  } catch (error) {
+    console.error(error);
+    $('ar').querySelectorAll('video').forEach(video => {
+      video.srcObject?.getTracks().forEach(track => track.stop());
+    });
+    $('ar').replaceChildren();
+    show($('guide'), false); show($('hud'), false);
+    $('start').querySelector('h1').textContent = demo ? 'Practice unavailable' : 'Camera unavailable';
+    $('start').querySelector('p').textContent = demo
+      ? 'The course could not load. Try reloading the page.'
+      : 'Open this page in Safari, allow camera access, or practice without a camera.';
+    $('go').textContent = 'Reload';
+    show($('start'), true);
+    if (!demo) started = false;
+  } finally {
+    show($('loading'), false);
+  }
+}
+$('go').addEventListener('click', () => {
+  if ($('go').textContent === 'Reload') location.reload();
+  else go(false);
+});
+for (const id of ['demoLink', 'demoLink2']) {
+  $(id).addEventListener('click', event => {
+    event.preventDefault();
+    if (started) return;
+    history.replaceState(null, '', '#demo');
+    go(true);
+  });
+}
+if (location.hash === '#demo') go(true);
+</script>
+</body>
+</html>
