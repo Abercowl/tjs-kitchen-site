@@ -150,7 +150,7 @@ const COURSE = {
   trees: [ [-0.30, 0.05, 0.055], [0.33, 0.42, 0.05], [-0.33, 0.86, 0.045] ],   // planter islands: obstacles
 };
 // How big the course is on the real bar: metres per course unit (the hole is about 1.5 units long)
-const SIZES = { S: 0.22, M: 0.30, L: 0.40 };
+const SIZES = { S: 0.11, M: 0.15, L: 0.2 };      // M: the hole is about 22 cm long
 const EXT = 2.4;                                  // texture extent in course units (covers -1.2..1.2)
 const BALL_R = 0.014;
 const FRICTION = { green: 0.36, rough: 0.55, sand: 2.7 };   // rough = the fairway carpet
@@ -1075,7 +1075,7 @@ function startDemo() {
   woodTex.wrapS = woodTex.wrapT = THREE.RepeatWrapping; woodTex.repeat.set(3, 3);
   const top = new THREE.Mesh(new THREE.PlaneGeometry(7, 7), new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.85 }));
   bar.add(top);                              // the course's shadow catcher draws the shadows
-  const coasterDisk = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.004, 48), new THREE.MeshStandardMaterial({ color: 0xf1ece2, roughness: 0.9 }));
+  const coasterDisk = new THREE.Mesh(new THREE.CylinderGeometry(0.0445 / SIZES.M, 0.0445 / SIZES.M, 0.004, 48), new THREE.MeshStandardMaterial({ color: 0xf1ece2, roughness: 0.9 }));
   coasterDisk.rotation.x = Math.PI / 2; coasterDisk.position.set(COURSE.tee.x, COURSE.tee.y, 0.002); bar.add(coasterDisk);
   const group = new THREE.Group(); group.position.z = LIFT; scene.add(group);
 
@@ -1125,11 +1125,23 @@ async function startEighth() {
   const basis = new THREE.Matrix4(), tmpV3 = new THREE.Vector3(), right = new THREE.Vector3();
   const clock = new THREE.Clock();
   const COASTER_M = 0.0889;                               // the image target is the 3.5 in coaster art
+  let slamReady = false;                                 // 8th Wall world tracking has initialised (status NORMAL)
+  const samples = [];                                     // recent coaster poses, averaged before placing
+  const UP = new THREE.Vector3(0, 1, 0);                  // 8th Wall world: y is up (gravity)
   const fromDetail = (d) => {
-    tP.set(d.position.x, d.position.y, d.position.z);
     const q = new THREE.Quaternion(d.rotation.x, d.rotation.y, d.rotation.z, d.rotation.w);
-    tN.set(0, 0, 1).applyQuaternion(q);                   // the coaster's face points along its local +z
-    worldPerMetre = (d.scale * (d.scaledWidth || 1)) / COASTER_M;
+    samples.push({ p: new THREE.Vector3(d.position.x, d.position.y, d.position.z),
+                   n: new THREE.Vector3(0, 0, 1).applyQuaternion(q),            // the coaster's face points along its local +z
+                   w: (d.scale * (d.scaledWidth || 1)) / COASTER_M });
+    if (samples.length > 20) samples.shift();
+  };
+  const averaged = () => {                                // mean pose of the samples; false if they still disagree
+    tP.set(0, 0, 0); tN.set(0, 0, 0); let w = 0;
+    for (const s of samples) { tP.add(s.p); tN.add(s.n); w += s.w; }
+    tP.divideScalar(samples.length); tN.normalize(); worldPerMetre = w / samples.length;
+    const spread = Math.max(...samples.map(s => s.p.distanceTo(tP))) / worldPerMetre;   // metres
+    if (tN.angleTo(UP) < 0.35) tN.copy(UP);               // a bar is level: snap to true up for a rock-steady course
+    return spread < 0.02;                                 // within 2 cm: the phone is steady enough
   };
   const orient = () => {                                  // course: x right, y away from the player, z up off the bar
     tmpV3.copy(fwd).addScaledVector(tN, -fwd.dot(tN));
@@ -1145,16 +1157,25 @@ async function startEighth() {
     if (Math.abs(fwd.dot(tN)) > 0.94) fwd.set(0, 1, 0).applyQuaternion(xrCamera.quaternion);
     orient();
     place.position.copy(tP); place.quaternion.copy(tQ); applyScale();
-    place.visible = true; placed = true;
-    show($('hud'), true); show($('sizes'), true); game.start();
-    game.tip('Course placed on the bar. Walk around it, get low, then pull back and let go');
+    place.visible = true; placed = true; samples.length = 0;
+    show($('guide'), false); show($('hud'), true); show($('sizes'), true); game.start();
+    game.tip('Course placed. Walk around it, get low, then pull back and let go');
   };
+  const hint = (t) => { $('trackingHint').textContent = t; show($('guide'), !placed); };
+  const notrack = new URLSearchParams(location.search).has('notrack');
   const onSeen = ({ detail }) => {
-    if (detail.name !== 'coaster') return;
-    fromDetail(detail); visible = true; show($('guide'), false);
-    if (!placed && game) placeCourse();
+    if (detail.name !== 'coaster' || placed || !game) return;
+    visible = true; fromDetail(detail);
+    if (!slamReady && !notrack) { hint('Keep moving slowly so the camera can map the bar'); return; }
+    if (samples.length < 12 || !averaged()) { hint('Found the coaster. Hold steady…'); return; }
+    placeCourse();
   };
-  const onLost = ({ detail }) => { if (detail.name === 'coaster') visible = false; };   // SLAM keeps the course on the bar
+  const onLost = ({ detail }) => { if (detail.name === 'coaster') { visible = false; samples.length = 0; } };   // once placed, SLAM keeps the course on the bar
+  const onTracking = ({ detail }) => {
+    slamReady = detail.status === 'NORMAL';
+    if (!placed) hint(slamReady ? 'Now point at the coaster' : 'Scan the bar: move your phone slowly side to side');
+    else if (!slamReady) game.tip('Tracking weak. Move slowly and keep the bar in view');
+  };
 
   // Size buttons (S / M / L) and "Move course" (re-place on the coaster)
   document.querySelectorAll('#sizes [data-size]').forEach(b => b.addEventListener('click', (e) => {
@@ -1163,7 +1184,7 @@ async function startEighth() {
     if (scaler) applyScale();
   }));
   $('replace').addEventListener('click', (e) => { e.stopPropagation(); placed = false; place.visible = false; game.cancelDrag();
-    $('trackingHint').textContent = 'Point at the coaster to place the course'; show($('guide'), true); });
+    samples.length = 0; hint('Point at the coaster to place the course'); });
 
   XR8.addCameraPipelineModules([
     XR8.GlTextureRenderer.pipelineModule(),
@@ -1182,25 +1203,22 @@ async function startEighth() {
         group = new THREE.Group(); group.position.set(-COURSE.tee.x, -COURSE.tee.y, LIFT); scaler.add(group);
         game = makeGame({ group, camera, renderer, isTracking: () => placed });
         $('again').onclick = () => game.reset();
+        game.tip('');                                     // the scan prompts come first
         window.__ar = { place, scaler, isPlaced: () => placed, isVisible: () => visible };
         XR8.XrController.updateCameraProjectionMatrix({ origin: camera.position, facing: camera.quaternion });
-        show($('loading'), false); show($('guide'), true);
+        show($('loading'), false);
+        hint('Scan the bar: move your phone slowly side to side');
       },
       onUpdate: () => {
         if (!game) return;
         const dt = Math.min(clock.getDelta(), 0.05);
-        if (placed && visible) {                          // coaster in view: gently correct any drift (direction of play stays fixed)
-          fwd.set(0, 1, 0).applyQuaternion(place.quaternion); orient();
-          const a = 1 - Math.pow(1 - 0.08, dt * 60);
-          place.position.lerp(tP, a); place.quaternion.slerp(tQ, a);
-          scaler.scale.setScalar(scaler.scale.x + (unitM * worldPerMetre - scaler.scale.x) * a);
-        }
         if (placed) game.step(dt);
       },
       listeners: [
         { event: 'reality.imagefound', process: onSeen },
         { event: 'reality.imageupdated', process: onSeen },
         { event: 'reality.imagelost', process: onLost },
+        { event: 'reality.trackingstatus', process: onTracking },
       ],
     },
   ]);
