@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<!-- FILE:  tjs-kitchen-site/play/index.html   (BETA: "TJ's Hole in One" AR mini golf)
+     tjs-kitchen-site/
+     ├── play/
+     │   ├── index.html   <-- THIS FILE (QR on the back of the bar coaster; "Beta - Golf" in the menu)
+     │   ├── target.mind  (compiled tracking data for the coaster back)
+     │   └── coaster.jpg  (coaster art, used by the no-camera practice mode: /play#demo)
+     └── ar/vendor/       (three.js + MindAR, self-hosted, shared with /ar) -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>TJ's Kitchen | Beta: Hole in One</title>
+<meta name="description" content="Point your phone at a TJ's Kitchen coaster and putt for a hole in one.">
+<meta name="theme-color" content="#1c3a2e">
+<link rel="icon" href="/assets/favicon.png" type="image/png">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Lobster&display=swap" rel="stylesheet">
+<script type="importmap">
+{
+  "imports": {
+    "three": "/ar/vendor/three.module.js",
+    "three/addons/": "/ar/vendor/addons/",
+    "mindar-image-three": "/ar/vendor/mindar/mindar-image-three.prod.js"
+  }
+}
+</script>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; touch-action: none;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #f3eee4;
+    -webkit-user-select: none; user-select: none; }
+  #ar { position: fixed; inset: 0; }
+  .screen { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; text-align: center; padding: 32px; box-sizing: border-box; z-index: 10; transition: opacity .4s; }
+  .hidden { opacity: 0 !important; pointer-events: none !important; }
+  #start, #inapp { background: radial-gradient(circle at 50% 35%, #24493a, #15302a 70%); }
+  h1 { font-family: Lobster, cursive; font-weight: 400; color: #d4a854; font-size: 44px; margin: 0 0 6px; line-height: 1.05; }
+  .beta { display:inline-block; margin-bottom:14px; padding:3px 10px; border-radius:999px; border:1px solid rgba(212,168,84,.6); color:#d4a854; font-size:12px; font-weight:700; letter-spacing:.12em; }
+  .screen p { opacity: .85; margin: 0 0 24px; max-width: 310px; line-height: 1.45; }
+  .steps { display: flex; gap: 10px; margin: 0 0 26px; }
+  .steps div { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12); border-radius: 14px; padding: 10px 8px; width: 88px; font-size: 13px; line-height: 1.3; }
+  .steps b { display: block; color: #d4a854; font-size: 15px; margin-bottom: 2px; }
+  .btn { background: #d4a854; color: #15302a; text-decoration: none; border: 0; border-radius: 999px; font-size: 18px;
+    font-weight: 700; padding: 15px 28px; box-shadow: 0 6px 24px rgba(212,168,84,.35); cursor: pointer; font-family: inherit; }
+  .ghost { background: rgba(0,0,0,.5); color: #fff; box-shadow: none; border: 1px solid rgba(255,255,255,.5); }
+  .small { font-size: 13px; opacity: .65; margin-top: 18px; }
+  .small a { color: #d4a854; }
+  #close { position: fixed; top: 14px; left: 14px; z-index: 20; width: 40px; height: 40px; border-radius: 999px; background: rgba(0,0,0,.45); color: #fff; display:flex; align-items:center; justify-content:center; text-decoration:none; }
+  #close svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+  #guide { position: fixed; inset: 0; z-index: 5; pointer-events: none; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity .4s; }
+  #guide .frame { width: 64vw; max-width: 300px; aspect-ratio: 1; border: 3px dashed rgba(255,255,255,.85); border-radius: 50%;
+    box-shadow: 0 0 0 9999px rgba(0,0,0,.25); animation: pulse 1.6s ease-in-out infinite; }
+  #guide .hint { margin-top: 18px; background: rgba(0,0,0,.55); padding: 8px 14px; border-radius: 999px; font-size: 15px; }
+  @keyframes pulse { 50% { transform: scale(1.04); opacity: .7; } }
+  #loading { position: fixed; bottom: 40px; left: 0; right: 0; text-align: center; z-index: 6; font-size: 14px; opacity: .8; }
+  /* Scorecard (top right) and tip line (bottom) */
+  #hud { position: fixed; top: 14px; right: 14px; z-index: 8; background: rgba(0,0,0,.5); border-radius: 14px; padding: 8px 14px; text-align: right; font-size: 12px; letter-spacing: .06em; transition: opacity .4s; }
+  #hud b { display: block; font-size: 26px; letter-spacing: 0; color: #d4a854; line-height: 1.1; }
+  #tip { position: fixed; left: 0; right: 0; bottom: 34px; z-index: 7; text-align: center; pointer-events: none; transition: opacity .4s; }
+  #tip span { background: rgba(0,0,0,.55); padding: 9px 16px; border-radius: 999px; font-size: 15px; }
+  #power { position: fixed; left: 50%; bottom: 84px; width: 180px; height: 10px; margin-left: -90px; z-index: 7; border-radius: 999px; background: rgba(0,0,0,.5); overflow: hidden; transition: opacity .2s; }
+  #power i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #8fd16a, #d4a854 60%, #e05a3a); }
+  /* Result card */
+  #result { background: rgba(10,25,20,.55); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+  #result .card { background: #15302a; border: 1px solid rgba(212,168,84,.45); border-radius: 22px; padding: 26px 24px 22px; max-width: 320px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+  #result h1 { font-size: 46px; }
+  #result .score { font-size: 15px; opacity: .85; margin-bottom: 20px; }
+  #result .row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  #result .btn { font-size: 16px; padding: 13px 22px; }
+  #toast { position: fixed; top: 34%; left: 0; right: 0; text-align: center; z-index: 9; pointer-events: none; transition: opacity .3s, transform .3s; }
+  #toast span { font-family: Lobster, cursive; font-size: 34px; color: #fff; text-shadow: 0 3px 12px rgba(0,0,0,.6); }
+</style>
+</head>
+<body>
+<div id="ar"></div>
+
+<a id="close" href="/" aria-label="Back to TJ's Kitchen"><svg viewBox="0 0 24 24"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></a>
+
+<div id="start" class="screen">
+  <div class="beta">BETA</div>
+  <h1>TJ's Hole in One</h1>
+  <p>Lay your coaster flat on the bar, point your camera at it and sink the putt.</p>
+  <div class="steps">
+    <div><b>Aim</b>Swipe from the ball toward the flag</div>
+    <div><b>Flick</b>Longer swipe, harder putt</div>
+    <div><b>Sink it</b>Stay out of the sand and the pond</div>
+  </div>
+  <button id="go" class="btn">Tee it up</button>
+  <div class="small">We'll ask to use your camera. Nothing is recorded.<br>No coaster handy? <a href="#demo" id="demoLink">Practice here</a></div>
+</div>
+
+<div id="inapp" class="screen hidden">
+  <h1>Open in Safari</h1>
+  <p>This app's built-in browser can't use the camera. Tap the ••• or share menu and choose <b>Open in Safari</b> (or Chrome).</p>
+  <div class="small"><a href="#demo" id="demoLink2">Or practice without the camera</a></div>
+</div>
+
+<div id="guide" class="hidden"><div class="frame"></div><div class="hint">Fit the coaster inside the circle</div></div>
+<div id="loading" class="hidden">Starting camera…</div>
+<div id="hud" class="hidden">STROKES<b id="strokes">0</b></div>
+<div id="power" class="hidden"><i id="powerBar"></i></div>
+<div id="tip" class="hidden"><span id="tipText">Swipe from the ball toward the flag</span></div>
+<div id="toast" class="hidden"><span id="toastText"></span></div>
+
+<div id="result" class="screen hidden">
+  <div class="card">
+    <h1 id="resTitle">Hole in one!</h1>
+    <div class="score" id="resScore">1 stroke</div>
+    <div class="row">
+      <a class="btn" href="https://order.tjskitchenvc.com">Order now</a>
+      <button class="btn ghost" id="again">Play again</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+
+const $ = id => document.getElementById(id);
+const show = (el, on) => el.classList.toggle('hidden', !on);
+
+// ---------------------------------------------------------------------------
+// Course layout, measured from the coaster art (coaster-back-ar.png).
+// Units: the tracked image is 1 unit wide, centred on the coaster, x right,
+// y toward the top of the art, z up off the coaster (toward the camera).
+// ---------------------------------------------------------------------------
+const COURSE = {
+  edge: 0.455,                                   // printed circle (0.4635) less a lip
+  tee:  { x: -0.150, y: -0.043 },                // the printed ball
+  cup:  { x:  0.154, y:  0.068, r: 0.024 },      // the printed hole
+  green:  { x: 0.044, y: 0.035, rx: 0.331, ry: 0.215 },
+  bunker: { x: -0.234, y: -0.181, rx: 0.120, ry: 0.082 },
+  pond:   { x: 0.312, y: -0.219, rx: 0.092, ry: 0.074 },
+  trees: [ [-0.214, 0.400, 0.050], [0.236, 0.371, 0.039], [0.400, 0.186, 0.044],
+           [-0.421, 0.043, 0.034], [0.107, -0.421, 0.037], [-0.300, -0.371, 0.031] ],
+  qr: { x0: -0.113, x1: 0.125, y0: -0.413, y1: -0.175 },   // "Scan to play" panel: a wall
+};
+const BALL_R = 0.014;
+const FRICTION = { green: 0.32, rough: 0.85, sand: 3.2 };  // deceleration, units / s^2
+const MAX_SPEED = 1.35, POWER = 2.6;                        // swipe length (units) -> speed
+const SINK_SPEED = 0.85;                                    // faster than this lips out
+const PAR = 2;
+
+const inEllipse = (p, e, pad = 0) => ((p.x - e.x) / (e.rx + pad)) ** 2 + ((p.y - e.y) / (e.ry + pad)) ** 2 < 1;
+
+// In-app browsers (Instagram, Facebook, Snapchat, etc.) often block the camera.
+const IN_APP = /Instagram|FBAN|FBAV|Snapchat|Line\/|TikTok|musical_ly/i.test(navigator.userAgent);
+if (IN_APP) { show($('start'), false); show($('inapp'), true); }
+
+// ---------------------------------------------------------------------------
+// The game itself. It only needs a group to draw into (the coaster), a camera
+// and a renderer, so it runs the same on the camera (MindAR) and in practice mode.
+// ---------------------------------------------------------------------------
+function makeGame({ group, camera, renderer, isTracking }) {
+  const sceneLight = new THREE.HemisphereLight(0xffffff, 0x4a6a40, 1.6);
+  const sun = new THREE.DirectionalLight(0xffffff, 1.5); sun.position.set(-0.6, 0.8, 2);
+  group.add(sceneLight, sun);
+
+  // Invisible "table top" for turning screen touches into coaster positions.
+  const touchPlane = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }));
+  group.add(touchPlane);
+
+  // Ball (with a soft contact shadow)
+  const ballTex = (() => {      // tiny dimple texture so the roll is visible
+    const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, 64, 64); g.fillStyle = '#d9dde0';
+    for (let i = 0; i < 70; i++) { g.beginPath(); g.arc(Math.random() * 64, Math.random() * 64, 2, 0, 7); g.fill(); }
+    g.fillStyle = '#c0392b'; g.fillRect(0, 30, 64, 4);                       // red stripe
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  })();
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(BALL_R, 24, 16), new THREE.MeshStandardMaterial({ map: ballTex, roughness: 0.35, emissive: 0xffffff, emissiveIntensity: 0.25 }));
+  const shadow = new THREE.Mesh(new THREE.CircleGeometry(BALL_R * 1.25, 24),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false }));
+  shadow.position.z = 0.001;
+  group.add(ball, shadow);
+
+  // Flagstick standing in the printed cup, with a TJ's flag that waves
+  const flag = new THREE.Group();
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.0035, 0.0035, 0.26, 10), new THREE.MeshStandardMaterial({ color: 0xf4f1ea, roughness: 0.4 }));
+  pole.rotation.x = Math.PI / 2; pole.position.z = 0.13; flag.add(pole);
+  const flagTex = (() => {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 160; const g = c.getContext('2d');
+    g.fillStyle = '#d4a854'; g.fillRect(0, 0, 256, 160);
+    g.fillStyle = '#15302a'; g.font = '84px Lobster, cursive'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText("TJ's", 120, 86);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  })();
+  const clothGeo = new THREE.PlaneGeometry(0.11, 0.068, 12, 4);
+  const clothBase = clothGeo.attributes.position.array.slice();
+  const cloth = new THREE.Mesh(clothGeo, new THREE.MeshStandardMaterial({ map: flagTex, side: THREE.DoubleSide, roughness: 0.8 }));
+  cloth.rotation.x = Math.PI / 2;                          // stand the flag up (plane XY -> XZ)
+  cloth.position.set(0.055, 0, 0.225); flag.add(cloth);
+  flag.position.set(COURSE.cup.x, COURSE.cup.y, 0);
+  group.add(flag);
+  document.fonts && document.fonts.load('84px Lobster').then(() => {      // redraw once the font arrives
+    const g = flagTex.image.getContext('2d'); g.fillStyle = '#d4a854'; g.fillRect(0, 0, 256, 160);
+    g.fillStyle = '#15302a'; g.font = '84px Lobster, cursive'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText("TJ's", 120, 86);
+    flagTex.needsUpdate = true;
+  });
+
+  // Glow ring around the cup
+  const glow = new THREE.Mesh(new THREE.RingGeometry(COURSE.cup.r * 1.1, COURSE.cup.r * 1.9, 40),
+    new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0.5, depthWrite: false }));
+  glow.position.set(COURSE.cup.x, COURSE.cup.y, 0.0015); group.add(glow);
+
+  // Aim arrow (a flat golden wedge drawn while swiping)
+  const arrowShape = new THREE.Shape();
+  arrowShape.moveTo(0, -0.006); arrowShape.lineTo(0.85, -0.006); arrowShape.lineTo(0.85, -0.02);
+  arrowShape.lineTo(1, 0); arrowShape.lineTo(0.85, 0.02); arrowShape.lineTo(0.85, 0.006); arrowShape.lineTo(0, 0.006);
+  const arrow = new THREE.Mesh(new THREE.ShapeGeometry(arrowShape), new THREE.MeshBasicMaterial({ color: 0xd4a854, transparent: true, opacity: 0.9, depthWrite: false }));
+  arrow.position.z = 0.002; arrow.visible = false; group.add(arrow);
+
+  // Confetti for a sunk putt
+  const CONF = 160;
+  const conf = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.012, 0.007), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }), CONF);
+  conf.frustumCulled = false; group.add(conf);
+  const confColors = ['#d4a854', '#f3eee4', '#c0392b', '#8fd16a', '#ffffff'];
+  const parts = Array.from({ length: CONF }, (_, i) => { conf.setColorAt(i, new THREE.Color(confColors[i % confColors.length]));
+    return { p: new THREE.Vector3(), v: new THREE.Vector3(), r: new THREE.Euler(), s: new THREE.Vector3() }; });
+  const tmp = new THREE.Object3D(), zero = new THREE.Matrix4().makeScale(0, 0, 0);
+  let confT = -1;
+  const hideConfetti = () => { for (let i = 0; i < CONF; i++) conf.setMatrixAt(i, zero); conf.instanceMatrix.needsUpdate = true; confT = -1; };
+  const burstConfetti = () => {
+    confT = 0;
+    for (const q of parts) {
+      q.p.set(COURSE.cup.x, COURSE.cup.y, 0.02);
+      const a = Math.random() * Math.PI * 2, out = 0.15 + Math.random() * 0.45;
+      q.v.set(Math.cos(a) * out, Math.sin(a) * out, 0.9 + Math.random() * 1.1);
+      q.r.set(Math.random() * 6, Math.random() * 6, Math.random() * 6); q.s.set(Math.random() * 12 - 6, Math.random() * 12 - 6, Math.random() * 12 - 6);
+    }
+  };
+  hideConfetti();
+
+  // ---- State --------------------------------------------------------------
+  const st = { pos: new THREE.Vector2(), vel: new THREE.Vector2(), last: new THREE.Vector2(), strokes: 0,
+               moving: false, holed: false, sinkT: 0, spin: new THREE.Quaternion(), started: false };
+  const updateHud = () => { $('strokes').textContent = st.strokes; };
+  const tip = (t) => { $('tipText').textContent = t; show($('tip'), !!t); };
+  let toastTimer = 0;
+  const toast = (t) => { $('toastText').textContent = t; show($('toast'), true); clearTimeout(toastTimer); toastTimer = setTimeout(() => show($('toast'), false), 1400); };
+
+  const reset = () => {
+    st.pos.set(COURSE.tee.x, COURSE.tee.y); st.last.copy(st.pos); st.vel.set(0, 0);
+    st.strokes = 0; st.moving = false; st.holed = false; st.sinkT = 0;
+    ball.visible = shadow.visible = true; ball.quaternion.identity();
+    hideConfetti(); updateHud(); show($('result'), false);
+    tip('Swipe from the ball toward the flag');
+  };
+
+  // ---- Touch: swipe on the coaster = putt ----------------------------------
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  const toCoaster = (e) => {
+    const r = renderer.domElement.getBoundingClientRect();
+    ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+    const hit = ray.intersectObject(touchPlane, false)[0];
+    return hit ? group.worldToLocal(hit.point.clone()) : null;
+  };
+  let drag = null;
+  const shotFrom = (a, b) => {           // swipe vector (coaster units) -> velocity
+    const d = new THREE.Vector2(b.x - a.x, b.y - a.y);
+    const len = Math.min(d.length() * POWER, MAX_SPEED);
+    return d.lengthSq() < 1e-6 ? null : d.normalize().multiplyScalar(len);
+  };
+  const canPutt = () => st.started && !st.moving && !st.holed && isTracking();
+  addEventListener('pointerdown', (e) => {
+    if (e.target.closest('a,button') || !canPutt()) return;
+    const p = toCoaster(e); if (!p) return;
+    drag = { a: p, b: p, id: e.pointerId };
+  });
+  addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const p = toCoaster(e); if (!p) return;
+    drag.b = p;
+    const v = shotFrom(drag.a, drag.b);
+    if (!v) return;
+    arrow.visible = true;
+    arrow.position.set(st.pos.x, st.pos.y, 0.002);
+    arrow.rotation.z = Math.atan2(v.y, v.x);
+    const k = v.length() / MAX_SPEED;
+    arrow.scale.set(0.06 + 0.22 * k, 1, 1);
+    $('powerBar').style.width = (k * 100).toFixed(0) + '%'; show($('power'), true);
+  });
+  const endDrag = (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const v = shotFrom(drag.a, drag.b); drag = null;
+    arrow.visible = false; show($('power'), false);
+    if (!v || v.length() < 0.05 || !canPutt()) return;
+    st.last.copy(st.pos); st.vel.copy(v); st.moving = true; st.strokes++; updateHud(); tip('');
+  };
+  addEventListener('pointerup', endDrag);
+  addEventListener('pointercancel', (e) => { if (drag && e.pointerId === drag.id) { drag = null; arrow.visible = false; show($('power'), false); } });
+
+  // ---- Physics ------------------------------------------------------------
+  const bounceCircle = (cx, cy, r, inside) => {     // reflect off a round wall (inside: the coaster rim)
+    const dx = st.pos.x - cx, dy = st.pos.y - cy, d = Math.hypot(dx, dy) || 1e-6;
+    const hit = inside ? d > r - BALL_R : d < r + BALL_R;
+    if (!hit) return;
+    const nx = dx / d, ny = dy / d, dot = st.vel.x * nx + st.vel.y * ny;
+    if ((inside && dot > 0) || (!inside && dot < 0)) { st.vel.x -= 1.6 * dot * nx; st.vel.y -= 1.6 * dot * ny; st.vel.multiplyScalar(0.8); }
+    const target = inside ? r - BALL_R : r + BALL_R;
+    st.pos.set(cx + nx * target, cy + ny * target);
+  };
+  const bounceBox = (b) => {
+    const x0 = b.x0 - BALL_R, x1 = b.x1 + BALL_R, y0 = b.y0 - BALL_R, y1 = b.y1 + BALL_R;
+    if (st.pos.x < x0 || st.pos.x > x1 || st.pos.y < y0 || st.pos.y > y1) return;
+    const pen = [st.pos.x - x0, x1 - st.pos.x, st.pos.y - y0, y1 - st.pos.y];   // push out the shortest way
+    const i = pen.indexOf(Math.min(...pen));
+    if (i === 0) { st.pos.x = x0; st.vel.x = -Math.abs(st.vel.x) * 0.7; }
+    if (i === 1) { st.pos.x = x1; st.vel.x =  Math.abs(st.vel.x) * 0.7; }
+    if (i === 2) { st.pos.y = y0; st.vel.y = -Math.abs(st.vel.y) * 0.7; }
+    if (i === 3) { st.pos.y = y1; st.vel.y =  Math.abs(st.vel.y) * 0.7; }
+  };
+
+  const sink = () => {
+    st.holed = true; st.moving = false; st.vel.set(0, 0); st.sinkT = 0.001;
+    burstConfetti();
+    if (navigator.vibrate) navigator.vibrate([40, 60, 80]);
+    const n = st.strokes;
+    const name = n === 1 ? 'Hole in one!' : n === PAR - 1 ? 'Birdie!' : n === PAR ? 'Par' : n === PAR + 1 ? 'Bogey' : n === PAR + 2 ? 'Double bogey' : 'In the cup';
+    $('resTitle').textContent = name;
+    $('resScore').textContent = n === 1 ? 'One stroke. Drinks are on you.' : `${n} strokes${n <= PAR ? '. Nice putting.' : '. The bar is still open.'}`;
+    setTimeout(() => show($('result'), true), 1500);
+  };
+
+  const step = (dt) => {
+    // Flag waves; cup glow pulses
+    const t = performance.now() / 1000;
+    const arr = clothGeo.attributes.position.array;
+    for (let i = 0; i < arr.length; i += 3) { const x = clothBase[i] + 0.055; arr[i + 2] = Math.sin(t * 5 + x * 60) * 0.006 * (x / 0.11); }
+    clothGeo.attributes.position.needsUpdate = true;
+    glow.material.opacity = 0.25 + 0.2 * Math.sin(t * 3);
+
+    if (st.moving) {
+      const sub = 4, h = dt / sub;
+      for (let s = 0; s < sub && st.moving; s++) {
+        const sp = st.vel.length();
+        const surface = inEllipse(st.pos, COURSE.bunker) ? 'sand' : inEllipse(st.pos, COURSE.green) ? 'green' : 'rough';
+        const dv = FRICTION[surface] * h;
+        if (sp <= dv) { st.vel.set(0, 0); st.moving = false; break; }
+        st.vel.multiplyScalar((sp - dv) / sp);
+        st.pos.addScaledVector(st.vel, h);
+
+        // Cup: slow enough drops in, too fast lips out (deflects and loses pace)
+        const cx = st.pos.x - COURSE.cup.x, cy = st.pos.y - COURSE.cup.y, cd = Math.hypot(cx, cy);
+        if (cd >= COURSE.cup.r) st.lipped = false;              // clear of the cup again
+        else if (!st.lipped) {
+          if (st.vel.length() < SINK_SPEED) { st.pos.set(COURSE.cup.x, COURSE.cup.y); sink(); break; }
+          const side = (st.vel.x * cy - st.vel.y * cx) > 0 ? 1 : -1;
+          st.vel.rotateAround(new THREE.Vector2(), side * 0.45).multiplyScalar(0.6);
+          st.lipped = true;
+          toast('Lipped out!');
+        }
+        // Pond: penalty stroke, back to where you hit from
+        if (inEllipse(st.pos, COURSE.pond, -0.01)) {
+          st.strokes++; updateHud(); toast('Splash! +1 stroke');
+          st.pos.copy(st.last); st.vel.set(0, 0); st.moving = false; break;
+        }
+        for (const [x, y, r] of COURSE.trees) bounceCircle(x, y, r, false);
+        bounceBox(COURSE.qr);
+        bounceCircle(0, 0, COURSE.edge, true);
+      }
+      if (!st.moving && !st.holed) {
+        tip(inEllipse(st.pos, COURSE.bunker) ? 'In the sand. Swing harder.' : 'Swipe again to putt');
+      }
+      // Roll the ball: rotate about the axis perpendicular to travel
+      const sp = st.vel.length();
+      if (sp > 0) {
+        const axis = new THREE.Vector3(-st.vel.y, st.vel.x, 0).normalize();
+        ball.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(axis, sp * dt / BALL_R));
+      }
+    }
+
+    // Ball drops into the cup
+    let z = BALL_R;
+    if (st.sinkT > 0) { st.sinkT += dt; z = BALL_R - Math.min(st.sinkT * 0.25, BALL_R * 2.2); if (st.sinkT > 0.4) ball.visible = shadow.visible = false; }
+    ball.position.set(st.pos.x, st.pos.y, z);
+    shadow.position.set(st.pos.x + 0.004, st.pos.y - 0.004, 0.001);
+
+    // Confetti
+    if (confT >= 0) {
+      confT += dt;
+      parts.forEach((q, i) => {
+        q.v.z -= 2.2 * dt; q.v.multiplyScalar(1 - 1.4 * dt);
+        q.p.addScaledVector(q.v, dt);
+        if (q.p.z < 0.002) { q.p.z = 0.002; q.v.set(0, 0, 0); }
+        else { q.r.x += q.s.x * dt; q.r.y += q.s.y * dt; q.r.z += q.s.z * dt; }
+        tmp.position.copy(q.p); tmp.rotation.copy(q.r); tmp.updateMatrix(); conf.setMatrixAt(i, tmp.matrix);
+      });
+      conf.instanceMatrix.needsUpdate = true;
+    }
+  };
+
+  reset();
+  return { step, reset, start: () => { st.started = true; }, state: st };
+}
+
+// ---------------------------------------------------------------------------
+// Practice mode (/play#demo): the coaster art on a virtual table, no camera.
+// ---------------------------------------------------------------------------
+function startDemo() {
+  show($('start'), false); show($('inapp'), false); show($('hud'), true);
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  $('ar').appendChild(renderer.domElement);
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x2b1d14);                          // dark wood bar top
+  const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.01, 20);
+  const fit = () => {
+    const a = innerWidth / innerHeight;
+    camera.aspect = a; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight);
+    const dist = a < 1 ? Math.min(1.3 / a, 3) : 1.15;                                  // keep the whole coaster in view
+    camera.position.set(0, -dist * 0.55, dist * 0.84); camera.lookAt(0, 0.02, 0);
+  };
+  fit(); addEventListener('resize', fit);
+  const group = new THREE.Group(); scene.add(group);
+  const tex = new THREE.TextureLoader().load('/play/coaster.jpg');
+  tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+  const coaster = new THREE.Mesh(new THREE.CircleGeometry(0.4636, 96), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9 }));
+  // CircleGeometry UVs map the circle to the middle of the texture; scale them to the printed circle
+  const uv = coaster.geometry.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, 0.5 + (uv.getX(i) - 0.5) * 0.9272, 0.5 + (uv.getY(i) - 0.5) * 0.9272);
+  group.add(coaster);
+  const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.47, 0.47, 0.012, 96), new THREE.MeshStandardMaterial({ color: 0xf1ece2, roughness: 1 }));
+  rim.rotation.x = Math.PI / 2; rim.position.z = -0.007; group.add(rim);
+
+  const game = makeGame({ group, camera, renderer, isTracking: () => true });
+  game.start();
+  $('again').onclick = () => game.reset();
+  const clock = new THREE.Clock();
+  renderer.setAnimationLoop(() => { game.step(Math.min(clock.getDelta(), 0.05)); renderer.render(scene, camera); });
+  window.__game = game;           // for automated testing
+}
+
+// ---------------------------------------------------------------------------
+// Camera mode: MindAR finds the coaster and the course sits on top of it.
+// ---------------------------------------------------------------------------
+async function startAR() {
+  show($('start'), false); show($('loading'), true);
+  const { MindARThree } = await import('mindar-image-three');
+  const mindar = new MindARThree({
+    container: $('ar'), imageTargetSrc: '/play/target.mind',
+    uiLoading: 'no', uiScanning: 'no', uiError: 'yes',
+    filterMinCF: 0.0001, filterBeta: 0.001
+  });
+  const { renderer, scene, camera } = mindar;
+  const anchor = mindar.addAnchor(0);
+  let tracking = false, lostTimer = null;
+  const game = makeGame({ group: anchor.group, camera, renderer, isTracking: () => tracking });
+
+  anchor.onTargetFound = () => {
+    clearTimeout(lostTimer); tracking = true;
+    show($('guide'), false); show($('hud'), true); game.start();
+  };
+  anchor.onTargetLost = () => {
+    tracking = false;
+    lostTimer = setTimeout(() => { if (!game.state.holed) show($('guide'), true); }, 1200);
+  };
+  $('again').onclick = () => game.reset();
+
+  try { await mindar.start(); }
+  catch (e) {
+    show($('loading'), false);
+    $('start').querySelector('h1').textContent = 'Camera needed';
+    $('start').querySelector('p').textContent = 'Please allow camera access in your browser settings, then reload this page.';
+    $('go').textContent = 'Reload'; $('go').onclick = () => location.reload();
+    show($('start'), true);
+    return;
+  }
+  show($('loading'), false); show($('guide'), true);
+  const clock = new THREE.Clock();
+  renderer.setAnimationLoop(() => {
+    const dt = Math.min(clock.getDelta(), 0.05);
+    if (tracking) game.step(dt);            // the ball freezes while the coaster is out of view
+    renderer.render(scene, camera);
+  });
+}
+
+let started = false;
+const go = (demo) => { if (started) return; started = true; demo ? startDemo() : startAR(); };
+$('go').addEventListener('click', () => go(false));
+['demoLink', 'demoLink2'].forEach(id => $(id).addEventListener('click', (e) => { e.preventDefault(); history.replaceState(null, '', '#demo'); go(true); }));
+if (location.hash === '#demo') go(true);
+</script>
+</body>
+</html>
