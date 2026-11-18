@@ -374,6 +374,47 @@ function faceBillboards(group, camera) {
   }
 }
 
+// Low-poly bushes and rocks, faceted and flat-coloured like the GLB models
+function faceted(color) { return new THREE.MeshStandardMaterial({ color, roughness: 0.9, flatShading: true }); }
+function jitter(geo, amt, seed) {
+  const p = geo.attributes.position; let r = seed * 9301 + 49297;
+  const rnd = () => ((r = (r * 9301 + 49297) % 233280) / 233280) - 0.5;
+  for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) * (1 + rnd() * amt), p.getY(i) * (1 + rnd() * amt), p.getZ(i) * (1 + rnd() * amt));
+  geo.computeVertexNormals(); return geo;
+}
+function lowPolyBush(size, seed) {
+  const g = new THREE.Group();
+  const greens = [0x4a6e2c, 0x56803a, 0x3f6226];
+  for (let i = 0; i < 6; i++) {
+    const a = i * 1.1 + seed, r = size * (0.25 + 0.15 * (i % 2));
+    const m = new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(size * (0.42 - i * 0.025), 0), 0.25, seed + i), faceted(greens[i % 3]));
+    m.position.set(Math.cos(a) * r, Math.sin(a) * r, size * (0.35 + 0.12 * (i % 3))); g.add(m);
+  }
+  const flowers = faceted(0xd9467a);
+  for (let i = 0; i < 7; i++) {
+    const a = i * 0.9 + seed;
+    const f = new THREE.Mesh(new THREE.OctahedronGeometry(size * 0.07, 0), i % 3 ? flowers : faceted(0xf2e1a0));
+    f.position.set(Math.cos(a) * size * 0.45, Math.sin(a) * size * 0.45, size * (0.45 + 0.2 * (i % 2))); g.add(f);
+  }
+  g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  return g;
+}
+function lowPolyRocks(size, seed) {
+  const g = new THREE.Group();
+  const greys = [0x8f8778, 0x7a7366, 0xa39b8a];
+  [[0, 0, 0.5], [0.45, 0.2, 0.36], [-0.4, 0.25, 0.32], [0.1, -0.45, 0.28]].forEach(([x, y, r], i) => {
+    const m = new THREE.Mesh(jitter(new THREE.DodecahedronGeometry(size * r, 0), 0.3, seed * 7 + i), faceted(greys[i % 3]));
+    m.scale.z = 0.7; m.position.set(x * size, y * size, size * r * 0.55); g.add(m);
+  });
+  const tuft = faceted(0x5b7f34);
+  for (let i = 0; i < 4; i++) {
+    const t = new THREE.Mesh(new THREE.ConeGeometry(size * 0.06, size * 0.35, 4), tuft);
+    t.rotation.x = Math.PI / 2; t.position.set((i - 1.5) * size * 0.3, -size * 0.55, size * 0.17); g.add(t);
+  }
+  g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  return g;
+}
+
 const LIFT = 0.012;                 // carpet thickness: the course sits this high above the bar
 const RAIL_W = 0.016, RAIL_H = 0.026;
 function buildBar(group) {
@@ -385,7 +426,7 @@ function buildBar(group) {
   const fairway = terrainMap((x, y, n) => {
     const band = Math.sin(y * 21 + 0.6 * Math.sin(x * 5)) > 0 ? 10 : 0;
     const edge = smooth(carpet.inset(x, y) / 0.09);
-    return [34 + edge * (14 + band) + n, 92 + edge * (36 + band) + n, 44 + edge * (8 + band) + n];
+    return [62 + edge * (12 + band) + n * 0.6, 98 + edge * (22 + band) + n * 0.6, 46 + edge * (6 + band * 0.5) + n * 0.6];   // olive, like the models' grass
   });
   const top = FLOOR - 0.0035;
   group.add(radialMesh(carpet, [
@@ -406,16 +447,11 @@ function buildBar(group) {
     edge => [edge - RAIL_W * 0.5, () => top + RAIL_H + 0.003],
     edge => [edge + 0.002, () => top + RAIL_H],
     edge => [edge + 0.002, () => -LIFT],
-  ], new THREE.MeshStandardMaterial({ color: 0x1c1c1c, roughness: 0.7, side: THREE.DoubleSide }));
-  rail.castShadow = true; group.add(rail);
-  const stripe = radialMesh(carpet, [                   // yellow band along the inside face, like the rubber bumper art
-    edge => [edge - RAIL_W - 0.0006, () => top + RAIL_H * 0.42],
-    edge => [edge - RAIL_W - 0.0006, () => top + RAIL_H * 0.66],
-  ], new THREE.MeshStandardMaterial({ color: 0xf2c418, roughness: 0.5, side: THREE.DoubleSide }));
-  group.add(stripe);
+  ], new THREE.MeshStandardMaterial({ color: 0x875730, roughness: 0.85, flatShading: true, side: THREE.DoubleSide }));   // same wood as the models
+  rail.castShadow = true; rail.receiveShadow = true; group.add(rail);
 
   // Tee mat on the coaster, with two white tee markers
-  const mat = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.11, 0.004), new THREE.MeshStandardMaterial({ color: 0x2f6b3a, roughness: 0.8 }));
+  const mat = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.11, 0.004), new THREE.MeshStandardMaterial({ color: 0x4f7a3a, roughness: 0.9, flatShading: true }));
   mat.position.set(COURSE.tee.x, COURSE.tee.y, top + 0.002); group.add(mat);
   for (const sx of [-1, 1]) {
     const m = new THREE.Mesh(new THREE.SphereGeometry(0.008, 14, 10), new THREE.MeshStandardMaterial({ color: 0xf7f4ee, roughness: 0.4 }));
@@ -432,26 +468,28 @@ function buildBar(group) {
     shadowAt(x, y, r * 1.05, top + 0.0012);
     group.add(billboard(planters[n % planters.length], (2 * r) / 0.55, x, y, top));  // planter wall is ~55% of the picture's width
   });
-  // Scenery around the course, outside the rails (no physics)
-  for (const [name, w, x, y] of [['bush', 0.28, -0.58, -0.45], ['bush', 0.24, 0.6, -0.62], ['rocks', 0.32, 0.64, 0.22],
-                                 ['tree', 0.45, -0.7, 0.5], ['rocks', 0.3, -0.62, 1.02], ['bush', 0.26, 0.64, 0.98], ['tree', 0.4, 0.78, -0.2]]) {
-    shadowAt(x, y, w * 0.33, -LIFT + 0.0008);
-    group.add(billboard(name, w, x, y, -LIFT));
-  }
+  // Scenery around the course, outside the rails (no physics), all in the models' low-poly style
+  const scene3d = [['bush', 0.1, -0.56, -0.45], ['bush', 0.09, 0.58, -0.62], ['rocks', 0.15, 0.62, 0.22], ['tree', 0.075, -0.64, 0.5],
+                   ['rocks', 0.13, -0.6, 1.02], ['bush', 0.095, 0.62, 0.98], ['tree', 0.07, 0.68, -0.2], ['bush', 0.08, -0.58, 0.12]];
+  scene3d.forEach(([kind, size, x, y], n) => {
+    const o = kind === 'tree' ? model(planters[(n + 1) % 3], size / 0.34) : kind === 'bush' ? lowPolyBush(size, n) : lowPolyRocks(size, n);
+    if (!o) return;
+    o.position.set(x, y, -LIFT); o.rotation.z = n * 2.3; group.add(o);
+  });
 
-  const planterMat = new THREE.MeshStandardMaterial({ color: 0xd9cfbc, roughness: 0.8 });   // sign board edges
+  const planterMat = faceted(0x875730);                // sign board edges: same wood as the rails
   // TJ's sign at the far end of the hole, facing the player
   const signTex = textTexture(1024, 384, (c) => {
-    c.fillStyle = '#15302a'; c.fillRect(0, 0, 1024, 384);
-    c.strokeStyle = '#d4a854'; c.lineWidth = 14; c.strokeRect(14, 14, 996, 356);
-    c.fillStyle = '#d4a854'; c.font = '150px Lobster, cursive'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText("TJ's", 512, 130);
-    c.fillStyle = '#f7eed9'; c.font = '800 110px Inter, sans-serif'; c.fillText('HOLE IN ONE', 512, 270);
+    c.fillStyle = '#e8d9b8'; c.fillRect(0, 0, 1024, 384);                    // painted wooden board
+    c.strokeStyle = '#875730'; c.lineWidth = 22; c.strokeRect(11, 11, 1002, 362);
+    c.fillStyle = '#2f5a2a'; c.font = '150px Lobster, cursive'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText("TJ's", 512, 130);
+    c.fillStyle = '#875730'; c.font = '800 110px Inter, sans-serif'; c.fillText('HOLE IN ONE', 512, 270);
   });
   const board = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.008, 0.135),
-    [planterMat, planterMat, planterMat, new THREE.MeshStandardMaterial({ map: signTex, roughness: 0.6 }), planterMat, planterMat]);   // face -y: toward the player
+    [planterMat, planterMat, planterMat, new THREE.MeshStandardMaterial({ map: signTex, roughness: 0.85, emissive: 0xffffff, emissiveMap: signTex, emissiveIntensity: 0.45 }), planterMat, planterMat]);   // face -y: toward the player; lit so it reads in shade
   board.position.set(0.04, 1.13, 0.11); board.castShadow = true; group.add(board);
   for (const sx of [-1, 1]) {
-    const post = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.012, 0.12), new THREE.MeshStandardMaterial({ color: 0x7a4b28, roughness: 0.6 }));
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.012, 0.12), planterMat);
     post.position.set(0.04 + sx * 0.15, 1.13, -LIFT + 0.06); post.castShadow = true; group.add(post);
   }
 }
@@ -461,7 +499,7 @@ function buildTerrain(group) {
   const grass = terrainMap((x, y, n) => {
     const stripe = Math.sin((x - 0.43 * y) * 162) > 0 ? 9 : 0;
     const fringe = smooth(green.inset(x, y) / 0.022);
-    return [34 + fringe * (37 + stripe) + n, 84 + fringe * (56 + stripe) + n, 45 + fringe * 15 + n];
+    return [70 + fringe * (24 + stripe) + n * 0.6, 108 + fringe * (34 + stripe) + n * 0.6, 50 + fringe * 12 + n * 0.6];
   }, true);
   const sand = terrainMap((x, y, n) => {
     const rake = Math.sin((Math.hypot(x + 0.33, y + 0.29) + 0.003 * Math.sin(x * 54)) * 520) * 3;
@@ -481,7 +519,7 @@ function buildTerrain(group) {
   const sandRings = rings(15, (edge, t) => edge * t, (x, y) => sandHeight(bunker.inset(x, y)));
   const hb = HAZARDS.bunker, hp = HAZARDS.pond;
   const bunkerModel = model('sand-bunker', [hb.rx / 0.45, 0.2, hb.ry / 0.45]);   // sand radius 0.45 m in the model
-  if (bunkerModel) { bunkerModel.position.set(hb.x, hb.y, FLOOR - 0.0035); group.add(bunkerModel); }
+  if (bunkerModel) { bunkerModel.position.set(hb.x, hb.y, FLOOR - 0.0035); bunkerModel.getObjectByName('geometry_0')?.removeFromParent(); group.add(bunkerModel); }   // drop its own grass disc
   else group.add(radialMesh(bunker, sandRings, new THREE.MeshStandardMaterial({ map: sand, roughness: 1 })));
 
   const bankRings = [
@@ -776,6 +814,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
       for (let i = 5; i <= 21; i++) { const n = inner.getObjectByName('geometry_' + i); if (n) { n.position.sub(hubPos); pivot.add(n); } }
       const door = inner.getObjectByName('geometry_4');
       if (door) { const back = door.clone(); back.rotation.y = Math.PI; inner.add(back); }
+      inner.getObjectByName('geometry_1')?.removeFromParent();                // its own grass disc: sit on the course carpet instead
       holder.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
       windmill.add(holder); windmill.userData.bladePivot = pivot;
     }
