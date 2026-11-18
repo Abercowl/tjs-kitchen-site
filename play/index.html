@@ -1132,7 +1132,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
     toast(`Hole ${nextN + 1}: ${L.def.name}`);
   };
   reset();
-  return { step, reset, cancelDrag, setLevel, levels: LEVELS, level: () => L.n,
+  return { step, reset, cancelDrag, setLevel, levels: LEVELS, level: () => L.n, tip,
     dispose: () => removeEventListener('resize', cancelDrag),
     start: () => { st.started = true; }, state: st };
 }
@@ -1195,7 +1195,7 @@ async function startAR() {
   // The unused CSS overlay sits above the WebGL canvas in MindAR.
   if (cssRenderer) cssRenderer.domElement.style.pointerEvents = 'none';
   const anchor = mindar.addAnchor(0);
-  let tracking = false, lostTimer = null;
+  let tracking = false, lostTimer = null, hintShown = false, pausedTip = false;
   const trackingHint = $('trackingHint');
   const setTrackingHint = message => { trackingHint.textContent = message; };
   // Stabiliser: the course lives in its own group that eases toward the tracked pose instead of
@@ -1228,7 +1228,10 @@ async function startAR() {
     clearTimeout(lostTimer); tracking = true; stable.visible = true;
     setTrackingHint('Fit the coaster inside the circle');
     show($('guide'), false); show($('hud'), true); game.start();
-    tip('Move around the coaster for a low putting view. Keep the artwork visible.');
+    // tip() lives inside makeGame, so call it through the game object
+    if (!hintShown) { hintShown = true; game.tip('Move around the coaster for a low putting view. Keep the artwork visible.'); }
+    else if (pausedTip) game.tip(game.state.moving || game.state.holed ? '' : 'Pull back, then let go');
+    pausedTip = false;
   };
   anchor.onTargetLost = () => {
     tracking = false;
@@ -1237,7 +1240,7 @@ async function startAR() {
     // A brief obstruction retains the last visual pose, but pauses play.
     // MindAR cannot maintain a reliable world pose after the image leaves view.
     setTrackingHint('Point back at the coaster to resume');
-    tip('Tracking paused — show the coaster to continue');
+    game.tip('Tracking paused. Show the coaster to continue'); pausedTip = true;
     lostTimer = setTimeout(() => {
       stable.visible = false;
       hasPose = false; // Reacquire from a fresh image pose, avoiding a long eased jump.
