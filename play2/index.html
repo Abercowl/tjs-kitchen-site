@@ -150,13 +150,13 @@ const COURSE_OLD = {
   trees: [ [-0.30, 0.05, 0.055], [0.33, 0.42, 0.05], [-0.33, 0.86, 0.045] ],   // planter islands: obstacles
 };
 // Course files (all five holes share tee and cup; hazards come from the manifest)
-const COURSE = { tee: { x: 0, y: -1.10 }, cup: { x: 0, y: 1.11, r: 0.065 }, trees: [] };
+const COURSE = { tee: { x: 0, y: -1.105 }, cup: { x: 0, y: 1.055, r: 0.026 }, trees: [] };   // set per hole from the manifest (setLevel)
 // How big the course is on the real bar: metres per course unit (the hole is about 1.5 units long)
-const SIZES = { S: 0.1, M: 0.13, L: 0.17 };      // metres on the bar per course metre: M makes the 2.8 m course ~37 cm long
+const SIZES = { S: 0.11, M: 0.14, L: 0.18 };     // metres on the bar per course metre: M makes the 2.8 m course ~40 cm long
 const EXT = 2.4;                                  // texture extent in course units (covers -1.2..1.2)
-const BALL_R = 0.03;                              // course files are 1.38 x 2.82 m with a 0.07 m cup
+const BALL_R = 0.02135;                           // manifest ballRadius (course files are 1.7 x 2.8 m)
 const FRICTION = { green: 0.45, rough: 0.45, sand: 2.4 };
-const MAX_SPEED = 2.7, POWER = 4.5;
+const MAX_SPEED = 2.4, POWER = 4;                 // holes 1-2 can be aced with a bank shot at ~1.7-2.3 m/s; straight aces on 3-5 need ~1.45
 const SINK_SPEED = 0.8;
 const PAR = 3;
 const BETA_UNLOCK_ALL = true;      // beta testing: no par requirement to move on
@@ -216,8 +216,8 @@ const bunker = radialOutline(OUTLINES.bunker, -0.26, 0.42);
 const pond = radialOutline(OUTLINES.pond, 0.25, -0.12);
 const carpet = radialOutline(OUTLINES.carpet, 0.02, 0.03);
 const FLOOR = 0.001;
-const CUP_FLOOR = 0.05;                                 // inside the course file's cup
-const WATER_Z = 0.125;                                  // course file water surface
+let CUP_FLOOR = -0.06;                                  // inside the current hole's cup (set per hole)
+let WATER_Z = -0.049;                                   // current hole's water surface (set per hole)
 const MOUTH = COURSE.cup.r + 0.001;
 
 function greenHeight(x, y) {
@@ -229,7 +229,83 @@ function sandHeight(depth) {
   if (MODELS['sand-bunker']) return FLOOR + 0.0045;           // flat sand top of the 3D bunker
   return FLOOR + 0.012 - 0.011 * smooth(depth / 0.044);
 }
+// ---- Course-file collision data (port of the course pack's physics.mjs) ----
+// File coordinates: x right, y up, z toward the player. Game: x, y = -z, z = up.
+const mixN = (a, b, t) => a + (b - a) * t;
+const clampN = (n, a, b) => Math.max(a, Math.min(b, n));
+function laneAt(hole, z) {
+  const rows = hole.rollingSurface.samples, u = clampN((z - rows[0].z) / (rows.at(-1).z - rows[0].z) * (rows.length - 1), 0, rows.length - 1);
+  const i = Math.min(Math.floor(u), rows.length - 2), t = u - i;
+  const out = {};
+  for (const k of ['left', 'center', 'right']) out[k] = [mixN(rows[i][k][0], rows[i + 1][k][0], t), mixN(rows[i][k][1], rows[i + 1][k][1], t)];
+  return out;
+}
+function gridY(g, x, z) {
+  const u = clampN((x - g.origin[0]) / g.step, 0, g.columns - 1), v = clampN((z - g.origin[1]) / g.step, 0, g.rows - 1);
+  const a = Math.min(Math.floor(u), g.columns - 2), b = Math.min(Math.floor(v), g.rows - 2);
+  const at = (i, j) => g.heights[j * g.columns + i] * g.unit;
+  return mixN(mixN(at(a, b), at(a + 1, b), u - a), mixN(at(a, b + 1), at(a + 1, b + 1), u - a), v - b);
+}
+function inPolygon(outline, x, z) {
+  let inside = false;
+  for (let i = 0, j = outline.length - 1; i < outline.length; j = i++) {
+    const [u, v] = outline[i], [p, q] = outline[j];
+    if ((v > z) !== (q > z) && x < (p - u) * (z - v) / (q - v) + u) inside = !inside;
+  }
+  return inside;
+}
+function groundY(hole, x, z) {
+  const { left, center, right } = laneAt(hole, z);
+  const [a, b] = x < center[0] ? [left, center] : [center, right];
+  if (hole.terrainGrid && (x < left[0] || x > right[0] || hole.hazards.some(h => h.type === 'sand' && inPolygon(h.outline, x, z)))) return gridY(hole.terrainGrid, x, z);
+  return mixN(a[1], b[1], clampN((x - a[0]) / (b[0] - a[0]), 0, 1));
+}
+const onBridge = (hole, x, z, r = 0) => {
+  const br = hole.bridge; if (!br || z < br.zRange[0] || z > br.zRange[1]) return false;
+  return Math.abs(x - laneAt(hole, z).center[0]) < br.width * 0.5 + r;
+};
+// One physics step on the lane (game coordinates in, game coordinates out). Returns 'water', 'cup' or undefined.
+function laneStep(hole, b, r, dt) {
+  const prevX = b.x, prevZ = -b.y;
+  let vx = b.vx, vz = -b.vy;
+  let x = prevX + vx * dt, z = prevZ + vz * dt;
+  const rows = hole.rollingSurface.samples, { left, right } = laneAt(hole, z);
+  const bunker = hole.hazards.find(h => h.type === 'sand');
+  const sand = bunker && inPolygon(bunker.outline, x, z) ? bunker : null;
+  if (!onBridge(hole, x, z, r) && hole.hazards.some(h => h.type === 'water' && inPolygon(h.outline, x, z))) return 'water';
+  const k = hole.rollingSurface.bumperRestitution;
+  const rail = (side, wall) => laneAt(hole, z + side * 0.008)[wall][0];
+  if (!sand && (x < left[0] + r || x > right[0] - r)) {               // bumper rails follow the lane's curves
+    const wall = x < left[0] + r ? 'left' : 'right', edge = wall === 'left' ? left[0] + r : right[0] - r;
+    const slope = (rail(1, wall) - rail(-1, wall)) / 0.016, length = Math.hypot(1, slope);
+    const sign = wall === 'left' ? 1 : -1, nx = sign / length, nz = -sign * slope / length, into = vx * nx + vz * nz;
+    if (into < 0) { vx -= into * (1 + k) * nx; vz -= into * (1 + k) * nz; b.bumped = true; }
+    if (bunker && inPolygon(bunker.outline, prevX, prevZ) && (prevX < left[0] + r || prevX > right[0] - r)) { x = prevX; z = prevZ; vx *= 0.35; vz *= -0.45; }
+    else x = edge;
+  }
+  const lower = rows[0].z + r, upper = rows.at(-1).z - r;
+  if (z < lower || z > upper) { z = clampN(z, lower, upper); vz *= -k; b.bumped = true; }
+  const [cx, , cz] = hole.cup.position;
+  const speed = Math.hypot(vx, vz);
+  if (Math.hypot(x - cx, z - cz) < hole.cup.captureRadius && speed < hole.cup.maxCaptureSpeed) {
+    b.x = cx; b.y = -cz; b.vx = b.vy = 0; return 'cup';
+  }
+  const yp = groundY(hole, prevX, prevZ), yn = groundY(hole, x, z);
+  const travel = Math.max(Math.hypot(x - prevX, z - prevZ), 0.002);
+  const grade = clampN((yn - yp) / travel, -0.42, 0.42);
+  const next = Math.max(0, speed - ((sand ? 0.69 : 0.37) + 1.3 * grade) * dt) * Math.pow(sand?.speedMultiplierPerSecond ?? 0.88, dt);
+  if (speed > 0) { vx *= next / speed; vz *= next / speed; }
+  b.x = x; b.y = -z; b.vx = vx; b.vy = -vz; b.sand = !!sand;
+}
+function inLane(hole, x, y) {
+  const z = -y, { left, right } = laneAt(hole, z), rows = hole.rollingSurface.samples;
+  if (z < rows[0].z || z > rows.at(-1).z) return false;
+  if (x >= left[0] && x <= right[0]) return true;
+  return hole.hazards.some(h => h.type === 'sand' && inPolygon(h.outline, x, z));
+}
+
 function heightAt(x, y) {
+  if (MANIFEST?.holes[0]?.rollingSurface) return groundY(holeData(), x, -y);
   if (MANIFEST) {                                       // course files: flat turf, except the spinner's low round stage
     const sp = hazards('spinner')[0];
     if (sp) { const d = Math.hypot(x - sp.center[0], y - sp.center[1]); if (d < sp.radius) return SURFACE + 0.054 * smooth((sp.radius - d) / 0.06); }
@@ -243,6 +319,12 @@ function heightAt(x, y) {
   return THREE.MathUtils.lerp(grass, sandHeight(0), smooth(1 + sand / 0.028));
 }
 function surfaceAt(x, y) {
+  if (MANIFEST?.holes[0]?.rollingSurface) {
+    const hole = holeData(), z = -y;
+    if (!onBridge(hole, x, z) && hole.hazards.some(h => h.type === 'water' && inPolygon(h.outline, x, z))) return 'water';
+    if (hole.hazards.some(h => h.type === 'sand' && inPolygon(h.outline, x, z))) return 'sand';
+    return 'green';
+  }
   if (MANIFEST) {
     const bridge = holeData()?.file === 'hole-03.glb' && Math.abs(x) < 0.32 && y > -0.18 && y < 0.08;   // the plank bridge is dry
     if (!bridge && hazards('water').some(h => inCircle(h, x, y, -0.02))) return 'water';
@@ -336,15 +418,25 @@ const COURSE_FILES = [];
 let CUR_HOLE = 0;
 const SURFACE = 0.109;                                   // turf top in the files
 const RAIL_IN = { x: 0.61, y: 1.32 };                    // inside faces of the rails
+// Course files are meshopt-compressed (~2.5 MB each). Only the first hole is loaded
+// before play; the next one downloads in the background while you putt.
+let courseLoader = null; const holeLoads = [];
 async function loadCourses() {
-  const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+  const [{ GLTFLoader }, { MeshoptDecoder }] = await Promise.all([
+    import('three/addons/loaders/GLTFLoader.js'), import('three/addons/libs/meshopt_decoder.module.js')]);
   MANIFEST = await fetch('/play2/courses/course-manifest.json').then(r => r.json());
-  const loader = new GLTFLoader();
-  await Promise.all(MANIFEST.holes.map((h, i) => loader.loadAsync(`/play2/courses/${h.file}`).then(g => {
-    srgbToLinearColours(g.scene);
+  courseLoader = new GLTFLoader(); courseLoader.setMeshoptDecoder(MeshoptDecoder);
+  await loadHole(0);
+  loadHole(1).catch(() => {});
+}
+function loadHole(i) {
+  if (!MANIFEST?.holes[i]) return Promise.resolve(null);
+  return holeLoads[i] ||= courseLoader.loadAsync(`/play2/courses/${MANIFEST.holes[i].file}`).then(g => {
+    // (these files' vertex colours are already linear: the pack's own viewer uses them as-is)
     g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-    COURSE_FILES[i] = g.scene;
-  })));
+    g.scene.userData.box = new THREE.Box3().setFromObject(g.scene);
+    return COURSE_FILES[i] = g.scene;
+  }).catch(e => { holeLoads[i] = null; throw e; });
 }
 function srgbToLinearColours(root) {                    // the files store sRGB vertex colours; glTF expects linear
   root.traverse(o => {
@@ -606,7 +698,7 @@ if (IN_APP) { show($('start'), false); show($('inapp'), true); }
 // The game itself. It only needs a group to draw into (the coaster), a camera
 // and a renderer, so it runs the same on the camera (8th Wall) and in practice mode.
 // ---------------------------------------------------------------------------
-function makeGame({ group, camera, renderer, isTracking }) {
+function makeGame({ group, camera, renderer, isTracking, anchorTee = false }) {
   // ---- Rendering: filmic tone mapping, image-based lighting and real soft shadows
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.15;
@@ -621,7 +713,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
   // Both ends of the directional light follow the anchor's pose.
   const fill = new THREE.HemisphereLight(0xfff7e8, 0x3a5a30, 0.6);
   const sun = new THREE.DirectionalLight(0xfff2d6, 2.0);
-  sun.position.set(-0.6, 0.8, 2);
+  sun.position.set(-0.7, -1.1, 2);              // from over the player's shoulder, so the fronts of the wheel, signs and windmill are lit
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.radius = 3;
@@ -642,33 +734,30 @@ function makeGame({ group, camera, renderer, isTracking }) {
   const courseHolder = new THREE.Group(); group.add(courseHolder);
   const catcher = new THREE.Mesh(new THREE.PlaneGeometry(8, 8), new THREE.ShadowMaterial({ opacity: 0.3 }));
   catcher.position.z = -0.06 + 0.0005; catcher.receiveShadow = true; group.add(catcher);   // shadows on the real bar
-  let windmillSails = null, wheel = null;
+  let rotor = null, rotorDef = null, wheelSpin = -1, showToken = 0;
+  // Put the current hole's file in the scene. The group is moved so the course
+  // base sits on the bar (z = 0) and, in AR, so the tee is on the coaster.
+  const placeCourse = (box) => {
+    const base = box ? -box.min.y : 0.15;              // file Y-up: its lowest point becomes the bar top
+    group.position.set(anchorTee ? -COURSE.tee.x : group.position.x, anchorTee ? -COURSE.tee.y : group.position.y, base);
+    catcher.position.z = -base + 0.0005;
+  };
   const showCourse = (i) => {
-    courseHolder.clear(); windmillSails = wheel = null;
-    if (!COURSE_FILES[i]) return;
-    const hole = COURSE_FILES[i].clone(true);
-    hole.rotation.x = Math.PI / 2;                       // file Y-up -> course Z-up (the manifest's x,z become our x,y)
-    for (const n of ['geometry_36', 'geometry_37']) hole.getObjectByName(n)?.removeFromParent();   // its static flag: ours waves with the wind
-    const file = MANIFEST.holes[i].file;
-    if (file === 'hole-04.glb') {                        // windmill: turn the sails, and open a passage right through the tower
-      const hub = new THREE.Vector3(0, 0.4895, 0.169);
-      const pivot = new THREE.Group(); pivot.position.copy(hub); hole.add(pivot);
-      for (let k = 55; k <= 71; k++) { const n = hole.getObjectByName('geometry_' + k); if (n) { n.position.sub(hub); pivot.add(n); } }
-      windmillSails = pivot;
-      const dark = new THREE.MeshStandardMaterial({ color: 0x1d1a16, roughness: 1 });
-      for (const z of [0.122, -0.255]) {                 // tunnel mouths, front and back, down to the turf
-        const m = new THREE.Mesh(new THREE.BoxGeometry(0.124, 0.19, 0.012), dark); m.position.set(0, 0.16 + 0.095, z); hole.add(m);   // from the base top
-      }
-    }
-    if (file === 'hole-05.glb') {                        // spin the prize wheel (decorative)
-      const parts = []; hole.traverse(o => { if (o.isMesh) { const b = new THREE.Box3().setFromObject(o); const c = b.getCenter(new THREE.Vector3());
-        if (b.min.y > 0.25 && Math.abs(c.x) < 0.25 && c.z > 0.05 && c.z < 0.21) parts.push(o); } });
-      if (parts.length) {
-        const hub = new THREE.Vector3(0, 0.49, 0.13); wheel = new THREE.Group(); wheel.position.copy(hub); hole.add(wheel);
-        parts.forEach(o => { o.position.sub(hub); wheel.add(o); });
-      }
-    }
-    courseHolder.add(hole);
+    const token = ++showToken;
+    courseHolder.clear(); rotor = rotorDef = null; wheelSpin = -1;
+    const put = (scene) => {
+      if (!scene || token !== showToken) return;
+      const hole = scene.clone(true);
+      hole.rotation.x = Math.PI / 2;                     // file Y-up -> course Z-up (file x, z become our x, -y)
+      rotorDef = MANIFEST.holes[i].rotor || null;
+      rotor = rotorDef ? hole.getObjectByName(rotorDef.node) : null;   // windmill sails / prize wheel spin about their own z axis
+      placeCourse(scene.userData.box);
+      courseHolder.add(hole);
+      if (st.started && !st.moving && !st.holed) tip('Pull back, then let go');
+      loadHole(i + 1).catch(() => {});                   // fetch the next hole while this one is played
+    };
+    if (COURSE_FILES[i]) put(COURSE_FILES[i]);
+    else { tip('Loading the next hole…'); loadHole(i).then(put).catch(() => tip('Could not load this hole. Check your connection.')); }
   };
   group.traverse(o => { if (o.isMesh) o.receiveShadow = true; });
   group.traverse(o => { if (o.isMesh && o.material.roughness < 0.4) o.material.envMapIntensity = 0.3; });   // keep the pond from mirroring the studio light
@@ -713,6 +802,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
   cloth.position.set(0.055, 0, 0.157); flag.add(cloth);
   flag.position.set(COURSE.cup.x, COURSE.cup.y, SURFACE); flag.scale.setScalar(2.4);   // sized to the course files
   flag.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  flag.visible = !MANIFEST?.holes[0]?.rollingSurface;  // the course files have their own flag; wind shows in the HUD
   group.add(flag);
   document.fonts?.load('84px Lobster').then(() => {      // redraw once the font arrives
     const g = flagTex.image.getContext('2d'); g.fillStyle = '#d4a854'; g.fillRect(0, 0, 256, 160);
@@ -745,7 +835,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
   const burstConfetti = () => {
     conf.visible = true; confT = 0;
     for (const q of parts) {
-      q.p.set(COURSE.cup.x, COURSE.cup.y, SURFACE + 0.04);
+      q.p.set(COURSE.cup.x, COURSE.cup.y, heightAt(COURSE.cup.x, COURSE.cup.y) + 0.04);
       const a = Math.random() * Math.PI * 2, out = 0.15 + Math.random() * 0.45;
       q.v.set(Math.cos(a) * out, Math.sin(a) * out, 0.9 + Math.random() * 1.1);
       q.r.set(Math.random() * 6, Math.random() * 6, Math.random() * 6); q.s.set(Math.random() * 12 - 6, Math.random() * 12 - 6, Math.random() * 12 - 6);
@@ -945,13 +1035,25 @@ function makeGame({ group, camera, renderer, isTracking }) {
     if (d.spinner) { L.spPos.copy(onLine(d.spinner.at, d.spinner.off)); spinner.position.set(L.spPos.x, L.spPos.y, heightAt(L.spPos.x, L.spPos.y)); }
     L.bumps = (d.bumpers || []).map(([at, off]) => onLine(at, off));
     bumpers.forEach((b, i) => { const p = L.bumps[i]; b.visible = !!p; if (p) b.position.set(p.x, p.y, heightAt(p.x, p.y)); });
-    CUR_HOLE = L.n; showCourse(L.n);
+    CUR_HOLE = L.n;
+    const hd = MANIFEST?.holes[L.n];
+    if (hd?.rollingSurface) {
+      COURSE.tee = { x: hd.tee[0], y: -hd.tee[2] };
+      COURSE.cup = { x: hd.cup.position[0], y: -hd.cup.position[2], r: hd.cup.captureRadius };
+      CUP_FLOOR = hd.cup.position[1] - hd.cup.depth;
+      WATER_Z = hd.hazards.find(h => h.type === 'water')?.surfaceY ?? -0.049;
+    }
+    showCourse(L.n);
     $('hole').textContent = `HOLE ${L.n + 1} · PAR ${d.par}`;
   }
   function updateObstacles(t) {
     const d = L.def;
-    if (windmillSails) windmillSails.rotation.z = t * 1.6;   // decorative sails (course file)
-    if (wheel) wheel.rotation.z = -t * 1.1;
+    if (rotor && rotorDef.autoplay) rotor.rotation.z = rotorDef.direction * t * TAU / rotorDef.secondsPerTurn;   // windmill sails
+    if (rotor && wheelSpin >= 0) {                        // prize wheel: one eased spin when the ball drops
+      wheelSpin = Math.min(1, wheelSpin + FIXED_STEP / 2.6);
+      rotor.rotation.z = (rotorDef.direction || 1) * 6.25 * Math.PI * (1 - Math.pow(1 - wheelSpin, 3));
+      if (wheelSpin >= 1) wheelSpin = -1;
+    }
     if (d.windmill) {
       windmill.userData.hub.rotation.x = -TAU * t / WM.period;
       // model sails sit at 45 degrees: offset so a sail points down exactly when the tunnel is blocked
@@ -1014,7 +1116,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
     $('wind').textContent = st.wind + ' mph';
     ball.visible = shadow.visible = true; ball.quaternion.identity();
     hideConfetti(); updateHud(); show($('result'), false);
-    tip('Pull back, then let go');
+    tip(courseHolder.children.length ? 'Pull back, then let go' : 'Loading the next hole…');
   };
 
   // Capture the coaster projection at the beginning of the gesture so small
@@ -1031,7 +1133,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
     return near.clone().lerp(far, -near.z / dz);
   };
   const shot = new THREE.Vector2();
-  const canPutt = () => st.started && !st.moving && !st.holed && !st.splashT && isTracking();
+  const canPutt = () => st.started && !st.moving && !st.holed && !st.splashT && courseHolder.children.length > 0 && isTracking();
   const canvas = renderer.domElement;
   canvas.style.touchAction = 'none';
   function cancelDrag() {
@@ -1049,7 +1151,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
     const unproject = group.matrixWorld.clone().invert()
       .multiply(camera.matrixWorld).multiply(camera.projectionMatrixInverse);
     const point = toCoaster(e, rect, unproject);
-    if (!point || (MANIFEST ? Math.abs(point.x) > RAIL_IN.x + 0.3 || Math.abs(point.y) > RAIL_IN.y + 0.3 : carpet.inset(point.x, point.y) < -0.1)) return;
+    if (!point || (MANIFEST ? Math.abs(point.x) > 1.2 || Math.abs(point.y) > 1.7 : carpet.inset(point.x, point.y) < -0.1)) return;
     drag = { point, rect, unproject, id: e.pointerId };
     shot.set(0, 0);
     canvas.setPointerCapture(e.pointerId);
@@ -1067,10 +1169,10 @@ function makeGame({ group, camera, renderer, isTracking }) {
     const power = speed / MAX_SPEED;
     aim.visible = speed > 0.045;
     for (let i = 0; aim.visible && i < dots.length; i++) {
-      const d = 0.024 + (0.035 + 0.18 * power) * i / (dots.length - 1);
+      const d = 0.03 + (0.05 + 0.3 * power) * i / (dots.length - 1);
       const x = st.pos.x + shot.x * d / speed, y = st.pos.y + shot.y * d / speed;
-      dots[i].visible = MANIFEST ? Math.abs(x) < RAIL_IN.x && Math.abs(y) < RAIL_IN.y : carpet.inset(x, y) >= 0;
-      dots[i].position.set(x, y, heightAt(x, y) + 0.02);
+      dots[i].visible = MANIFEST ? inLane(holeData(), x, y) : carpet.inset(x, y) >= 0;
+      dots[i].position.set(x, y, heightAt(x, y) + 0.012);
       dots[i].scale.setScalar(1 - 0.04 * i);
     }
     $('powerBar').style.width = Math.round(power * 100) + '%';
@@ -1131,6 +1233,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
 
   const sink = () => {
     st.holed = true; st.moving = false; st.vel.set(0, 0); st.sinkT = 0.001;
+    if (rotor && rotorDef?.trigger === 'cup') wheelSpin = 0;
     burstConfetti();
     if (navigator.vibrate) navigator.vibrate([40, 60, 80]);
     const n = st.strokes, par = L.def.par, last = L.n === LEVELS.length - 1;
@@ -1160,6 +1263,28 @@ function makeGame({ group, camera, renderer, isTracking }) {
     st.strokes++; updateHud(); toast('Splash! +1 stroke');
     st.vel.set(0, 0); st.moving = false; st.splashT = 0.35;
   }
+  const laneBall = { x: 0, y: 0, vx: 0, vy: 0 };
+  function advanceLane(h) {
+    previous.copy(st.pos);
+    Object.assign(laneBall, { x: st.pos.x, y: st.pos.y, vx: st.vel.x, vy: st.vel.y, bumped: false, sand: false });
+    const ev = laneStep(holeData(), laneBall, BALL_R, h);
+    if (ev === 'water') { splash(); return; }
+    st.pos.set(laneBall.x, laneBall.y); st.vel.set(laneBall.vx, laneBall.vy);
+    if (ev === 'cup') { sink(); return; }
+    // near the cup but too fast: a little lip-out wobble so a hot putt feels close
+    const hd = holeData(), dc = Math.hypot(st.pos.x - COURSE.cup.x, st.pos.y - COURSE.cup.y);
+    if (dc < hd.cup.openingRadius && !st.lipped) { st.lipped = true; toast('Lipped out!'); st.vel.rotateAround(origin, (Math.random() < 0.5 ? -1 : 1) * 0.25).multiplyScalar(0.8); }
+    else if (dc >= hd.cup.openingRadius) st.lipped = false;
+    if (st.vel.length() < 0.006) {
+      st.vel.set(0, 0); st.moving = false;
+      tip(laneBall.sand ? 'In the sand. Pull back farther.' : 'Pull back to putt again');
+    }
+    const distance = previous.distanceTo(st.pos);
+    if (distance > 0) {
+      rollAxis.set(previous.y - st.pos.y, st.pos.x - previous.x, 0).normalize();
+      ball.quaternion.premultiply(roll.setFromAxisAngle(rollAxis, distance / BALL_R));
+    }
+  }
   function advance() {
     const h = FIXED_STEP;
     st.t += h; updateObstacles(st.t);       // obstacles keep moving whether or not the ball is
@@ -1172,6 +1297,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
       return;
     }
     if (!st.moving) return;
+    if (holeData()?.rollingSurface) { advanceLane(h); return; }
 
     const { x, y } = st.pos;
     const surface = surfaceAt(x, y);
@@ -1268,7 +1394,7 @@ function makeGame({ group, camera, renderer, isTracking }) {
       parts.forEach((q, i) => {
         q.v.z -= 2.2 * dt; q.v.multiplyScalar(1 - 1.4 * dt);
         q.p.addScaledVector(q.v, dt);
-        if (q.p.z < 0.002) { q.p.z = 0.002; q.v.set(0, 0, 0); }
+        if (q.p.z < heightAt(q.p.x, q.p.y) + 0.002) { q.p.z = heightAt(q.p.x, q.p.y) + 0.002; q.v.set(0, 0, 0); }
         else { q.r.x += q.s.x * dt; q.r.y += q.s.y * dt; q.r.z += q.s.z * dt; }
         tmp.position.copy(q.p); tmp.rotation.copy(q.r); tmp.updateMatrix(); conf.setMatrixAt(i, tmp.matrix);
       });
@@ -1517,8 +1643,8 @@ async function startEighth() {
         smoothCamera = makeCameraSmoother(camera, () => 1 / worldPerMetre);
         place = new THREE.Group(); place.visible = false; scene.add(place);
         scaler = new THREE.Group(); place.add(scaler);
-        group = new THREE.Group(); group.position.set(-COURSE.tee.x, -COURSE.tee.y, 0.06); scaler.add(group);   // file's base is 6 cm below the turf
-        game = makeGame({ group, camera, renderer, isTracking: () => placed });
+        group = new THREE.Group(); scaler.add(group);   // makeGame puts the tee on the coaster and the course base on the bar
+        game = makeGame({ group, camera, renderer, isTracking: () => placed, anchorTee: true });
         $('again').onclick = () => game.reset();
         game.tip('');                                     // the scan prompts come first
         window.__ar = { place, scaler, isPlaced: () => placed, isVisible: () => visible };
