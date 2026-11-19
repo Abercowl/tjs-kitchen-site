@@ -3,7 +3,9 @@
 //   └── Edge Functions/
 //       └── golf-pass   <-- THIS FILE
 //
-// TJ's Hole in One: holes 1-5 are free; $5 unlocks the other 13 for 24 hours.
+// TJ's Hole in One: holes 1-5 are free; $5 unlocks 13 more for 24 hours, picked at
+// random from the paid pool (holes 6-82) when the pass is bought. The same code always
+// unlocks the same 13 (golf_passes.holes).
 //
 //   checkout {test?}  -> makes a Square checkout link for $5 and a pass code (ref).
 //                        Square sends the player back to /play2?pass=<ref>.
@@ -11,10 +13,11 @@
 //                        starts (24 hours from payment) and a signed token comes back.
 //                        The code works on up to 5 phones (the buyer's + 4 friends),
 //                        tracked in golf_pass_devices, until the 24 hours are up.
-//   holes {token}     -> the key for holes 6-18. Those files are on the website
-//                        (play2/courses/paid/*.bin) but encrypted (AES-256-GCM), so
-//                        they're useless without a pass. The key lives in the
-//                        golf_secrets table (row back13_key), never in the repo.
+//   holes {token}     -> this pass's 13 holes and their keys. The files are on the
+//                        website (play2/courses/paid/hole-NN.bin + hole-NN.json.bin) but
+//                        each is encrypted (AES-256-GCM) with its own key, kept in the
+//                        golf_secrets table (rows hole_NN), never in the repo. A pass
+//                        only ever receives the keys for its own 13.
 //                        Sandbox (test-mode) passes get placeholder holes only.
 //
 // No card details ever come here: players pay on Square's own checkout page.
@@ -109,8 +112,11 @@ async function checkout(test: boolean) {
     console.error("[golf-pass] payment link failed", JSON.stringify(r.data));
     return json({ error: "Couldn't start checkout. Please try again." }, 502);
   }
-  const { error } = await db().from("golf_passes").insert({
+  const supabase = db();
+  const { data: picked } = await supabase.rpc("golf_random_holes", { p_count: 13 });
+  const { error } = await supabase.from("golf_passes").insert({
     ref, mode: test ? "test" : "live", payment_link_id: link.id, square_order_id: link.order_id, amount_cents: PRICE_CENTS,
+    holes: picked ?? null,
   });
   if (error) { console.error("[golf-pass] insert failed", error); return json({ error: "Couldn't start checkout." }, 500); }
   return json({ url: link.url, ref });
@@ -164,11 +170,28 @@ async function holes(token: string) {
   const pass = await readToken(token);
   if (!pass) return json({ error: "Your pass has run out." }, 401);
   const expires_at = new Date(pass.exp).toISOString();
-  if (pass.mode === "live") {
-    const { data } = await db().from("golf_secrets").select("value").eq("name", "back13_key").maybeSingle();
-    if (data?.value) return json({ expires_at, key: data.value, manifest: "/play2/courses/paid/back.bin", folder: "/play2/courses/paid/" });
+  if (pass.mode !== "live") return json({ expires_at, placeholder: true, holes: placeholderHoles() });
+
+  const supabase = db();
+  const { data: row } = await supabase.from("golf_passes").select("holes").eq("ref", pass.ref).maybeSingle();
+  let ids: number[] = row?.holes ?? [];
+  if (!ids.length) {                                   // older pass without a draw yet: draw once and keep it
+    const { data: picked } = await supabase.rpc("golf_random_holes", { p_count: 13 });
+    ids = picked ?? [];
+    await supabase.from("golf_passes").update({ holes: ids }).eq("ref", pass.ref).is("holes", null);
+    const { data: again } = await supabase.from("golf_passes").select("holes").eq("ref", pass.ref).maybeSingle();
+    ids = again?.holes ?? ids;                          // another phone may have drawn first: use what's stored
   }
-  return json({ expires_at, placeholder: true, holes: placeholderHoles() });
+  const { data: keys } = await supabase.from("golf_secrets").select("name, value").in("name", ids.map((n) => `hole_${n}`));
+  const byName = new Map((keys ?? []).map((k: { name: string; value: string }) => [k.name, k.value]));
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return json({
+    expires_at,
+    holes: ids.filter((n) => byName.has(`hole_${n}`)).map((n) => ({
+      id: n, key: byName.get(`hole_${n}`),
+      data: `/play2/courses/paid/hole-${pad(n)}.json.bin`, file: `/play2/courses/paid/hole-${pad(n)}.bin`,
+    })),
+  });
 }
 
 Deno.serve(async (req) => {
