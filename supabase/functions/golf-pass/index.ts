@@ -9,8 +9,8 @@
 //                        Square sends the player back to /play2?pass=<ref>.
 //   claim {ref}       -> asks Square whether that order was paid. If so the pass
 //                        starts (24 hours from payment) and a signed token comes back.
-//                        The same code works again on another phone / after clearing
-//                        the browser, until the 24 hours are up.
+//                        The code works on up to 5 phones (the buyer's + 4 friends),
+//                        tracked in golf_pass_devices, until the 24 hours are up.
 //   holes {token}     -> the key for holes 6-18. Those files are on the website
 //                        (play2/courses/paid/*.bin) but encrypted (AES-256-GCM), so
 //                        they're useless without a pass. The key lives in the
@@ -28,6 +28,7 @@ const PRICE_CENTS = 500;
 const PASS_MS = 24 * 60 * 60 * 1000;
 const RETURN_URL = "https://tjskitchenvc.com/play2";
 const FREE_HOLES = 5;
+const MAX_DEVICES = 5;   // buyer + 4 friends
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -115,7 +116,9 @@ async function checkout(test: boolean) {
   return json({ url: link.url, ref });
 }
 
-async function claim(refIn: string) {
+async function claim(refIn: string, deviceIn: string) {
+  const device = String(deviceIn || "").replace(/[^A-Za-z0-9-]/g, "").slice(0, 64);
+  if (device.length < 8) return json({ error: "Please reload the page and try again." }, 400);
   const ref = String(refIn || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   if (ref.length !== 8) return json({ error: "That pass code isn't right. It's 8 letters and numbers." }, 400);
   const supabase = db();
@@ -138,7 +141,15 @@ async function claim(refIn: string) {
   }
   const exp = paidAt + PASS_MS;
   if (exp <= Date.now()) return json({ status: "expired", error: "That pass has run out (passes last 24 hours)." }, 410);
-  return json({ status: "paid", token: await signToken({ ref, exp, mode: row.mode }), expires_at: new Date(exp).toISOString(), ref });
+
+  // Up to MAX_DEVICES phones per pass (checked atomically in Postgres). A phone that already used it always gets back in.
+  const { data: left, error: devErr } = await supabase.rpc("golf_claim_device", { p_ref: ref, p_device: device, p_max: MAX_DEVICES });
+  if (devErr) { console.error("[golf-pass] device check failed", devErr); return json({ error: "Something went wrong. Please try again." }, 500); }
+  if (left === -1) {
+    return json({ status: "full", error: `This pass code is already being used on ${MAX_DEVICES} phones, the most one pass allows.` }, 403);
+  }
+  const phonesLeft = Number(left) || 0;
+  return json({ status: "paid", token: await signToken({ ref, exp, mode: row.mode }), expires_at: new Date(exp).toISOString(), ref, phones_left: phonesLeft });
 }
 
 // Placeholder holes 6-18 (front-nine files repeated) until the real ones are uploaded
@@ -165,7 +176,7 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
     if (body.action === "checkout") return await checkout(!!body.test);
-    if (body.action === "claim") return await claim(body.ref);
+    if (body.action === "claim") return await claim(body.ref, body.device);
     if (body.action === "holes") return await holes(body.token);
     return json({ error: "Unknown action" }, 400);
   } catch (e) {

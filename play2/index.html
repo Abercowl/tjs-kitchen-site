@@ -92,10 +92,11 @@
   #unlock { width: 100%; }
   .passnote { font-size: 12px; opacity: .75; margin-top: 8px; line-height: 1.35; }
   .linkish { background: none; border: 0; color: #d4a854; font: 600 13px Inter, sans-serif; margin-top: 8px; text-decoration: underline; }
-  #codeForm { display: flex; gap: 8px; margin-top: 10px; justify-content: center; }
-  #codeIn { width: 130px; font: 700 15px Inter, sans-serif; letter-spacing: .12em; text-transform: uppercase; text-align: center;
+  #startCodeForm[hidden] { display: none; }
+  #startCodeForm, #codeForm { display: flex; gap: 8px; margin-top: 10px; justify-content: center; }
+  #codeIn, #startCodeIn { width: 130px; font: 700 15px Inter, sans-serif; letter-spacing: .12em; text-transform: uppercase; text-align: center;
     background: rgba(255,255,255,.08); color: #f3eee4; border: 1px solid rgba(212,168,84,.5); border-radius: 999px; padding: 8px 10px; }
-  #codeForm .btn { font-size: 14px; padding: 9px 16px; }
+  #codeForm .btn, #startCodeForm .btn { font-size: 14px; padding: 9px 16px; }
   .passstatus { font-size: 14px; background: rgba(212,168,84,.14); border: 1px solid rgba(212,168,84,.45); border-radius: 14px; padding: 10px 14px; margin: 0 auto 14px; max-width: 320px; line-height: 1.4; }
   #result #next { background: #8fd16a; box-shadow: 0 6px 24px rgba(143,209,106,.35); }
   #toast { position: fixed; top: 34%; left: 0; right: 0; text-align: center; z-index: 9; pointer-events: none; transition: opacity .3s, transform .3s; }
@@ -118,6 +119,11 @@
   </div>
   <div id="passStatus" class="passstatus" hidden></div>
   <button id="go" class="btn">Tee it up</button>
+  <div id="startCodeWrap">
+    <button class="linkish" id="startHaveCode">A friend gave me a pass code</button>
+    <form id="startCodeForm" class="codeform" hidden><input id="startCodeIn" maxlength="9" autocomplete="off" autocapitalize="characters" placeholder="PASS CODE"><button class="btn" type="submit">Use code</button></form>
+    <div class="passnote" id="startCodeMsg"></div>
+  </div>
   <div class="small" style="margin-top:6px;font-size:11px">AR powered by 8th Wall. 8th Wall Engine © 2026 Niantic Spatial, Inc., provided as is, without warranties, under the <a href="/play2/xr/LICENSE">XR Engine License</a>.</div>
   <div class="small">We'll ask to use your camera. Nothing is recorded.<br>No coaster handy? <a href="#demo" id="demoLink">Practice here</a></div>
 </div>
@@ -148,7 +154,7 @@
     </div>
     <div id="unlockBox" hidden>
       <button class="btn" id="unlock">Unlock 13 more holes · $5</button>
-      <div class="passnote">24 hours of play on this phone. Paid securely through Square.</div>
+      <div class="passnote">24 hours of play, and you can share your pass code with up to 4 friends' phones. Paid securely through Square.</div>
       <button class="linkish" id="haveCode">Have a pass code?</button>
       <form id="codeForm" hidden><input id="codeIn" maxlength="9" autocomplete="off" autocapitalize="characters" placeholder="PASS CODE"><button class="btn" type="submit">Use code</button></form>
       <div class="passnote" id="unlockMsg"></div>
@@ -463,14 +469,21 @@ const PAY_SANDBOX = new URLSearchParams(location.search).has('sandbox'); // Squa
 const PAYWALL_LIVE = false;   // true = everyone sees the offer after hole 5. Until then only /play2?paytest does
 const passApi = (body) => fetch(PASS_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   .then(async r => ({ ok: r.ok, ...(await r.json().catch(() => ({}))) }));
+function deviceId() {                              // one random id per phone/browser: a pass works on up to 5 of them
+  try {
+    let id = localStorage.getItem('tjsGolfDevice');
+    if (!id) { id = crypto.randomUUID ? crypto.randomUUID() : Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join(''); localStorage.setItem('tjsGolfDevice', id); }
+    return id;
+  } catch { return 'nostorage-' + Math.random().toString(36).slice(2); }
+}
 function getPass() {
   try { const p = JSON.parse(localStorage.getItem('tjsGolfPass') || 'null'); return p && p.exp > Date.now() ? p : null; } catch { return null; }
 }
-function savePass(r) { try { localStorage.setItem('tjsGolfPass', JSON.stringify({ token: r.token, exp: Date.parse(r.expires_at), ref: r.ref })); } catch {} }
+function savePass(r) { try { localStorage.setItem('tjsGolfPass', JSON.stringify({ token: r.token, exp: Date.parse(r.expires_at), ref: r.ref, left: r.phones_left })); } catch {} }
 const passUntil = (p) => new Date(p.exp).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
 async function claimPass(ref, tries = 1) {          // after Square sends the player back it can take a few seconds to show as paid
   for (let i = 0; i < tries; i++) {
-    const r = await passApi({ action: 'claim', ref }).catch(() => ({ ok: false, error: 'No connection. Try again.' }));
+    const r = await passApi({ action: 'claim', ref, device: deviceId() }).catch(() => ({ ok: false, error: 'No connection. Try again.' }));
     if (r.status === 'paid' && r.token) { savePass(r); return { ok: true }; }
     if (r.status !== 'pending') return { ok: false, error: r.error || 'That code didn\'t work.' };
     if (i < tries - 1) await new Promise(res => setTimeout(res, 2500));
@@ -1822,6 +1835,13 @@ $('unlock').onclick = async () => {
   const err = await startCheckout();
   if (err) { $('unlockMsg').textContent = err; $('unlock').disabled = false; }
 };
+$('startHaveCode').onclick = () => { $('startCodeForm').hidden = false; $('startCodeIn').focus(); };
+$('startCodeForm').onsubmit = async (e) => {
+  e.preventDefault(); $('startCodeMsg').textContent = 'Checking…';
+  const r = await claimPass($('startCodeIn').value, 1);
+  if (!r.ok) { $('startCodeMsg').textContent = r.error; return; }
+  location.href = '/play2' + location.search + location.hash;   // reload with all 18 holes
+};
 $('haveCode').onclick = () => { $('codeForm').hidden = false; $('codeIn').focus(); };
 $('codeForm').onsubmit = async (e) => {
   e.preventDefault(); $('unlockMsg').textContent = 'Checking…';
@@ -1841,7 +1861,12 @@ $('codeForm').onsubmit = async (e) => {
     if (!r.ok) { status(`${r.error} Your pass code is ${ref}.`); return; }
   }
   const p = getPass();
-  if (p) status(`13 more holes unlocked until ${passUntil(p)}. Pass code ${p.ref}.${ref ? ' Tap Tee it up and scan your coaster to play hole 6.' : ''}`);
+  if (p) {
+    $('startCodeWrap').hidden = true;
+    const share = ref ? ` Your pass code is ${p.ref}. Share it with up to 4 friends so they can play on their phones too (take a screenshot so you don't lose it).`
+                      : ` Pass code ${p.ref}${p.left > 0 ? `: ${p.left} more ${p.left === 1 ? 'phone' : 'phones'} can use it` : ''}.`;
+    status(`13 more holes unlocked until ${passUntil(p)}.${share}${ref ? ' Tap Tee it up and scan your coaster to play hole 6.' : ''}`);
+  }
 })();
 
 let started = false;
