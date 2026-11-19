@@ -87,6 +87,16 @@
   #result .row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
   #result .btn { font-size: 16px; padding: 13px 22px; }
   #result .btn[hidden] { display: none; }
+  #unlockBox { margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(212,168,84,.3); }
+  #unlockBox[hidden], #codeForm[hidden], #passStatus[hidden] { display: none; }
+  #unlock { width: 100%; }
+  .passnote { font-size: 12px; opacity: .75; margin-top: 8px; line-height: 1.35; }
+  .linkish { background: none; border: 0; color: #d4a854; font: 600 13px Inter, sans-serif; margin-top: 8px; text-decoration: underline; }
+  #codeForm { display: flex; gap: 8px; margin-top: 10px; justify-content: center; }
+  #codeIn { width: 130px; font: 700 15px Inter, sans-serif; letter-spacing: .12em; text-transform: uppercase; text-align: center;
+    background: rgba(255,255,255,.08); color: #f3eee4; border: 1px solid rgba(212,168,84,.5); border-radius: 999px; padding: 8px 10px; }
+  #codeForm .btn { font-size: 14px; padding: 9px 16px; }
+  .passstatus { font-size: 14px; background: rgba(212,168,84,.14); border: 1px solid rgba(212,168,84,.45); border-radius: 14px; padding: 10px 14px; margin: 0 auto 14px; max-width: 320px; line-height: 1.4; }
   #result #next { background: #8fd16a; box-shadow: 0 6px 24px rgba(143,209,106,.35); }
   #toast { position: fixed; top: 34%; left: 0; right: 0; text-align: center; z-index: 9; pointer-events: none; transition: opacity .3s, transform .3s; }
   #toast span { font-family: Lobster, cursive; font-size: 34px; color: #fff; text-shadow: 0 3px 12px rgba(0,0,0,.6); }
@@ -106,6 +116,7 @@
     <div><b>Putt</b>Pull further, hit harder. Let go to putt</div>
     <div><b>Sink it</b>Read the slope and avoid the pond</div>
   </div>
+  <div id="passStatus" class="passstatus" hidden></div>
   <button id="go" class="btn">Tee it up</button>
   <div class="small" style="margin-top:6px;font-size:11px">AR powered by 8th Wall. 8th Wall Engine © 2026 Niantic Spatial, Inc., provided as is, without warranties, under the <a href="/play2/xr/LICENSE">XR Engine License</a>.</div>
   <div class="small">We'll ask to use your camera. Nothing is recorded.<br>No coaster handy? <a href="#demo" id="demoLink">Practice here</a></div>
@@ -134,6 +145,13 @@
       <button class="btn" id="next" hidden>Next hole</button>
       <a class="btn" id="orderBtn" href="https://order.tjskitchenvc.com">Order now</a>
       <button class="btn ghost" id="again">Play again</button>
+    </div>
+    <div id="unlockBox" hidden>
+      <button class="btn" id="unlock">Unlock 13 more holes · $5</button>
+      <div class="passnote">24 hours of play on this phone. Paid securely through Square.</div>
+      <button class="linkish" id="haveCode">Have a pass code?</button>
+      <form id="codeForm" hidden><input id="codeIn" maxlength="9" autocomplete="off" autocapitalize="characters" placeholder="PASS CODE"><button class="btn" type="submit">Use code</button></form>
+      <div class="passnote" id="unlockMsg"></div>
     </div>
   </div>
 </div>
@@ -424,6 +442,49 @@ const COURSE_FILES = [];
 let CUR_HOLE = 0;
 const SURFACE = 0.109;                                   // turf top in the files
 const RAIL_IN = { x: 0.61, y: 1.32 };                    // inside faces of the rails
+// ---------------------------------------------------------------------------
+// Holes 1-5 are free. $5 (paid on Square's own checkout page) unlocks holes
+// 6-18 for 24 hours. The pass lives on this phone (localStorage); its code also
+// works on another phone. Server: Supabase Edge Function "golf-pass".
+// ---------------------------------------------------------------------------
+const FREE_HOLES = 5;
+const PASS_API = 'https://djfdktbcdjbijnimjsgb.supabase.co/functions/v1/golf-pass';
+const PAY_TEST = new URLSearchParams(location.search).has('paytest');   // Square sandbox (test cards) instead of real money
+const PAYWALL_LIVE = false;   // turn on once the real holes 6-18 are uploaded; until then only /play2?paytest shows the offer
+const passApi = (body) => fetch(PASS_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  .then(async r => ({ ok: r.ok, ...(await r.json().catch(() => ({}))) }));
+function getPass() {
+  try { const p = JSON.parse(localStorage.getItem('tjsGolfPass') || 'null'); return p && p.exp > Date.now() ? p : null; } catch { return null; }
+}
+function savePass(r) { try { localStorage.setItem('tjsGolfPass', JSON.stringify({ token: r.token, exp: Date.parse(r.expires_at), ref: r.ref })); } catch {} }
+const passUntil = (p) => new Date(p.exp).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+async function claimPass(ref, tries = 1) {          // after Square sends the player back it can take a few seconds to show as paid
+  for (let i = 0; i < tries; i++) {
+    const r = await passApi({ action: 'claim', ref }).catch(() => ({ ok: false, error: 'No connection. Try again.' }));
+    if (r.status === 'paid' && r.token) { savePass(r); return { ok: true }; }
+    if (r.status !== 'pending') return { ok: false, error: r.error || 'That code didn\'t work.' };
+    if (i < tries - 1) await new Promise(res => setTimeout(res, 2500));
+  }
+  return { ok: false, error: 'We haven\'t received the payment yet. If you paid, wait a moment and enter your pass code.' };
+}
+async function startCheckout() {
+  const r = await passApi({ action: 'checkout', test: PAY_TEST }).catch(() => ({ ok: false }));
+  if (!r.ok || !r.url) return r.error || 'Couldn\'t open checkout. Try again.';
+  try { localStorage.setItem('tjsGolfResume', String(FREE_HOLES)); localStorage.setItem('tjsGolfPendingRef', r.ref); } catch {}
+  location.href = r.url;                            // Square's checkout page; it sends the player back to /play2?pass=CODE
+  return '';
+}
+async function addPaidHoles() {                       // append holes 6-18 to the course list when a pass is active
+  const pass = getPass(); if (!pass || MANIFEST.holes.length > FREE_HOLES) return;
+  const r = await passApi({ action: 'holes', token: pass.token }).catch(() => ({ ok: false }));
+  if (!r.ok || !Array.isArray(r.holes)) { if (r.error && /run out/.test(r.error)) try { localStorage.removeItem('tjsGolfPass'); } catch {} return; }
+  for (const h of r.holes) {
+    if (h.placeholder) {                              // preview holes: reuse a free hole's file and layout
+      const src = MANIFEST.holes.find(x => x.file === h.ref); if (src) MANIFEST.holes.push({ ...src, name: h.name, preview: true });
+    } else MANIFEST.holes.push(h);
+  }
+}
+
 // Course files are meshopt-compressed (~2.5 MB each). Only the first hole is loaded
 // before play; the next one downloads in the background while you putt.
 let courseLoader = null; const holeLoads = [];
@@ -432,17 +493,19 @@ async function loadCourses() {
     import('three/addons/loaders/GLTFLoader.js'), import('three/addons/libs/meshopt_decoder.module.js')]);
   MANIFEST = await fetch('/play2/courses/course-manifest.json').then(r => r.json());
   courseLoader = new GLTFLoader(); courseLoader.setMeshoptDecoder(MeshoptDecoder);
-  await loadHole(0);
+  await Promise.all([loadHole(0), addPaidHoles().catch(e => console.warn('pass holes', e))]);
   loadHole(1).catch(() => {});
 }
+const fileLoads = {};
 function loadHole(i) {
-  if (!MANIFEST?.holes[i]) return Promise.resolve(null);
-  return holeLoads[i] ||= courseLoader.loadAsync(`/play2/courses/${MANIFEST.holes[i].file}`).then(g => {
+  const h = MANIFEST?.holes[i]; if (!h) return Promise.resolve(null);
+  const url = h.url || `/play2/courses/${h.file}`, key = h.url ? h.file + '@paid' : h.file;
+  return holeLoads[i] ||= (fileLoads[key] ||= courseLoader.loadAsync(url).then(g => {
     // (these files' vertex colours are already linear: the pack's own viewer uses them as-is)
     g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     g.scene.userData.box = new THREE.Box3().setFromObject(g.scene);
-    return COURSE_FILES[i] = g.scene;
-  }).catch(e => { holeLoads[i] = null; throw e; });
+    return g.scene;
+  }).catch(e => { delete fileLoads[key]; throw e; })).then(scene => COURSE_FILES[i] = scene).catch(e => { holeLoads[i] = null; throw e; });
 }
 function srgbToLinearColours(root) {                    // the files store sRGB vertex colours; glTF expects linear
   root.traverse(o => {
@@ -1255,6 +1318,11 @@ function makeGame({ group, camera, renderer, isTracking, anchorTee = false }) {
     }
     if (n === 1 && last) line = 'A hole in one on the hardest hole. You beat the whole course!';
     $('resScore').textContent = line;
+    const locked = (PAYWALL_LIVE || PAY_TEST) && last && L.n === FREE_HOLES - 1 && MANIFEST?.holes[0]?.rollingSurface;   // end of the free holes
+    if (locked) { $('resTitle').textContent = n === 1 ? 'Hole in one!' : 'Front five done!';
+      line = `${n === 1 ? 'An ace on hole 5.' : n + ' strokes on hole 5.'} Holes 6 to 18 are waiting, with new layouts.`; }
+    $('resScore').textContent = line;
+    $('unlockBox').hidden = !locked; $('codeForm').hidden = true; $('unlockMsg').textContent = '';
     $('next').hidden = !made;
     $('next').textContent = last ? 'Start over' : 'Next hole';
     $('again').textContent = made ? 'Replay hole' : 'Try again';
@@ -1409,7 +1477,9 @@ function makeGame({ group, camera, renderer, isTracking, anchorTee = false }) {
     }
   };
 
-  setLevel(0);
+  let resume = 0;
+  try { resume = +localStorage.getItem('tjsGolfResume') || 0; localStorage.removeItem('tjsGolfResume'); } catch {}
+  setLevel(resume < LEVELS.length ? resume : 0);
   $('next').onclick = () => {
     const nextN = L.n === LEVELS.length - 1 ? 0 : L.n + 1;
     setLevel(nextN); reset();
@@ -1721,6 +1791,33 @@ async function startEighth() {
   ]);
   XR8.run({ canvas, allowedDevices: XR8.XrConfig.device().ANY });
 }
+
+$('unlock').onclick = async () => {
+  $('unlock').disabled = true; $('unlockMsg').textContent = 'Opening checkout…';
+  const err = await startCheckout();
+  if (err) { $('unlockMsg').textContent = err; $('unlock').disabled = false; }
+};
+$('haveCode').onclick = () => { $('codeForm').hidden = false; $('codeIn').focus(); };
+$('codeForm').onsubmit = async (e) => {
+  e.preventDefault(); $('unlockMsg').textContent = 'Checking…';
+  const r = await claimPass($('codeIn').value, 1);
+  if (!r.ok) { $('unlockMsg').textContent = r.error; return; }
+  try { localStorage.setItem('tjsGolfResume', String(FREE_HOLES)); } catch {}
+  $('unlockMsg').textContent = 'Unlocked! Loading hole 6…';
+  location.href = '/play2' + (PAY_TEST ? '?paytest' : '') + (location.hash || '');            // reload with the extra holes, starting at hole 6
+};
+(async () => {                                        // back from Square (?pass=CODE), or a pass already on this phone
+  const params = new URLSearchParams(location.search), ref = params.get('pass');
+  const status = (t) => { $('passStatus').textContent = t; $('passStatus').hidden = !t; };
+  if (ref) {
+    history.replaceState(null, '', location.pathname + location.hash);
+    status('Checking your payment…');
+    const r = await claimPass(ref, 8);
+    if (!r.ok) { status(`${r.error} Your pass code is ${ref}.`); return; }
+  }
+  const p = getPass();
+  if (p) status(`13 more holes unlocked until ${passUntil(p)}. Pass code ${p.ref}.${ref ? ' Tap Tee it up and scan your coaster to play hole 6.' : ''}`);
+})();
 
 let started = false;
 async function go(demo) {
