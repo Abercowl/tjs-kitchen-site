@@ -847,6 +847,25 @@ function makeGame({ group, camera, renderer, isTracking, anchorTee = false }) {
     group.position.set(anchorTee ? -COURSE.tee.x : group.position.x, anchorTee ? -COURSE.tee.y : group.position.y, base);
     catcher.position.z = -base + 0.0005;
   };
+  // TJ's Kitchen logo on both sides of every hole's flag. Every course file builds its
+  // flag the same way: 13.25 x 7.1 cm, starting at the cup's x, 18.1 cm above the cup,
+  // 2.6 cm thick (file coordinates, before the game scales the course down).
+  let logoMat = null;
+  const addFlagLogos = (hole, hd) => {
+    if (!logoMat) {
+      const tex = new THREE.TextureLoader().load('/play2/assets/tjs-logo.webp');
+      tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = renderer.capabilities.getMaxAnisotropy?.() || 1;
+      logoMat = new THREE.MeshStandardMaterial({ map: tex, transparent: true, alphaTest: 0.04, roughness: 0.75, metalness: 0 });
+    }
+    const [cx, cy, cz] = hd.cup.position, fw = 0.1325, fh = 0.0713, h = fh * 0.9, w = h * 640 / 540;
+    const geo = new THREE.PlaneGeometry(w, h);
+    for (const side of [1, -1]) {
+      const m = new THREE.Mesh(geo, logoMat);
+      m.position.set(cx + fw / 2, cy + 0.1812 + fh / 2, cz + side * 0.0138);
+      if (side < 0) m.rotation.y = Math.PI;              // the back reads the right way round too
+      hole.add(m);
+    }
+  };
   const showCourse = (i) => {
     const token = ++showToken;
     courseHolder.clear(); rotor = rotorDef = null; wheelSpin = -1;
@@ -854,6 +873,7 @@ function makeGame({ group, camera, renderer, isTracking, anchorTee = false }) {
       if (!scene || token !== showToken) return;
       const hole = scene.clone(true);
       hole.rotation.x = Math.PI / 2;                     // file Y-up -> course Z-up (file x, z become our x, -y)
+      addFlagLogos(hole, MANIFEST.holes[i]);
       rotorDef = MANIFEST.holes[i].rotor || null;
       rotor = rotorDef ? hole.getObjectByName(rotorDef.node) : null;   // windmill sails / prize wheel spin about their own z axis
       placeCourse(scene.userData.box);
@@ -1571,6 +1591,7 @@ function startDemo() {
   const clock = new THREE.Clock();
   renderer.setAnimationLoop(() => { game.step(Math.min(clock.getDelta(), 0.05)); renderer.render(scene, camera); });
   window.__game = game;           // for automated testing
+  window.__demoCam = camera;
 }
 
 // ---------------------------------------------------------------------------
