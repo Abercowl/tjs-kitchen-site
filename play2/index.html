@@ -60,6 +60,11 @@
   #sizes { position: fixed; left: max(14px, env(safe-area-inset-left)); top: calc(max(14px, env(safe-area-inset-top)) + 58px); z-index: 8; display: flex; gap: 6px; align-items: center;
     background: rgba(0,0,0,.5); border-radius: 14px; padding: 6px 8px; font-size: 11px; letter-spacing: .08em; transition: opacity .4s; }
   #sizes button { font: 700 13px Inter, sans-serif; color: #f3eee4; background: transparent; border: 1px solid rgba(255,255,255,.35); border-radius: 999px; padding: 5px 10px; }
+  #turnbar { position: fixed; left: max(14px, env(safe-area-inset-left)); top: calc(max(14px, env(safe-area-inset-top)) + 100px); z-index: 8; display: flex; gap: 6px; align-items: center;
+    font: 700 11px Inter, sans-serif; letter-spacing: .08em; color: rgba(243,238,228,.8); background: rgba(10,8,6,.55); padding: 6px 8px; border-radius: 999px; }
+  #turnbar button { color: #f3eee4; background: transparent; border: 1px solid rgba(255,255,255,.35); border-radius: 999px; padding: 4px 9px; display: flex; touch-action: none; }
+  #turnbar button:active { background: #d4a854; color: #15302a; border-color: #d4a854; }
+  #turnbar small { font: 500 10px Inter, sans-serif; letter-spacing: 0; opacity: .7; }
   #sizes button.on { background: #d4a854; color: #15302a; border-color: #d4a854; }
   #hud .hole { font-size: 11px; font-weight: 800; color: #d4a854; margin-bottom: 4px; letter-spacing: .08em; }
   #hud .wind { margin-top: 4px; font-size: 11px; opacity: .85; }
@@ -115,6 +120,7 @@
 <div id="guide" class="hidden"><div class="frame"></div><div class="hint" id="trackingHint">Point at the coaster to place the course</div></div>
 <div id="loading" class="hidden">Starting camera…</div>
 <div id="sizes" class="hidden"><span>SIZE</span><button data-size="S">S</button><button data-size="M" class="on">M</button><button data-size="L">L</button><button id="replace">Move</button></div>
+<div id="turnbar" class="hidden"><span>TURN</span><button data-turn="1" aria-label="Turn course left"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.3-5.6M4 4v4.5h4.5"/></svg></button><button data-turn="-1" aria-label="Turn course right"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4.5h-4.5"/></svg></button><small>or twist with two fingers</small></div>
 <div id="hud" class="hidden"><div class="hole" id="hole">HOLE 1 · PAR 3</div>STROKES<b id="strokes">0</b><div class="wind">WIND <span id="wind">0 mph</span></div></div>
 <div id="power" class="hidden"><i id="powerBar"></i></div>
 <div id="tip" class="hidden"><span id="tipText">Pull back, then let go</span></div>
@@ -1545,7 +1551,7 @@ async function startEighth() {
   XR8.XrController.configure({ imageTargetData: [targetData], disableWorldTracking: new URLSearchParams(location.search).has('notrack') });
 
   // place (on the bar: position + orientation) -> scaler (world units per course unit) -> group (course, tee on the coaster)
-  let game = null, place = null, scaler = null, group = null, xrCamera = null, placed = false, visible = false;
+  let game = null, place = null, scaler = null, turn = null, turnA = 0, group = null, xrCamera = null, placed = false, visible = false;
   let unitM = SIZES.M, worldPerMetre = 1;
   let smoothCamera = () => {};
   let trackStatus = 'starting', camStart = null, camMoved = 0, runT = 0, placedT = 0, warned3dof = false;
@@ -1588,7 +1594,7 @@ async function startEighth() {
     orient();
     place.position.copy(tP); place.quaternion.copy(tQ); applyScale();
     place.visible = true; placed = true; placedT = runT; samples.length = 0;
-    show($('guide'), false); show($('hud'), true); show($('sizes'), true); game.start();
+    show($('guide'), false); show($('hud'), true); show($('sizes'), true); show($('turnbar'), true); applyTurn(); game.start();
     game.tip('Course placed. Walk around it, get low, then pull back and let go');
   };
   const hint = (t) => { $('trackingHint').textContent = t; show($('guide'), !placed); };
@@ -1625,6 +1631,36 @@ async function startEighth() {
     document.querySelectorAll('#sizes [data-size]').forEach(x => x.classList.toggle('on', x === b));
     if (scaler) applyScale();
   }));
+  // ---- Turning the course so players can look at it from any side without leaving their seat.
+  // It spins about the middle of the hole (the coaster stays where it is).
+  const applyTurn = () => {
+    if (!turn) return;
+    const cx = -COURSE.tee.x, cy = -COURSE.tee.y, c = Math.cos(turnA), s = Math.sin(turnA);   // course middle, relative to the tee
+    turn.rotation.z = turnA;
+    turn.position.set(cx - (c * cx - s * cy), cy - (s * cx + c * cy), 0);
+  };
+  let turnDir = 0, turnHeld = 0;
+  document.querySelectorAll('#turnbar [data-turn]').forEach(b => {
+    const stop = () => { turnDir = 0; };
+    b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); turnDir = +b.dataset.turn; turnHeld = 0;
+      turnA += turnDir * Math.PI / 12; applyTurn(); });        // a tap turns 15 degrees, holding keeps turning
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) b.addEventListener(ev, stop);
+    b.addEventListener('click', (e) => e.stopPropagation());
+  });
+  const touches = new Map(); let twist = null;
+  const twistAngle = () => { const [a, b] = [...touches.values()]; return Math.atan2(b.y - a.y, b.x - a.x); };
+  const onTwistDown = (e) => {
+    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (touches.size === 2 && placed) { game.cancelDrag(); twist = { a: twistAngle(), start: turnA }; }
+  };
+  const onTwistMove = (e) => {
+    if (!touches.has(e.pointerId)) return;
+    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (twist && touches.size === 2) { let d = twistAngle() - twist.a; d = Math.atan2(Math.sin(d), Math.cos(d)); turnA = twist.start - d; applyTurn(); }
+  };
+  const onTwistUp = (e) => { touches.delete(e.pointerId); if (touches.size < 2) twist = null; };
+
+  $('next').addEventListener('click', () => setTimeout(applyTurn));   // each hole's tee is a little different
   $('replace').addEventListener('click', (e) => { e.stopPropagation(); placed = false; place.visible = false; game.cancelDrag();
     samples.length = 0; firstSeenT = 0; hint('Point at the coaster to place the course'); });
 
@@ -1643,9 +1679,13 @@ async function startEighth() {
         smoothCamera = makeCameraSmoother(camera, () => 1 / worldPerMetre);
         place = new THREE.Group(); place.visible = false; scene.add(place);
         scaler = new THREE.Group(); place.add(scaler);
-        group = new THREE.Group(); scaler.add(group);   // makeGame puts the tee on the coaster and the course base on the bar
+        turn = new THREE.Group(); scaler.add(turn);       // spins the course about its middle (TURN buttons / two-finger twist)
+        group = new THREE.Group(); turn.add(group);   // makeGame puts the tee on the coaster and the course base on the bar
         game = makeGame({ group, camera, renderer, isTracking: () => placed, anchorTee: true });
         $('again').onclick = () => game.reset();
+        const cv = renderer.domElement;
+        cv.addEventListener('pointerdown', onTwistDown, true); cv.addEventListener('pointermove', onTwistMove, true);
+        for (const ev of ['pointerup', 'pointercancel']) cv.addEventListener(ev, onTwistUp, true);
         game.tip('');                                     // the scan prompts come first
         window.__ar = { place, scaler, isPlaced: () => placed, isVisible: () => visible };
         XR8.XrController.updateCameraProjectionMatrix({ origin: camera.position, facing: camera.quaternion });
@@ -1660,10 +1700,11 @@ async function startEighth() {
           // measure from the first frame world tracking reports NORMAL (the camera is repositioned at start-up)
           if (!camStart && slamReady) camStart = { p: xrCamera.position.clone(), q: xrCamera.quaternion.clone() };
           if (camStart) camMoved = Math.max(camMoved, xrCamera.position.distanceTo(camStart.p));   // position only: turning the phone doesn't count
-          if (placed && camStart && camMoved < 0.005 && runT - placedT > 4 && !warned3dof) { warned3dof = true; game.tip('The camera can\'t map the bar. Tap Move, then slide the phone sideways a few inches before pointing at the coaster'); }
+          if (placed && !notrack && camStart && camMoved < 0.005 && runT - placedT > 4 && !warned3dof) { warned3dof = true; game.tip('The camera can\'t map the bar. Tap Move, then slide the phone sideways a few inches before pointing at the coaster'); }
         }
         if (!placed && runT > 6 && MOTION.events === 0 && !notrack) hint(MOTION_HELP);
         tryPlace();
+        if (turnDir && (turnHeld += dt) > 0.35) { turnA += turnDir * 1.2 * dt; applyTurn(); }   // held: keep turning
         debugLine(`tracking ${trackStatus}\nmotion ${MOTION.result}, events ${MOTION.events}\ncamera moved ${camMoved.toFixed(3)} pos ${xrCamera ? xrCamera.position.toArray().map(v => v.toFixed(2)).join(',') : '-'}\ncourse ${place?.visible ? place.position.toArray().map(v => v.toFixed(2)).join(',') + ' scale ' + scaler.scale.x.toFixed(3) : '-'} wpm ${worldPerMetre.toFixed(2)}\ntarget loading ${imgDbg.loading} scanning ${imgDbg.scanning} seen ${imgDbg.seen} (${imgDbg.lastSeen})\nplaced ${placed}, coaster ${visible ? 'in view' : '-'}, samples ${samples.length}`);
         smoothCamera(dt);
         if (placed) game.step(dt);
