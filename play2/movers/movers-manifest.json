@@ -1,0 +1,375 @@
+[
+  {
+    "id": "tornado",
+    "file": "mover-tornado.glb",
+    "name": "Prairie Tornado",
+    "clips": [
+      "Spin"
+    ],
+    "loopSeconds": {
+      "Spin": 2
+    },
+    "oneShots": [],
+    "holeIds": [
+      26,
+      43,
+      70
+    ],
+    "notes": "Ground pivot is under the funnel. The dust and debris have independently addressable pivots.",
+    "stats": {
+      "triangles": 6133,
+      "vertices": 17467,
+      "drawCalls": 5,
+      "bytes": 815228
+    },
+    "height": 0.5588,
+    "length": 0.2364,
+    "width": 0.2507
+  },
+  {
+    "id": "yeti",
+    "file": "mover-yeti.glb",
+    "name": "Walking Yeti",
+    "clips": [
+      "Walk",
+      "Wave"
+    ],
+    "loopSeconds": {
+      "Walk": 1.2,
+      "Wave": 2
+    },
+    "oneShots": [],
+    "holeIds": [
+      10,
+      11,
+      12,
+      31,
+      54,
+      77
+    ],
+    "notes": "Walk is in place. Translate the world root at walkSpeed during Walk. Wave is a stationary gesture.",
+    "walkSpeed": 0.162,
+    "stats": {
+      "triangles": 8422,
+      "vertices": 8974,
+      "drawCalls": 17,
+      "bytes": 362540
+    },
+    "height": 0.3093,
+    "length": 0.1027,
+    "width": 0.1568
+  },
+  {
+    "id": "sasquatch",
+    "file": "mover-sasquatch.glb",
+    "name": "Walking Sasquatch",
+    "clips": [
+      "Walk",
+      "LookAround"
+    ],
+    "loopSeconds": {
+      "Walk": 1.2,
+      "LookAround": 3
+    },
+    "oneShots": [],
+    "holeIds": [
+      24,
+      64,
+      75,
+      41,
+      52
+    ],
+    "notes": "Walk is in place. Translate the world root at walkSpeed during Walk. LookAround is stationary.",
+    "walkSpeed": 0.161,
+    "stats": {
+      "triangles": 8422,
+      "vertices": 8974,
+      "drawCalls": 17,
+      "bytes": 364156
+    },
+    "height": 0.2816,
+    "length": 0.0992,
+    "width": 0.1488
+  },
+  {
+    "id": "skier",
+    "file": "mover-skier.glb",
+    "name": "Downhill Skier",
+    "clips": [
+      "Ski",
+      "Wipeout"
+    ],
+    "loopSeconds": {
+      "Ski": 1,
+      "Wipeout": 1.5
+    },
+    "oneShots": [
+      "Wipeout"
+    ],
+    "holeIds": [
+      10,
+      11,
+      12,
+      31,
+      54,
+      77
+    ],
+    "notes": "Ski is an in-place carving loop. Wipeout is a one-shot that ends in its resting pose.",
+    "stats": {
+      "triangles": 3208,
+      "vertices": 2879,
+      "drawCalls": 12,
+      "bytes": 117984
+    },
+    "height": 0.192,
+    "length": 0.2372,
+    "width": 0.1442
+  },
+  {
+    "id": "ufo",
+    "file": "mover-ufo.glb",
+    "name": "UFO Cow Abduction",
+    "clips": [
+      "Hover",
+      "Abduct"
+    ],
+    "loopSeconds": {
+      "Hover": 2,
+      "Abduct": 3
+    },
+    "oneShots": [
+      "Abduct"
+    ],
+    "holeIds": [
+      26,
+      43,
+      70,
+      28,
+      45,
+      71
+    ],
+    "notes": "Ground pivot is directly under the beam. Abduct lifts and hides the cow. Hold the end pose until the event resets.",
+    "stats": {
+      "triangles": 7920,
+      "vertices": 12987,
+      "drawCalls": 7,
+      "bytes": 434076
+    },
+    "height": 0.4095,
+    "length": 0.3003,
+    "width": 0.3003
+  },
+  {
+    "id": "tumbleweed",
+    "file": "mover-tumbleweed.glb",
+    "name": "Tumbleweed",
+    "clips": [
+      "Roll"
+    ],
+    "loopSeconds": {
+      "Roll": 0.8
+    },
+    "oneShots": [],
+    "holeIds": [
+      28,
+      45,
+      71,
+      23,
+      58,
+      67
+    ],
+    "notes": "One full forward revolution per Roll. rollSpeed assumes flat, constant forward travel.",
+    "rollSpeed": 0.308,
+    "stats": {
+      "triangles": 12348,
+      "vertices": 20286,
+      "drawCalls": 1,
+      "bytes": 866136
+    },
+    "height": 0.0764,
+    "length": 0.0737,
+    "width": 0.0723
+  },
+  {
+    "id": "snowball",
+    "file": "mover-snowball.glb",
+    "name": "Giant Snowball",
+    "clips": [
+      "Roll"
+    ],
+    "loopSeconds": {
+      "Roll": 1
+    },
+    "oneShots": [],
+    "holeIds": [
+      10,
+      11,
+      12,
+      31,
+      54,
+      77
+    ],
+    "notes": "One full forward revolution per Roll. rollSpeed assumes flat, constant forward travel.",
+    "rollSpeed": 0.379,
+    "stats": {
+      "triangles": 9228,
+      "vertices": 27456,
+      "drawCalls": 3,
+      "bytes": 1189116
+    },
+    "height": 0.1278,
+    "length": 0.1265,
+    "width": 0.1261
+  },
+  {
+    "id": "cowboys",
+    "file": "mover-cowboys.glb",
+    "name": "Cowboy Ricochet",
+    "clips": [
+      "Idle",
+      "Draw",
+      "Holster"
+    ],
+    "loopSeconds": {
+      "Idle": 2,
+      "Draw": 0.6,
+      "Holster": 0.8
+    },
+    "oneShots": [
+      "Draw",
+      "Holster"
+    ],
+    "holeIds": [
+      28,
+      45,
+      71
+    ],
+    "notes": "Static pair centered between the cowboys. CowboyA and CowboyB are 0.50 m apart on Z, facing each other. Draw is a stylized duel vignette. Flash nodes are hidden outside Draw. Ball response belongs to the game.",
+    "stats": {
+      "triangles": 8918,
+      "vertices": 7114,
+      "drawCalls": 22,
+      "bytes": 371448
+    },
+    "height": 0.2026,
+    "length": 0.1229,
+    "width": 0.5951
+  },
+  {
+    "id": "bull",
+    "file": "mover-bull.glb",
+    "name": "Wild Bull",
+    "clips": [
+      "Paw",
+      "Charge"
+    ],
+    "loopSeconds": {
+      "Paw": 1.5,
+      "Charge": 0.6
+    },
+    "oneShots": [],
+    "holeIds": [
+      26,
+      43,
+      70
+    ],
+    "notes": "Paw is stationary. Charge is an in-place gallop.",
+    "stats": {
+      "triangles": 4989,
+      "vertices": 5948,
+      "drawCalls": 14,
+      "bytes": 289784
+    },
+    "height": 0.1328,
+    "length": 0.183,
+    "width": 0.0837
+  },
+  {
+    "id": "mammoth",
+    "file": "mover-mammoth.glb",
+    "name": "Woolly Mammoth",
+    "clips": [
+      "Sunbathe",
+      "RollOver"
+    ],
+    "loopSeconds": {
+      "Sunbathe": 4,
+      "RollOver": 2
+    },
+    "oneShots": [
+      "RollOver"
+    ],
+    "holeIds": [
+      10,
+      11,
+      12
+    ],
+    "notes": "Stationary sunbather. The towel and drink stay still while the mammoth moves.",
+    "stats": {
+      "triangles": 5762,
+      "vertices": 8515,
+      "drawCalls": 14,
+      "bytes": 338696
+    },
+    "height": 0.1651,
+    "length": 0.4354,
+    "width": 0.2698
+  },
+  {
+    "id": "streetcar",
+    "file": "mover-streetcar.glb",
+    "name": "Streetcar",
+    "clips": [
+      "Drive"
+    ],
+    "loopSeconds": {
+      "Drive": 1
+    },
+    "oneShots": [],
+    "holeIds": [
+      29,
+      57,
+      32,
+      55,
+      79
+    ],
+    "notes": "Drive is in place. rollSpeed matches the wheel rotation. Align local +X to the track.",
+    "rollSpeed": 0.099,
+    "stats": {
+      "triangles": 3184,
+      "vertices": 5371,
+      "drawCalls": 11,
+      "bytes": 256272
+    },
+    "height": 0.1728,
+    "length": 0.4492,
+    "width": 0.152,
+    "accessories": [
+      {
+        "id": "track",
+        "file": "mover-track.glb",
+        "name": "Streetcar Track",
+        "clips": [],
+        "loopSeconds": {},
+        "oneShots": [],
+        "holeIds": [
+          29,
+          57,
+          32,
+          55,
+          79
+        ],
+        "notes": "Companion to the streetcar. The rail heads sit at y=0. Install flush with the course surface.",
+        "stats": {
+          "triangles": 4188,
+          "vertices": 12516,
+          "drawCalls": 2,
+          "bytes": 535392
+        },
+        "height": 0.017,
+        "length": 1,
+        "width": 0.3436
+      }
+    ]
+  }
+]

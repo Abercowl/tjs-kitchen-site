@@ -529,10 +529,17 @@ async function loadCourses() {
     import('three/addons/loaders/GLTFLoader.js'), import('three/addons/libs/meshopt_decoder.module.js')]);
   MANIFEST = await fetch('/play2/courses/course-manifest.json').then(r => r.json());
   courseLoader = new GLTFLoader(); courseLoader.setMeshoptDecoder(MeshoptDecoder);
-  await Promise.all([loadHole(0), addPaidHoles().catch(e => console.warn('pass holes', e))]);
+  await Promise.all([loadHole(0), addPaidHoles().catch(e => console.warn('pass holes', e)),
+    fetch('/play2/movers/movers-manifest.json').then(r => r.json()).then(m => { MOVERS = m; }).catch(() => { MOVERS = []; })]);
   loadHole(1).catch(() => {});
 }
 const fileLoads = {};
+// Moving props (yeti, tornado, streetcar...): models + animations from /play2/movers.
+let MOVERS = [];
+const moverLoads = {};
+const loadMover = (file) => moverLoads[file] ||= courseLoader.loadAsync('/play2/movers/' + file)
+  .then(g => { g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); return g; })
+  .catch(e => { delete moverLoads[file]; throw e; });
 function loadHole(i) {
   const h = MANIFEST?.holes[i]; if (!h) return Promise.resolve(null);
   const url = h.url || `/play2/courses/${h.file}`, key = h.enc || h.url ? h.file + '@paid' : h.file;
@@ -891,9 +898,202 @@ function makeGame({ group, camera, renderer, isTracking, anchorTee = false }) {
       o.material = o.material.clone(); o.material.map = tex; o.material.needsUpdate = true;
     });
   };
+  // =====================================================================
+  // MOVING PROPS. Each themed hole gets up to two, crossing the lane at a
+  // fixed spot ("station"). Everything here is in course-file coordinates:
+  // x across, z along the hole (tee at +z), y up. Ball: x = st.pos.x, z = -st.pos.y.
+  // =====================================================================
+  let movers = [], moverToken = 0;
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const clearMovers = () => { moverToken++; for (const m of movers) m.root.parent?.remove(m.root); movers = []; };
+  const pickMovers = (hd) => {
+    const ids = (MOVERS || []).filter(m => m.holeIds?.includes(hd.id)).map(m => m.id);
+    if (!ids.length) return [];
+    const k = hd.id % ids.length;
+    return ids.length > 1 ? [ids[k], ids[(k + 1) % ids.length]] : [ids[k]];
+  };
+  const stationsFor = (hd) => [0.42, -0.4, 0.05, -0.15, 0.62].filter(z => {
+    const c = laneAt(hd, z).center[0];
+    return !onBridge(hd, c, z, 0.05) && !penaltyAt(hd, c, z) && Math.abs(z - hd.cup.position[2]) > 0.3 && Math.abs(z - hd.tee[2]) > 0.3;
+  });
+  const play = (m, name, once = false) => {
+    const clip = m.clips[name]; if (!clip || m.cur === name) return;
+    const a = m.mixer.clipAction(clip);
+    a.reset(); a.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat); a.clampWhenFinished = once;
+    if (m.curAction) a.crossFadeFrom(m.curAction, 0.15, false);
+    a.play(); m.curAction = a; m.cur = name;
+  };
+  async function setupMovers(hole, hd) {
+    clearMovers();
+    if (!hd?.rollingSurface) return;
+    const token = moverToken, ids = pickMovers(hd), stations = stationsFor(hd);
+    for (let k = 0; k < ids.length && k < stations.length; k++) {
+      const def = MOVERS.find(m => m.id === ids[k]);
+      try {
+        const g = await loadMover(def.file);
+        const track = def.id === 'streetcar' ? await loadMover('mover-track.glb') : null;
+        if (token !== moverToken) return;
+        movers.push(makeMover(hole, hd, def, g, stations[k], k, track));
+        window.__movers = movers;                  // for automated testing
+      } catch (e) { console.warn('mover', def?.id, e); }
+    }
+  }
+  function makeMover(hole, hd, def, g, z0, k, track) {
+    const root = new THREE.Group(), model = g.scene;
+    root.add(model); hole.add(root);
+    const lane = laneAt(hd, z0), xa = lane.left[0] - 0.13, xb = lane.right[0] + 0.13, mid = lane.center[0];
+    const m = { id: def.id, def, root, model, mixer: new THREE.AnimationMixer(model), clips: {}, cur: null, curAction: null,
+      x: xa, z: z0, dir: 1, vx: 0, vz: 0, state: 'wait', t: rnd(0.5, 2), xa, xb, mid, hit: 0, colliders: [] };
+    for (const c of g.animations) m.clips[c.name] = c;
+    if (track) {                                   // rails across the lane under the streetcar
+      const tr = track.scene.clone(true), len = xb - xa + 0.5;
+      tr.scale.set(len, 1, 1); tr.position.set(mid, groundY(hd, mid, z0) + 0.001, z0); hole.add(tr);
+      m.extra = tr; root.userData.extra = tr;
+    }
+    switch (def.id) {
+      case 'cowboys': m.x = mid; m.state = 'idle'; m.t = rnd(1.5, 3); root.rotation.y = Math.PI / 2; play(m, 'Idle'); break;
+      case 'mammoth': {
+        const side = k % 2 ? -1 : 1; m.x = (side > 0 ? lane.right[0] : lane.left[0]) + side * 0.045;
+        root.rotation.y = side > 0 ? Math.PI / 2 : -Math.PI / 2; m.state = 'sun'; m.t = rnd(5, 9); play(m, 'Sunbathe'); break;
+      }
+      case 'tornado': case 'ufo': m.state = 'roam'; m.x = mid; play(m, def.id === 'ufo' ? 'Hover' : 'Spin'); break;
+      case 'bull': m.state = 'paw'; m.x = xa; play(m, 'Paw'); break;
+      default: root.visible = !['skier', 'snowball', 'tumbleweed'].includes(def.id);
+        if (def.id === 'yeti' || def.id === 'sasquatch') { m.state = 'walk'; play(m, 'Walk'); }
+        if (def.id === 'streetcar') { m.state = 'drive'; m.x = xa - 0.25; play(m, 'Drive'); }
+    }
+    placeMover(m, hd);
+    return m;
+  }
+  const placeMover = (m, hd) => {
+    m.root.position.set(m.x, groundY(hd, clampN(m.x, m.xa + 0.1, m.xb - 0.1), m.z), m.z);
+    if (['yeti', 'sasquatch', 'skier', 'snowball', 'tumbleweed', 'bull', 'streetcar'].includes(m.id)) m.root.rotation.y = m.dir > 0 ? 0 : Math.PI;
+  };
+  // A crossing: walk / drive / roll from one side to the other at `speed`.
+  const cross = (m, h, speed) => {
+    m.x += m.dir * speed * h; m.vx = m.dir * speed; m.vz = 0;
+    return m.dir > 0 ? m.x >= m.xb + (m.id === 'streetcar' ? 0.25 : 0) : m.x <= m.xa - (m.id === 'streetcar' ? 0.25 : 0);
+  };
+  function updateMovers(h) {
+    const hd = holeData(); if (!movers.length || !hd) return;
+    const bx = st.pos.x, bz = -st.pos.y, ballFree = st.started && !st.holed && !st.splashT && !st.abduct;
+    for (const m of movers) {
+      m.t -= h; m.vx = m.vz = 0; m.colliders.length = 0; m.hit = Math.max(0, m.hit - h);
+      switch (m.id) {
+        case 'yeti': case 'sasquatch': {
+          if (m.state === 'walk') {
+            const sp = m.def.walkSpeed * 1.4; m.curAction && (m.curAction.timeScale = 1.4);
+            if (cross(m, h, sp)) { m.state = 'pause'; m.t = rnd(1.5, 3); play(m, m.id === 'yeti' ? 'Wave' : 'LookAround'); }
+          } else if (m.t <= 0) { m.dir *= -1; m.state = 'walk'; play(m, 'Walk'); }
+          m.colliders.push({ x: m.x, z: m.z, r: 0.055, e: 0.45 });
+          break;
+        }
+        case 'streetcar': {
+          if (m.state === 'drive') {
+            const sp = 0.2; m.curAction && (m.curAction.timeScale = sp / m.def.rollSpeed);
+            if (cross(m, h, sp)) { m.state = 'stop'; m.t = rnd(2, 4); m.curAction && (m.curAction.timeScale = 0); }
+          } else if (m.t <= 0) { m.dir *= -1; m.state = 'drive'; }
+          for (const o of [-0.15, 0, 0.15]) m.colliders.push({ x: m.x + o, z: m.z, r: 0.074, e: 0.35 });
+          break;
+        }
+        case 'skier': case 'snowball': case 'tumbleweed': {
+          const speed = m.id === 'skier' ? 0.75 : m.id === 'snowball' ? 0.42 : 0.34;
+          if (m.state === 'wait') {
+            m.root.visible = false;
+            if (m.t <= 0) {
+              if (m.id !== 'tumbleweed') m.dir = Math.random() < 0.5 ? 1 : -1;
+              m.x = m.dir > 0 ? m.xa - 0.1 : m.xb + 0.1; m.state = 'go'; m.root.visible = true; m.cur = null;
+              play(m, m.id === 'skier' ? 'Ski' : 'Roll');
+              if (m.curAction && m.id !== 'skier') m.curAction.timeScale = speed / m.def.rollSpeed;
+            }
+          } else if (m.state === 'go') {
+            if (cross(m, h, speed)) { m.state = 'wait'; m.t = m.id === 'tumbleweed' ? rnd(0.5, 2.5) : rnd(3, 7); }
+            const r = m.id === 'skier' ? 0.06 : m.id === 'snowball' ? 0.064 : 0.038;
+            m.colliders.push({ x: m.x, z: m.z, r, e: m.id === 'tumbleweed' ? 0.1 : 0.5, kind: m.id });
+            if (m.id === 'tumbleweed') m.model.position.y = Math.abs(Math.sin(m.x * 18)) * 0.025;
+          } else if (m.state === 'wipeout' && m.t <= 0) { m.state = 'wait'; m.t = rnd(3, 6); }
+          break;
+        }
+        case 'tornado': {
+          m.x = m.mid + (m.xb - m.xa) * 0.42 * Math.sin(st.t * 0.33 + m.z * 5);
+          m.z0 ??= m.z; m.z = m.z0 + 0.09 * Math.sin(st.t * 0.47);
+          const dx = bx - m.x, dz = bz - m.z, d = Math.hypot(dx, dz);
+          if (ballFree && d < 0.11 && d > 1e-4) {     // swirl the ball around and throw it outward
+            const tx = -dz / d, tz = dx / d, f = (1 - d / 0.11);
+            let vx = st.vel.x + (tx * 2.6 + dx / d * 1.2) * f * h, vz = -st.vel.y + (tz * 2.6 + dz / d * 1.2) * f * h;
+            st.vel.set(vx, -vz);
+            if (!st.moving) { st.moving = true; cancelDrag(); }
+            if (!m.hit) { toast('Caught in the twister!'); m.hit = 3; }
+          }
+          break;
+        }
+        case 'ufo': {
+          if (m.state === 'roam') {
+            m.x = m.mid + (m.xb - m.xa) * 0.38 * Math.sin(st.t * 0.28 + 1.3);
+            if (ballFree && st.moving && !m.hit && Math.hypot(bx - m.x, bz - m.z) < 0.065) {
+              m.state = 'abduct'; m.t = 3.2; play(m, 'Abduct', true);
+              st.abduct = { t: 0, x: m.x, z: m.z }; st.vel.set(0, 0); st.moving = false; toast('Beamed up!');
+            }
+          } else if (m.t <= 0) { m.state = 'roam'; m.hit = 4; play(m, 'Hover'); }
+          break;
+        }
+        case 'cowboys': {
+          if (m.state === 'idle' && m.t <= 0) { m.state = 'draw'; m.t = 0.6; m.fired = false; play(m, 'Draw', true); }
+          else if (m.state === 'draw') {
+            if (!m.fired && m.t <= 0.19) {              // the flash, 0.41 s into Draw
+              m.fired = true;
+              if (ballFree && st.moving && Math.abs(bz - m.z) < 0.055 && Math.abs(bx - m.x) < 0.25) {
+                const sp = st.vel.length() * 0.95, a = Math.atan2(st.vel.y, st.vel.x) + (Math.random() < 0.5 ? -1 : 1) * rnd(0.6, 1.3);
+                st.vel.set(Math.cos(a) * sp, Math.sin(a) * sp); toast('Ricochet!');
+              }
+            }
+            if (m.t <= 0) { m.state = 'holster'; m.t = 0.8; play(m, 'Holster', true); }
+          } else if (m.state === 'holster' && m.t <= 0) { m.state = 'idle'; m.t = rnd(1.8, 3.2); play(m, 'Idle'); }
+          break;
+        }
+        case 'bull': {
+          if (m.state === 'paw') {
+            if (ballFree && st.moving && Math.abs(bz - m.z) < 0.35 && m.t <= 0) { m.state = 'charge'; play(m, 'Charge'); }
+          } else if (m.state === 'charge') {
+            if (cross(m, h, 0.95)) { m.state = 'paw'; m.dir *= -1; m.t = 2.5; play(m, 'Paw'); }
+            m.colliders.push({ x: m.x, z: m.z, r: 0.06, e: 0.3, kind: 'bull' });
+          }
+          break;
+        }
+        case 'mammoth': {
+          if (m.state === 'sun' && m.t <= 0) { m.state = 'roll'; m.t = 2; play(m, 'RollOver', true); }
+          else if (m.state === 'roll' && m.t <= 0) { m.state = 'sun'; m.t = rnd(6, 10); play(m, 'Sunbathe'); }
+          for (const o of [-0.13, 0, 0.13]) m.colliders.push({ x: m.x, z: m.z + o, r: 0.085, e: 0.2 });
+          break;
+        }
+      }
+      placeMover(m, hd);
+      m.mixer.update(h);
+      if (ballFree) for (const c of m.colliders) if (hitMover(c, m)) break;
+    }
+  }
+  // Ball against a moving circle: push out and bounce, carrying some of the prop's speed.
+  function hitMover(c, m) {
+    const bx = st.pos.x, bz = -st.pos.y, dx = bx - c.x, dz = bz - c.z, d = Math.hypot(dx, dz), rr = c.r + BALL_R;
+    if (d >= rr) return false;
+    const nx = d > 1e-6 ? dx / d : 0, nz = d > 1e-6 ? dz / d : 1;
+    if (c.kind === 'snowball' && st.moving && !m.hit) {      // flattened: back to the last spot, +1
+      m.hit = 2; splash({ type: 'snowball' }); return true;
+    }
+    st.pos.set(c.x + nx * rr, -(c.z + nz * rr));
+    let vx = st.vel.x, vz = -st.vel.y;
+    const rvx = vx - m.vx, rvz = vz - m.vz, vn = rvx * nx + rvz * nz;
+    if (vn < 0) { vx -= (1 + c.e) * vn * nx; vz -= (1 + c.e) * vn * nz; }
+    if (c.kind === 'bull') { vx += m.vx * 0.6; }
+    st.vel.set(vx, -vz);
+    if (!st.moving && st.vel.length() > 0.02) { st.moving = true; cancelDrag(); }
+    if (c.kind === 'skier' && m.state === 'go') { m.state = 'wipeout'; m.t = 2.6; play(m, 'Wipeout', true); toast('Wipeout!'); }
+    if (c.kind === 'bull' && !m.hit) { m.hit = 2; toast('The bull got it!'); }
+    return true;
+  }
   const showCourse = (i) => {
     const token = ++showToken;
-    courseHolder.clear(); rotor = rotorDef = null; wheelSpin = -1;
+    courseHolder.clear(); clearMovers(); rotor = rotorDef = null; wheelSpin = -1;
     const put = (scene) => {
       if (!scene || token !== showToken) return;
       const hole = scene.clone(true);
@@ -904,6 +1104,7 @@ function makeGame({ group, camera, renderer, isTracking, anchorTee = false }) {
       rotor = rotorDef ? hole.getObjectByName(rotorDef.node) : null;   // windmill sails / prize wheel spin about their own z axis
       placeCourse(scene.userData.box);
       courseHolder.add(hole);
+      setupMovers(hole, MANIFEST.holes[i]);
       if (st.started && !st.moving && !st.holed) tip('Pull back, then let go');
       loadHole(i + 1).catch(() => {});                   // fetch the next hole while this one is played
     };
@@ -1259,7 +1460,7 @@ function makeGame({ group, camera, renderer, isTracking, anchorTee = false }) {
     cancelDrag();
     clearTimeout(resultTimer); clearTimeout(toastTimer);
     show($('toast'), false);
-    accumulator = 0; st.splashT = 0;
+    accumulator = 0; st.splashT = 0; st.abduct = null;
     st.pos.set(COURSE.tee.x, COURSE.tee.y); st.last.copy(st.pos); st.vel.set(0, 0);
     st.strokes = 0; st.moving = false; st.holed = false; st.sinkT = 0; st.lipped = false;
     st.wind = Math.round(Math.random() * WIND_MAX);
@@ -1284,7 +1485,7 @@ function makeGame({ group, camera, renderer, isTracking, anchorTee = false }) {
     return near.clone().lerp(far, -near.z / dz);
   };
   const shot = new THREE.Vector2();
-  const canPutt = () => st.started && !st.moving && !st.holed && !st.splashT && courseHolder.children.length > 0 && isTracking();
+  const canPutt = () => st.started && !st.moving && !st.holed && !st.splashT && !st.abduct && courseHolder.children.length > 0 && isTracking();
   const canvas = renderer.domElement;
   canvas.style.touchAction = 'none';
   function cancelDrag() {
@@ -1416,9 +1617,10 @@ function makeGame({ group, camera, renderer, isTracking, anchorTee = false }) {
   const rollAxis = new THREE.Vector3(), roll = new THREE.Quaternion();
   const gradientStep = 0.002;
   function splash(hz) {
+    st.splashHz = hz || null;
     if (hz?.surfaceY !== undefined) WATER_Z = hz.surfaceY;   // this pool's surface, for the sinking ball
     st.strokes++; updateHud();
-    toast(hz?.type === 'lava' ? 'Too hot! +1 stroke' : hz?.type === 'ice' ? 'Through the ice! +1 stroke' : 'Splash! +1 stroke');
+    toast(hz?.type === 'snowball' ? 'Flattened by a snowball! +1 stroke' : hz?.type === 'lava' ? 'Too hot! +1 stroke' : hz?.type === 'ice' ? 'Through the ice! +1 stroke' : 'Splash! +1 stroke');
     st.vel.set(0, 0); st.moving = false; st.splashT = 0.35;
   }
   const laneBall = { x: 0, y: 0, vx: 0, vy: 0 };
@@ -1446,6 +1648,16 @@ function makeGame({ group, camera, renderer, isTracking, anchorTee = false }) {
   function advance() {
     const h = FIXED_STEP;
     st.t += h; updateObstacles(st.t);       // obstacles keep moving whether or not the ball is
+    updateMovers(h);
+    if (st.abduct) {                          // beamed up by the UFO, then dropped further along the hole
+      st.abduct.t += h;
+      if (st.abduct.t >= 1.8) {
+        const hd = holeData(), z = rnd(-0.55, 0.45), c = laneAt(hd, z).center[0];
+        st.pos.set(c, -z); st.last.copy(st.pos); st.abduct = null; st.moving = false;
+        tip('The UFO dropped your ball here. Pull back to putt again');
+      }
+      return;
+    }
     if (st.splashT > 0) {
       st.splashT -= h;
       if (st.splashT <= 0) {
@@ -1531,13 +1743,15 @@ function makeGame({ group, camera, renderer, isTracking, anchorTee = false }) {
       accumulator -= FIXED_STEP;
     }
     const floor = heightAt(st.pos.x, st.pos.y);
-    let z = floor + BALL_R;
+    let z = floor + BALL_R + (st.abduct ? Math.min(0.32, st.abduct.t * 0.28) : 0);   // rising into the UFO
     ball.visible = shadow.visible = true;
     if (st.holed) {
       st.sinkT += dt;
       z = Math.max(CUP_FLOOR + BALL_R, z - st.sinkT * 0.15);
       ball.visible = st.sinkT < 0.27;
       shadow.visible = false;
+    } else if (st.splashT && st.splashHz?.type === 'snowball') {
+      ball.visible = shadow.visible = false;              // squashed under the snowball
     } else if (st.splashT) {
       z = WATER_Z + BALL_R - (0.35 - st.splashT) * 0.17;
       ball.visible = z + BALL_R > WATER_Z;
