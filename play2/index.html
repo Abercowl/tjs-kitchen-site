@@ -284,6 +284,12 @@ function groundY(hole, x, z) {
   if (hole.terrainGrid && (x < left[0] || x > right[0] || hole.hazards.some(h => h.type === 'sand' && inPolygon(h.outline, x, z)))) return gridY(hole.terrainGrid, x, z);
   return mixN(a[1], b[1], clampN((x - a[0]) / (b[0] - a[0]), 0, 1));
 }
+const PENALTY = ['water', 'ice', 'lava'];
+// the water / ice / lava hazard at (x, z), if any (a deck only protects hazards marked outsideBridgeOnly)
+function penaltyAt(hole, x, z, r = 0) {
+  const bridge = onBridge(hole, x, z, r);
+  return hole.hazards.find(h => PENALTY.includes(h.type) && (!h.outsideBridgeOnly || !bridge) && inPolygon(h.outline, x, z)) || null;
+}
 const onBridge = (hole, x, z, r = 0) => {
   const br = hole.bridge; if (!br || z < br.zRange[0] || z > br.zRange[1]) return false;
   return Math.abs(x - laneAt(hole, z).center[0]) < br.width * 0.5 + r;
@@ -296,10 +302,13 @@ function laneStep(hole, b, r, dt) {
   const rows = hole.rollingSurface.samples, { left, right } = laneAt(hole, z);
   const bunker = hole.hazards.find(h => h.type === 'sand');
   const sand = bunker && inPolygon(bunker.outline, x, z) ? bunker : null;
-  if (!onBridge(hole, x, z, r) && hole.hazards.some(h => h.type === 'water' && inPolygon(h.outline, x, z))) return 'water';
+  const pen = penaltyAt(hole, x, z, r);
+  if (pen) { b.hazard = pen; return 'water'; }
   const k = hole.rollingSurface.bumperRestitution;
+  const crossingLeft = x < left[0] + r;                // side pockets: the rail is open where a pond/lava pool meets the lane
+  const bankOpening = hole.hazards.some(h => h.entry && h.entry.side === (crossingLeft ? -1 : 1) && z > h.entry.zRange[0] && z < h.entry.zRange[1]);
   const rail = (side, wall) => laneAt(hole, z + side * 0.008)[wall][0];
-  if (!sand && (x < left[0] + r || x > right[0] - r)) {               // bumper rails follow the lane's curves
+  if (!sand && !bankOpening && (crossingLeft || x > right[0] - r)) {  // bumper rails follow the lane's curves
     const wall = x < left[0] + r ? 'left' : 'right', edge = wall === 'left' ? left[0] + r : right[0] - r;
     const slope = (rail(1, wall) - rail(-1, wall)) / 0.016, length = Math.hypot(1, slope);
     const sign = wall === 'left' ? 1 : -1, nx = sign / length, nz = -sign * slope / length, into = vx * nx + vz * nz;
@@ -345,7 +354,7 @@ function heightAt(x, y) {
 function surfaceAt(x, y) {
   if (MANIFEST?.holes[0]?.rollingSurface) {
     const hole = holeData(), z = -y;
-    if (!onBridge(hole, x, z) && hole.hazards.some(h => h.type === 'water' && inPolygon(h.outline, x, z))) return 'water';
+    if (penaltyAt(hole, x, z)) return 'water';
     if (hole.hazards.some(h => h.type === 'sand' && inPolygon(h.outline, x, z))) return 'sand';
     return 'green';
   }
@@ -449,8 +458,9 @@ const RAIL_IN = { x: 0.61, y: 1.32 };                    // inside faces of the 
 // ---------------------------------------------------------------------------
 const FREE_HOLES = 5;
 const PASS_API = 'https://djfdktbcdjbijnimjsgb.supabase.co/functions/v1/golf-pass';
-const PAY_TEST = new URLSearchParams(location.search).has('paytest');   // Square sandbox (test cards) instead of real money
-const PAYWALL_LIVE = false;   // turn on once the real holes 6-18 are uploaded; until then only /play2?paytest shows the offer
+const PAY_TEST = new URLSearchParams(location.search).has('paytest');   // shows the $5 offer before it's switched on for everyone (real checkout)
+const PAY_SANDBOX = new URLSearchParams(location.search).has('sandbox'); // Square sandbox (test cards), once sandbox keys are set
+const PAYWALL_LIVE = false;   // true = everyone sees the offer after hole 5. Until then only /play2?paytest does
 const passApi = (body) => fetch(PASS_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   .then(async r => ({ ok: r.ok, ...(await r.json().catch(() => ({}))) }));
 function getPass() {
@@ -468,15 +478,26 @@ async function claimPass(ref, tries = 1) {          // after Square sends the pl
   return { ok: false, error: 'We haven\'t received the payment yet. If you paid, wait a moment and enter your pass code.' };
 }
 async function startCheckout() {
-  const r = await passApi({ action: 'checkout', test: PAY_TEST }).catch(() => ({ ok: false }));
+  const r = await passApi({ action: 'checkout', test: PAY_SANDBOX }).catch(() => ({ ok: false }));
   if (!r.ok || !r.url) return r.error || 'Couldn\'t open checkout. Try again.';
   try { localStorage.setItem('tjsGolfResume', String(FREE_HOLES)); localStorage.setItem('tjsGolfPendingRef', r.ref); } catch {}
   location.href = r.url;                            // Square's checkout page; it sends the player back to /play2?pass=CODE
   return '';
 }
+let PAID_KEY = null;
+async function fetchDecrypted(url) {                // file = 12-byte IV + AES-256-GCM ciphertext
+  const buf = await fetch(url).then(res => { if (!res.ok) throw new Error('download failed ' + res.status); return res.arrayBuffer(); });
+  return crypto.subtle.decrypt({ name: 'AES-GCM', iv: new Uint8Array(buf, 0, 12) }, PAID_KEY, new Uint8Array(buf, 12));
+}
 async function addPaidHoles() {                       // append holes 6-18 to the course list when a pass is active
   const pass = getPass(); if (!pass || MANIFEST.holes.length > FREE_HOLES) return;
   const r = await passApi({ action: 'holes', token: pass.token }).catch(() => ({ ok: false }));
+  if (r.ok && r.key && r.manifest) {                  // the real holes 6-18: encrypted files on the site, key from the pass server
+    PAID_KEY = await crypto.subtle.importKey('raw', Uint8Array.from(atob(r.key), c => c.charCodeAt(0)), 'AES-GCM', false, ['decrypt']);
+    const back = JSON.parse(new TextDecoder().decode(await fetchDecrypted(r.manifest)));
+    for (const h of back.holes) MANIFEST.holes.push({ ...h, enc: r.folder + h.file.replace(/\.glb$/, '.bin') });
+    return;
+  }
   if (!r.ok || !Array.isArray(r.holes)) { if (r.error && /run out/.test(r.error)) try { localStorage.removeItem('tjsGolfPass'); } catch {} return; }
   for (const h of r.holes) {
     if (h.placeholder) {                              // preview holes: reuse a free hole's file and layout
@@ -499,8 +520,10 @@ async function loadCourses() {
 const fileLoads = {};
 function loadHole(i) {
   const h = MANIFEST?.holes[i]; if (!h) return Promise.resolve(null);
-  const url = h.url || `/play2/courses/${h.file}`, key = h.url ? h.file + '@paid' : h.file;
-  return holeLoads[i] ||= (fileLoads[key] ||= courseLoader.loadAsync(url).then(g => {
+  const url = h.url || `/play2/courses/${h.file}`, key = h.enc || h.url ? h.file + '@paid' : h.file;
+  const load = () => h.enc ? fetchDecrypted(h.enc).then(buf => courseLoader.parseAsync(buf, '/play2/courses/'))
+                           : courseLoader.loadAsync(url);
+  return holeLoads[i] ||= (fileLoads[key] ||= load().then(g => {
     // (these files' vertex colours are already linear: the pack's own viewer uses them as-is)
     g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     g.scene.userData.box = new THREE.Box3().setFromObject(g.scene);
@@ -1110,7 +1133,7 @@ function makeGame({ group, camera, renderer, isTracking, anchorTee = false }) {
       COURSE.tee = { x: hd.tee[0], y: -hd.tee[2] };
       COURSE.cup = { x: hd.cup.position[0], y: -hd.cup.position[2], r: hd.cup.captureRadius };
       CUP_FLOOR = hd.cup.position[1] - hd.cup.depth;
-      WATER_Z = hd.hazards.find(h => h.type === 'water')?.surfaceY ?? -0.049;
+      WATER_Z = hd.hazards.find(h => PENALTY.includes(h.type))?.surfaceY ?? -0.049;
     }
     showCourse(L.n);
     $('hole').textContent = `HOLE ${L.n + 1} · PAR ${d.par}`;
@@ -1333,21 +1356,23 @@ function makeGame({ group, camera, renderer, isTracking, anchorTee = false }) {
   const slope = new THREE.Vector2(), previous = new THREE.Vector2();
   const rollAxis = new THREE.Vector3(), roll = new THREE.Quaternion();
   const gradientStep = 0.002;
-  function splash() {
-    st.strokes++; updateHud(); toast('Splash! +1 stroke');
+  function splash(hz) {
+    if (hz?.surfaceY !== undefined) WATER_Z = hz.surfaceY;   // this pool's surface, for the sinking ball
+    st.strokes++; updateHud();
+    toast(hz?.type === 'lava' ? 'Too hot! +1 stroke' : hz?.type === 'ice' ? 'Through the ice! +1 stroke' : 'Splash! +1 stroke');
     st.vel.set(0, 0); st.moving = false; st.splashT = 0.35;
   }
   const laneBall = { x: 0, y: 0, vx: 0, vy: 0 };
   function advanceLane(h) {
     previous.copy(st.pos);
-    Object.assign(laneBall, { x: st.pos.x, y: st.pos.y, vx: st.vel.x, vy: st.vel.y, bumped: false, sand: false });
+    Object.assign(laneBall, { x: st.pos.x, y: st.pos.y, vx: st.vel.x, vy: st.vel.y, bumped: false, sand: false, hazard: null });
     const ev = laneStep(holeData(), laneBall, BALL_R, h);
-    if (ev === 'water') { splash(); return; }
+    if (ev === 'water') { splash(laneBall.hazard); return; }
     st.pos.set(laneBall.x, laneBall.y); st.vel.set(laneBall.vx, laneBall.vy);
     if (ev === 'cup') { sink(); return; }
-    // near the cup but too fast: a little lip-out wobble so a hot putt feels close
+    // over the cup but too fast to drop
     const hd = holeData(), dc = Math.hypot(st.pos.x - COURSE.cup.x, st.pos.y - COURSE.cup.y);
-    if (dc < hd.cup.openingRadius && !st.lipped) { st.lipped = true; toast('Lipped out!'); st.vel.rotateAround(origin, (Math.random() < 0.5 ? -1 : 1) * 0.25).multiplyScalar(0.8); }
+    if (dc < hd.cup.openingRadius && !st.lipped) { st.lipped = true; toast('Too fast! It rolled over the cup'); }   // physics stays exactly the course pack's
     else if (dc >= hd.cup.openingRadius) st.lipped = false;
     if (st.vel.length() < 0.006) {
       st.vel.set(0, 0); st.moving = false;

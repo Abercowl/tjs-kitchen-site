@@ -11,10 +11,11 @@
 //                        starts (24 hours from payment) and a signed token comes back.
 //                        The same code works again on another phone / after clearing
 //                        the browser, until the 24 hours are up.
-//   holes {token}     -> the course list for holes 6-18, with short-lived download
-//                        links for the files in the private "golf-courses" bucket
-//                        (back/course-manifest.json + back/hole-XX.glb). Until those
-//                        files are uploaded it returns placeholder holes.
+//   holes {token}     -> the key for holes 6-18. Those files are on the website
+//                        (play2/courses/paid/*.bin) but encrypted (AES-256-GCM), so
+//                        they're useless without a pass. The key lives in the
+//                        golf_secrets table (row back13_key), never in the repo.
+//                        Sandbox (test-mode) passes get placeholder holes only.
 //
 // No card details ever come here: players pay on Square's own checkout page.
 // Test mode (test: true) uses the Square sandbox (SQUARE_SANDBOX_ACCESS_TOKEN,
@@ -151,19 +152,12 @@ function placeholderHoles() {
 async function holes(token: string) {
   const pass = await readToken(token);
   if (!pass) return json({ error: "Your pass has run out." }, 401);
-  const storage = db().storage.from("golf-courses");
+  const expires_at = new Date(pass.exp).toISOString();
   if (pass.mode === "live") {
-    const { data: file } = await storage.download("back/course-manifest.json");
-    if (file) {
-      const back = JSON.parse(await file.text());
-      const list = back.holes.slice(0, 18 - FREE_HOLES);
-      const { data: signed, error } = await storage.createSignedUrls(list.map((h: { file: string }) => `back/${h.file}`), 6 * 60 * 60);
-      if (error || !signed) return json({ error: "Couldn't load the holes. Please try again." }, 502);
-      return json({ expires_at: new Date(pass.exp).toISOString(), ballRadius: back.ballRadius,
-        holes: list.map((h: Record<string, unknown>, i: number) => ({ ...h, url: signed[i].signedUrl })) });
-    }
+    const { data } = await db().from("golf_secrets").select("value").eq("name", "back13_key").maybeSingle();
+    if (data?.value) return json({ expires_at, key: data.value, manifest: "/play2/courses/paid/back.bin", folder: "/play2/courses/paid/" });
   }
-  return json({ expires_at: new Date(pass.exp).toISOString(), placeholder: true, holes: placeholderHoles() });
+  return json({ expires_at, placeholder: true, holes: placeholderHoles() });
 }
 
 Deno.serve(async (req) => {
