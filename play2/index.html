@@ -1548,9 +1548,9 @@ async function startEighth() {
   let game = null, place = null, scaler = null, group = null, xrCamera = null, placed = false, visible = false;
   let unitM = SIZES.M, worldPerMetre = 1;
   let smoothCamera = () => {};
-  let trackStatus = 'starting', camStart = null, camMoved = 0, runT = 0;
+  let trackStatus = 'starting', camStart = null, camMoved = 0, runT = 0, placedT = 0, warned3dof = false;
   const imgDbg = { loading: 0, scanning: 0, seen: 0, lastSeen: '-' };     // image-target events, for ?debug   // has world tracking actually moved the camera?
-  const camMovedEnough = () => camMoved > 0.01 || notrack;
+  const camMovedEnough = () => camMoved > 0.03 || notrack;   // the phone must really have moved (not just turned): proves world tracking works
   const tP = new THREE.Vector3(), tN = new THREE.Vector3(0, 1, 0), fwd = new THREE.Vector3(), tQ = new THREE.Quaternion();
   const basis = new THREE.Matrix4(), tmpV3 = new THREE.Vector3(), right = new THREE.Vector3();
   const clock = new THREE.Clock();
@@ -1587,7 +1587,7 @@ async function startEighth() {
     if (Math.abs(fwd.dot(tN)) > 0.94) fwd.set(0, 1, 0).applyQuaternion(xrCamera.quaternion);
     orient();
     place.position.copy(tP); place.quaternion.copy(tQ); applyScale();
-    place.visible = true; placed = true; samples.length = 0;
+    place.visible = true; placed = true; placedT = runT; samples.length = 0;
     show($('guide'), false); show($('hud'), true); show($('sizes'), true); game.start();
     game.tip('Course placed. Walk around it, get low, then pull back and let go');
   };
@@ -1598,7 +1598,7 @@ async function startEighth() {
     if (detail.name !== 'coaster' || placed || !game) return;
     visible = true; fromDetail(detail);
     if (!slamReady && !notrack) { hint('Keep moving slowly so the camera can map the bar'); return; }
-    if (!camMovedEnough()) { hint(MOTION.events === 0 ? MOTION_HELP : 'Move your phone a little so it can lock onto the bar'); return; }
+    if (!camMovedEnough()) { hint(MOTION.events === 0 ? MOTION_HELP : 'Slide your phone sideways a few inches so it can lock onto the bar'); return; }
     // 8th Wall may report the coaster only once (it then holds it in the world), so don't wait for many
     // readings: average whatever arrives in the first half second, then place (see tryPlace in onUpdate)
     if (!firstSeenT) firstSeenT = runT;
@@ -1659,11 +1659,12 @@ async function startEighth() {
         if (xrCamera) {                                   // raw tracked pose, before smoothing
           // measure from the first frame world tracking reports NORMAL (the camera is repositioned at start-up)
           if (!camStart && slamReady) camStart = { p: xrCamera.position.clone(), q: xrCamera.quaternion.clone() };
-          if (camStart) camMoved = Math.max(camMoved, xrCamera.position.distanceTo(camStart.p) / worldPerMetre, xrCamera.quaternion.angleTo(camStart.q) * 0.1);
+          if (camStart) camMoved = Math.max(camMoved, xrCamera.position.distanceTo(camStart.p));   // position only: turning the phone doesn't count
+          if (placed && camStart && camMoved < 0.005 && runT - placedT > 4 && !warned3dof) { warned3dof = true; game.tip('The camera can\'t map the bar. Tap Move, then slide the phone sideways a few inches before pointing at the coaster'); }
         }
         if (!placed && runT > 6 && MOTION.events === 0 && !notrack) hint(MOTION_HELP);
         tryPlace();
-        debugLine(`tracking ${trackStatus}\nmotion ${MOTION.result}, events ${MOTION.events}\ncamera moved ${camMoved.toFixed(3)}\ntarget loading ${imgDbg.loading} scanning ${imgDbg.scanning} seen ${imgDbg.seen} (${imgDbg.lastSeen})\nplaced ${placed}, coaster ${visible ? 'in view' : '-'}, samples ${samples.length}`);
+        debugLine(`tracking ${trackStatus}\nmotion ${MOTION.result}, events ${MOTION.events}\ncamera moved ${camMoved.toFixed(3)} pos ${xrCamera ? xrCamera.position.toArray().map(v => v.toFixed(2)).join(',') : '-'}\ncourse ${place?.visible ? place.position.toArray().map(v => v.toFixed(2)).join(',') + ' scale ' + scaler.scale.x.toFixed(3) : '-'} wpm ${worldPerMetre.toFixed(2)}\ntarget loading ${imgDbg.loading} scanning ${imgDbg.scanning} seen ${imgDbg.seen} (${imgDbg.lastSeen})\nplaced ${placed}, coaster ${visible ? 'in view' : '-'}, samples ${samples.length}`);
         smoothCamera(dt);
         if (placed) game.step(dt);
       },
