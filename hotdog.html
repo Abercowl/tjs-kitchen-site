@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<!-- FILE:  tjs-kitchen-site/hotdog.html   (NEW, Nov 23 2026)
+     tjs-kitchen-site/
+     ├── hotdog.html   <-- THIS FILE (Free Hot Dog Day sign-up: tjskitchenvc.com/hotdog)
+     └── assets/
+         ├── site.js   (unchanged -- this page uses its sbRpc())
+         └── style.css (unchanged)
+     Saves to event_signups through the event_signup() database function
+     (add-event-signups.sql). Ticking "promotions" also joins the mailing list. -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Free Hot Dog Day | TJ's Kitchen</title>
+  <meta name="description" content="Free Hot Dog Day at TJ's Kitchen, Camarillo Springs Golf Course. Sign up for the event details.">
+  <meta property="og:title" content="Free Hot Dog Day | TJ's Kitchen">
+  <meta property="og:description" content="A thank-you to our friends, neighbors and golfers. Sign up for the event details.">
+  <meta property="og:image" content="/assets/logo.png">
+  <meta name="theme-color" content="#1c3a2e">
+  <link rel="icon" href="/assets/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&family=Lobster&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/style.css">
+  <script src="/assets/site.js" defer></script>
+  <style>
+    .hd-form { display: grid; gap: 12px; margin-top: 16px; }
+    .hd-form .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .hd-form input[type=text], .hd-form input[type=email] { width: 100%; min-width: 0; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 999px; padding: 11px 16px; font: inherit; font-size: 0.95rem; }
+    .hd-form input:focus-visible { outline: 2px solid var(--evergreen); outline-offset: 1px; }
+    .hd-check { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); cursor: pointer; line-height: 1.45; }
+    .hd-check input { width: 22px; height: 22px; flex: none; margin-top: 1px; accent-color: var(--evergreen); }
+    .hd-check strong { display: block; color: var(--cream); }
+    .hd-check span span { color: var(--muted); font-size: 0.9rem; }
+    .hd-form .btn { justify-self: start; min-width: 160px; min-height: 44px; }
+    .hd-form .btn:disabled { opacity: .6; cursor: default; }
+    .hd-trap { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+    .hd-memory { margin-top: 22px; font-style: italic; color: var(--muted); font-size: 0.95rem; }
+    @media (max-width: 600px) { .hd-form .row { grid-template-columns: 1fr; } .hd-form .btn { justify-self: stretch; } }
+  </style>
+</head>
+<body data-no-signup>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="/"><img src="/assets/logo-light.png" alt="TJ's Kitchen logo"><span>TJ's Kitchen</span></a>
+      <button class="menu-toggle" aria-label="Open menu"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg></button>
+      <nav class="nav">
+        <a href="/">Home</a>
+        <a href="/about">About</a>
+        <a href="/events">Specials &amp; Events</a>
+        <a href="/gallery" data-gallery-link hidden>Gallery</a>
+        <a href="/faq">FAQs</a>
+        <a href="/contact">Contact</a>
+        <a class="btn btn-sm" data-order-link href="https://order.tjskitchenvc.com">Order Online</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="section">
+      <div class="wrap" style="max-width:600px">
+        <div class="eyebrow">Camarillo Springs Golf Course</div>
+        <h1>Free Hot Dog Day</h1>
+        <p class="lead" style="margin-top:8px">A thank-you to the friends, neighbors, family and golfers who helped us get here. Sign up and we'll send you the event details.</p>
+
+        <div class="card" style="margin-top:20px">
+          <form class="hd-form" data-hd-form novalidate>
+            <div class="row">
+              <input type="text" name="first_name" placeholder="First name" autocomplete="given-name" maxlength="60" aria-label="First name" required>
+              <input type="email" name="email" placeholder="Email address" autocomplete="email" maxlength="254" aria-label="Email address" required>
+            </div>
+            <label class="hd-check">
+              <input type="checkbox" name="event_updates" checked>
+              <span><strong>Keep me updated about this event</strong><span>Date, time and details for Free Hot Dog Day.</span></span>
+            </label>
+            <label class="hd-check">
+              <input type="checkbox" name="promotions">
+              <span><strong>Sign me up for future promotions &amp; menu specials</strong><span>Joins our mailing list. Unsubscribe any time.</span></span>
+            </label>
+            <div class="hd-trap" aria-hidden="true"><label>Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+            <button class="btn" type="submit">Sign me up</button>
+            <p class="signup-note" aria-live="polite"></p>
+          </form>
+        </div>
+
+        <p class="hd-memory">The kielbasa stays on the menu, in loving memory of Mike Brakebill.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <div>© <span data-year></span> TJ's Kitchen · <span data-address></span><span data-thanks-link hidden> · <a href="/thanks">Thank you</a></span> · <a href="/privacy">Privacy &amp; texting terms</a></div>
+    </div>
+  </footer>
+
+  <script>
+  // Runs after site.js (deferred scripts finish before DOMContentLoaded).
+  document.addEventListener('DOMContentLoaded', () => {
+    const form = document.querySelector('[data-hd-form]');
+    if (!form) return;
+    const note = form.querySelector('.signup-note');
+    const say = (msg, ok) => { note.textContent = msg; note.className = 'signup-note ' + (ok ? 'ok' : 'err'); };
+    form.addEventListener('submit', async ev => {
+      ev.preventDefault();
+      const name = form.first_name.value.trim();
+      const email = form.email.value.trim();
+      const eventUpdates = form.event_updates.checked;
+      const promotions = form.promotions.checked;
+      if (!name) return say('Please enter your name.');
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return say('Please enter a valid email address.');
+      if (!eventUpdates && !promotions) return say('Please tick at least one box.');
+      const btn = form.querySelector('button'); btn.disabled = true;
+      try {
+        const r = await sbRpc('event_signup', {
+          p_email: email, p_first_name: name, p_campaign: 'hot-dog-day',
+          p_event_updates: eventUpdates, p_promotions: promotions,
+          p_source: new URLSearchParams(location.search).get('src') || 'website',
+          p_website: form.website.value,
+        });
+        if (!r || !r.ok) { btn.disabled = false; return say(((r && r.error) || "That didn't go through.") + ' Please try again.'); }
+        form.reset();
+        say(eventUpdates ? "You're signed up! We'll email you the details soon." : "You're on our list for promotions and specials. Thanks!", true);
+      } catch (e) {
+        say("That didn't go through. Please try again.");
+      }
+      btn.disabled = false;
+    });
+  });
+  </script>
+</body>
+</html>
